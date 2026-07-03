@@ -1,5 +1,4 @@
 import { useRef, useEffect } from "react";
-import styles from "./TranslationRow.module.css";
 
 const TranslationRow = ({ rowStyle, item, isSelected, onTranslate, onCopy, onDefinition }) => {
   const textareaRef = useRef(null);
@@ -11,33 +10,39 @@ const TranslationRow = ({ rowStyle, item, isSelected, onTranslate, onCopy, onDef
   }, [isSelected]);
 
   return (
-    <div className={`${styles.translationRow} ${isSelected ? styles.selected : ""}`} style={rowStyle}>
-      <div className={`${styles.translationField} ${styles.key}`}>
-        <span className={styles.fieldLabel}>Ключ</span>
-        <span className={styles.fieldValue}>{item.key}</span>
+    <div
+      className={`flex items-stretch w-[300px] h-[130px] bg-base-300 border-2 rounded-xl overflow-hidden transition-all duration-300 ease-out ${
+        isSelected ? "border-primary" : "border-neutral"
+      }`}
+      style={rowStyle}
+    >
+      <div className="px-6 py-2 flex flex-col justify-center flex-[1.5] bg-base-200 font-mono text-base-content/60 border-r-2 border-neutral">
+        <span className="text-xs font-bold text-base-content/50 mb-2 uppercase">Ключ</span>
+        <span className="text-base break-all">{item.key}</span>
       </div>
-      <div className={`${styles.translationField} ${styles.editable} ${styles.original}`}>
-        <span className={styles.fieldLabel}>Оригінал</span>
+      <div className="px-6 py-2 flex flex-col justify-center flex-[2] border-r-2 border-neutral">
+        <span className="text-xs font-bold text-base-content/50 mb-2 uppercase">Оригінал</span>
         <textarea
-        className={styles.fieldValue}
-        value={item.original}
-        editable={false}
+          className="textarea textarea-bordered h-full leading-[1.2] text-base text-base-content break-all"
+          value={item.original}
+          editable={false}
         />
       </div>
-      <div className={`${styles.translationField} ${styles.editable}`}>
-        <span className={styles.fieldLabel}>Переклад</span>
+      <div className="px-6 py-2 flex flex-col justify-center flex-[2]">
+        <span className="text-xs font-bold text-base-content/50 mb-2 uppercase">Переклад</span>
         <textarea
           ref={textareaRef}
+          className="textarea textarea-bordered h-full leading-[1.2] text-base text-base-content break-all"
           value={item.translated}
           onChange={(e) => onTranslate(e.target.value)}
           placeholder="Перекласти..."
         />
       </div>
-      <div className={styles.rowActions}>
-        <button onClick={onDefinition} title="Скористатися Google для перекладу">
+      <div className="flex flex-col justify-center gap-2 p-4 bg-base-200 border-l-2 border-neutral">
+        <button className="btn btn-neutral" onClick={onDefinition} title="Скористатися Google для перекладу">
           Переклад
         </button>
-        <button onClick={onCopy} title="Копіювати оригінальний текст">
+        <button className="btn btn-neutral" onClick={onCopy} title="Копіювати оригінальний текст">
           Копіювати
         </button>
       </div>

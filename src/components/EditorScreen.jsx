@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { List } from "react-window";
 import TranslationRow from "./TranslationRow";
 import Sidebar from "./Sidebar";
-import styles from "./EditorScreen.module.css";
 
 const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
   const [translations, setTranslations] = useState(() =>
@@ -67,11 +66,11 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
   };
 
   return (
-    <div className={styles.editorScreen}>
-      <div className={styles.floatingTip}>
+    <div className="relative flex text-base-content overflow-hidden animate-fade-in">
+      <div className="absolute top-0 left-[30px] bg-black/70 text-white py-[10px] px-[15px] rounded-lg text-sm z-[1000] pointer-events-none animate-slide-in-left">
         <p>Для навігації використовуйте клавіші зі стрілками ↑ і ↓</p>
       </div>
-      <main className={styles.translationArea}>
+      <main className="flex-grow py-12 px-8 overflow-y-auto flex flex-col gap-4 items-center">
         <List
           itemRef={listRef}
           rowComponent={Row}

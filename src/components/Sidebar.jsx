@@ -1,5 +1,4 @@
 import { useRef } from "react";
-import styles from "./Sidebar.module.css";
 
 const Sidebar = ({ onExportJson, onExportResourcePack, onLoadLang }) => {
   const fileInputRef = useRef(null);
@@ -28,10 +27,10 @@ const Sidebar = ({ onExportJson, onExportResourcePack, onLoadLang }) => {
   };
 
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.sidebarContent}>
-        <h2>Дії</h2>
-        <div className={styles.sidebarActions}>
+    <aside className="w-[300px] flex-shrink-0 bg-base-200 border-2 border-neutral rounded-xl h-fit p-8 flex flex-col shadow-[-5px_0_15px_rgba(0,0,0,0.1)] animate-slide-in-right">
+      <div className="h-full flex flex-col">
+        <h2 className="text-center border-b-2 border-b-neutral text-3xl mb-6 pb-6">Дії</h2>
+        <div className="flex flex-col gap-4">
           <input
             type="file"
             ref={fileInputRef}
@@ -39,9 +38,15 @@ const Sidebar = ({ onExportJson, onExportResourcePack, onLoadLang }) => {
             onChange={handleFileChange}
             accept=".json,.lang"
           />
-          <button onClick={handleLoadClick}>Приєднати Lang файл</button>
-          <button onClick={onExportJson}>Експортувати як JSON</button>
-          <button onClick={onExportResourcePack}>Експортувати як ресурспак</button>
+          <button className="btn btn-neutral" onClick={handleLoadClick}>
+            Приєднати Lang файл
+          </button>
+          <button className="btn btn-neutral" onClick={onExportJson}>
+            Експортувати як JSON
+          </button>
+          <button className="btn btn-neutral" onClick={onExportResourcePack}>
+            Експортувати як ресурспак
+          </button>
         </div>
       </div>
     </aside>
