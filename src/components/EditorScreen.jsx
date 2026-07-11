@@ -2,10 +2,19 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { List } from "react-window";
 import TranslationRow from "./TranslationRow";
 import Sidebar from "./Sidebar";
+import SettingsModal from "./SettingsModal";
+import { useToast } from "./Toast";
+import { loadSettings, saveSettings } from "../lib/settings";
+import { translateAll } from "../lib/gemini";
 
 const ROW_HEIGHT = 150;
 
 const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
+  const toast = useToast();
+  const [settings, setSettings] = useState(() => loadSettings());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aiState, setAiState] = useState({ running: false, done: 0, total: 0 });
+  const abortRef = useRef(null);
   const [translations, setTranslations] = useState(() =>
     Object.entries(template).map(([key, value]) => ({
       key,
@@ -133,6 +142,66 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
     return applied;
   };
 
+  const handleSaveSettings = useCallback((next) => {
+    setSettings(next);
+    saveSettings(next);
+    toast("Налаштування збережено.", "success");
+  }, [toast]);
+
+  const handleCancelAutoTranslate = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  const handleAutoTranslate = useCallback(async () => {
+    // Snapshot the entries still needing a translation up front.
+    const targets = translations
+      .filter((t) => !t.translated.trim())
+      .map((t) => ({ key: t.key, original: t.original }));
+
+    if (targets.length === 0) {
+      toast("Усі рядки вже перекладені.", "info");
+      return;
+    }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setAiState({ running: true, done: 0, total: targets.length });
+
+    try {
+      const { failed, hadErrors } = await translateAll(targets, settings, {
+        signal: controller.signal,
+        onBatch: (result, batch) => {
+          // Fill only rows that are still empty, so manual edits made while the
+          // run is in flight are never overwritten.
+          setTranslations((prev) =>
+            prev.map((t) =>
+              typeof result[t.key] === "string" && !t.translated.trim()
+                ? { ...t, translated: result[t.key] }
+                : t
+            )
+          );
+          setAiState((s) => ({ ...s, done: Math.min(s.done + batch.length, s.total) }));
+        },
+      });
+
+      if (hadErrors) {
+        toast(`Переклад завершено, але деякі рядки не вдалося обробити (${failed}).`, "warning");
+      } else {
+        toast("Автопереклад завершено.", "success");
+      }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        toast("Автопереклад скасовано.", "info");
+      } else {
+        console.error("Auto-translate failed:", error);
+        toast(error.message || "Не вдалося виконати автопереклад.", "error");
+      }
+    } finally {
+      abortRef.current = null;
+      setAiState((s) => ({ ...s, running: false }));
+    }
+  }, [translations, settings, toast]);
+
   return (
     <div className="flex h-screen text-base-content overflow-hidden animate-fade-in">
       <main className="flex-grow flex flex-col min-w-0">
@@ -215,7 +284,19 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
         onExportJson={() => onExportJson(translations)}
         onExportResourcePack={() => onExportResourcePack(translations)}
         onLoadLang={handleLoadLangFile}
+        settings={settings}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onAutoTranslate={handleAutoTranslate}
+        onCancelAutoTranslate={handleCancelAutoTranslate}
+        aiState={aiState}
       />
+      {settingsOpen && (
+        <SettingsModal
+          settings={settings}
+          onSave={handleSaveSettings}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 };
