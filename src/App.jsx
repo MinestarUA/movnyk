@@ -4,11 +4,13 @@ import LangSelectionScreen from "./components/LangSelectionScreen";
 import EditorScreen from "./components/EditorScreen";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { useToast } from "./components/Toast";
 
 const App = () => {
   const [screen, setScreen] = useState("welcome"); // welcome, lang-selection, editor
   const [langFiles, setLangFiles] = useState([]);
   const [template, setTemplate] = useState(null);
+  const toast = useToast();
 
   const openEditor = (content) => {
     setTemplate(content);
@@ -16,6 +18,8 @@ const App = () => {
   };
 
   const handleFileDrop = async (file) => {
+    if (!file) return;
+
     if (file.name.endsWith(".json")) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -24,9 +28,10 @@ const App = () => {
           openEditor(content);
         } catch (error) {
           console.error("Error parsing JSON file:", error);
-          alert("Failed to parse the JSON file. Please ensure it's a valid lang file.");
+          toast("Не вдалося обробити файл JSON. Переконайтеся, що це коректний lang-файл.", "error");
         }
       };
+      reader.onerror = () => toast("Не вдалося прочитати файл.", "error");
       reader.readAsText(file);
     } else if (file.name.endsWith(".jar")) {
       try {
@@ -52,7 +57,7 @@ const App = () => {
         await Promise.all(langFilePromises);
 
         if (foundFiles.length === 0) {
-          alert("No language files found in this .jar file.");
+          toast("У цьому файлі .jar не знайдено мовних файлів.", "warning");
         } else if (foundFiles.length === 1) {
           openEditor(foundFiles[0].content);
         } else {
@@ -61,10 +66,10 @@ const App = () => {
         }
       } catch (error) {
         console.error("Error reading .jar file:", error);
-        alert("Failed to read the .jar file. It might be corrupted or not a valid zip archive.");
+        toast("Не вдалося прочитати файл .jar. Можливо, він пошкоджений.", "error");
       }
     } else {
-      alert("Unsupported file type. Please drop a .jar or .json file.");
+      toast("Непідтримуваний тип файлу. Перетягніть файл .jar або .json.", "warning");
     }
   };
 
@@ -95,15 +100,20 @@ const App = () => {
 
   const handleExportJson = (translations) => {
     const translationObject = createTranslationObject(translations);
+    if (Object.keys(translationObject).length === 0) {
+      toast("Немає перекладів для експорту.", "warning");
+      return;
+    }
     const jsonString = JSON.stringify(translationObject, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     triggerDownload(blob, "en_us.json");
+    toast("Файл JSON завантажено.", "success");
   };
 
   const handleExportResourcePack = async (translations) => {
     const translationObject = createTranslationObject(translations);
     if (Object.keys(translationObject).length === 0) {
-      alert("No translations to export.");
+      toast("Немає перекладів для експорту.", "warning");
       return;
     }
 
@@ -123,6 +133,7 @@ const App = () => {
 
     const blob = await zip.generateAsync({ type: "blob" });
     triggerDownload(blob, "Movnyk_Resource_Pack.zip");
+    toast("Ресурспак завантажено.", "success");
   };
 
   const renderScreen = () => {
