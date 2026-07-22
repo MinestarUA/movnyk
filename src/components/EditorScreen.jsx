@@ -7,6 +7,12 @@ import { useToast } from "./Toast";
 import { loadSettings, saveSettings } from "../lib/settings";
 import { translateAll } from "../lib/gemini";
 import { mergeLangFile } from "../lib/importing";
+import {
+  compileQuery,
+  itemMatches,
+  translationMatches,
+  replaceInTranslation,
+} from "../lib/searching";
 
 const ROW_HEIGHT = 150;
 
@@ -26,6 +32,9 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
   );
 
   const [query, setQuery] = useState("");
+  const [regexMode, setRegexMode] = useState(false);
+  const [replaceMode, setReplaceMode] = useState(false);
+  const [replaceValue, setReplaceValue] = useState("");
   const [onlyUntranslated, setOnlyUntranslated] = useState(false);
   const [selectedKey, setSelectedKey] = useState(() => translations[0]?.key ?? null);
 
@@ -34,19 +43,21 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
   // in the search box (or clicking elsewhere) is never interrupted.
   const focusRequestRef = useRef(true);
 
+  const { re: queryRe, error: queryError } = useMemo(
+    () => compileQuery(query, { regex: regexMode }),
+    [query, regexMode]
+  );
+
   const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
     return translations
       .map((item, originalIndex) => ({ ...item, originalIndex }))
       .filter((item) => {
         if (onlyUntranslated && item.confirmed) return false;
-        if (!normalized) return true;
-        return (
-          item.key.toLowerCase().includes(normalized) ||
-          String(item.original).toLowerCase().includes(normalized)
-        );
+        if (queryError) return false;
+        if (!queryRe) return true;
+        return itemMatches(item, queryRe);
       });
-  }, [translations, query, onlyUntranslated]);
+  }, [translations, queryRe, queryError, onlyUntranslated]);
 
   const confirmedCount = useMemo(
     () => translations.filter((t) => t.confirmed).length,
@@ -136,6 +147,51 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
       )
     );
   }, []);
+
+  const handleReplaceAll = useCallback(() => {
+    if (!queryRe) return;
+    let changed = 0;
+    const next = translations.map((t) => {
+      if (!translationMatches(t, queryRe)) return t;
+      const replaced = replaceInTranslation(t.translated, query, replaceValue, {
+        regex: regexMode,
+      });
+      if (replaced === t.translated) return t;
+      changed += 1;
+      return { ...t, translated: replaced };
+    });
+    if (changed > 0) setTranslations(next);
+    toast(
+      changed > 0 ? `Замінено у рядках: ${changed}.` : "Збігів у перекладах не знайдено.",
+      changed > 0 ? "success" : "info"
+    );
+  }, [queryRe, translations, query, replaceValue, regexMode, toast]);
+
+  const handleReplaceOne = useCallback(() => {
+    if (!queryRe || filtered.length === 0) return;
+    const start = activeIndex >= 0 ? activeIndex : 0;
+    for (let step = 0; step < filtered.length; step++) {
+      const i = (start + step) % filtered.length;
+      const item = filtered[i];
+      if (!translationMatches(item, queryRe)) continue;
+      const replaced = replaceInTranslation(item.translated, query, replaceValue, {
+        regex: regexMode,
+      });
+      setTranslations((prev) =>
+        prev.map((t) => (t.key === item.key ? { ...t, translated: replaced } : t))
+      );
+      // Move the selection to the next row whose translation also matches.
+      for (let ahead = 1; ahead < filtered.length; ahead++) {
+        const j = (i + ahead) % filtered.length;
+        if (translationMatches(filtered[j], queryRe)) {
+          setSelectedKey(filtered[j].key);
+          break;
+        }
+      }
+      return;
+    }
+    toast("Збігів у перекладах не знайдено.", "info");
+  }, [queryRe, filtered, activeIndex, query, replaceValue, regexMode, toast]);
 
   const handleCopy = (text) => {
     navigator.clipboard?.writeText(text);
@@ -253,16 +309,35 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
             </div>
           </div>
           <div className="flex items-center gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-[200px] flex items-center gap-2">
               <input
                 id="translation-search"
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Пошук за ключем або оригіналом…"
-                className="input input-bordered input-sm w-full"
+                placeholder="Пошук за ключем, оригіналом або перекладом…"
+                className={`input input-bordered input-sm w-full ${queryError ? "input-error" : ""}`}
                 aria-label="Пошук перекладів"
+                aria-invalid={Boolean(queryError)}
               />
+              <button
+                type="button"
+                className={`btn btn-sm font-mono ${regexMode ? "btn-primary" : "btn-ghost"}`}
+                onClick={() => setRegexMode((v) => !v)}
+                title="Регулярний вираз"
+                aria-pressed={regexMode}
+              >
+                .*
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${replaceMode ? "btn-primary" : "btn-ghost"}`}
+                onClick={() => setReplaceMode((v) => !v)}
+                title="Режим заміни"
+                aria-pressed={replaceMode}
+              >
+                Заміна
+              </button>
             </div>
             <label className="label cursor-pointer gap-2 py-0">
               <input
@@ -277,6 +352,34 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
               Показано: {filtered.length}
             </span>
           </div>
+          {replaceMode && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                value={replaceValue}
+                onChange={(e) => setReplaceValue(e.target.value)}
+                placeholder="Замінити на… (у перекладах)"
+                className="input input-bordered input-sm flex-1 min-w-[200px]"
+                aria-label="Текст заміни"
+              />
+              <button
+                type="button"
+                className="btn btn-sm btn-neutral"
+                onClick={handleReplaceOne}
+                disabled={!queryRe}
+              >
+                Замінити
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-neutral"
+                onClick={handleReplaceAll}
+                disabled={!queryRe}
+              >
+                Замінити все
+              </button>
+            </div>
+          )}
         </header>
 
         <div className="flex-1 min-h-0 px-6 py-4">
