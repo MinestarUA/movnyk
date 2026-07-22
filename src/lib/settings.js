@@ -14,7 +14,7 @@ export const GEMINI_MODELS = [
   { id: "gemini-flash-latest", label: "Gemini Flash (остання версія)" },
 ];
 
-const DEFAULTS = { apiKey: "", model: DEFAULT_MODEL };
+const DEFAULTS = { apiKey: "", model: DEFAULT_MODEL, skipIdenticalImport: true };
 
 export const loadSettings = () => {
   try {
@@ -24,6 +24,8 @@ export const loadSettings = () => {
     return {
       apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey : "",
       model: typeof parsed.model === "string" && parsed.model ? parsed.model : DEFAULT_MODEL,
+      skipIdenticalImport:
+        typeof parsed.skipIdenticalImport === "boolean" ? parsed.skipIdenticalImport : true,
     };
   } catch {
     return { ...DEFAULTS };
@@ -37,6 +39,7 @@ export const saveSettings = (settings) => {
       JSON.stringify({
         apiKey: settings.apiKey ?? "",
         model: settings.model || DEFAULT_MODEL,
+        skipIdenticalImport: settings.skipIdenticalImport !== false,
       })
     );
   } catch (error) {
