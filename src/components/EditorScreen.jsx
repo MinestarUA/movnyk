@@ -7,6 +7,7 @@ import { useToast } from "./Toast";
 import { loadSettings, saveSettings } from "../lib/settings";
 import { translateAll } from "../lib/gemini";
 import { mergeLangFile } from "../lib/importing";
+import { saveAutosave } from "../lib/autosave";
 import {
   compileQuery,
   itemMatches,
@@ -16,19 +17,26 @@ import {
 
 const ROW_HEIGHT = 150;
 
-const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
+const EditorScreen = ({ template, initialTranslations, onExportJson, onExportResourcePack }) => {
   const toast = useToast();
   const [settings, setSettings] = useState(() => loadSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiState, setAiState] = useState({ running: false, done: 0, total: 0 });
   const abortRef = useRef(null);
   const [translations, setTranslations] = useState(() =>
-    Object.entries(template).map(([key, value]) => ({
-      key,
-      original: value,
-      translated: "",
-      confirmed: false,
-    }))
+    initialTranslations
+      ? initialTranslations.map((t) => ({
+          key: t.key,
+          original: t.original,
+          translated: typeof t.translated === "string" ? t.translated : "",
+          confirmed: Boolean(t.confirmed),
+        }))
+      : Object.entries(template).map(([key, value]) => ({
+          key,
+          original: value,
+          translated: "",
+          confirmed: false,
+        }))
   );
 
   const [query, setQuery] = useState("");
@@ -74,6 +82,23 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
   );
   const activeIndex = rawIndex >= 0 ? rawIndex : filtered.length > 0 ? 0 : -1;
   const activeKey = activeIndex >= 0 ? filtered[activeIndex].key : null;
+
+  // Persist progress to the single autosave slot, debounced so rapid typing
+  // does not hammer localStorage.
+  const quotaWarnedRef = useRef(false);
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const ok = saveAutosave({ template, translations });
+      if (!ok && !quotaWarnedRef.current) {
+        quotaWarnedRef.current = true;
+        toast(
+          "Не вдалося зберегти прогрес локально — сховище браузера переповнене.",
+          "warning"
+        );
+      }
+    }, 800);
+    return () => clearTimeout(id);
+  }, [template, translations, toast]);
 
   // Scroll the selected row into view.
   useEffect(() => {

@@ -5,15 +5,25 @@ import EditorScreen from "./components/EditorScreen";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useToast } from "./components/Toast";
+import { loadAutosave } from "./lib/autosave";
 
 const App = () => {
   const [screen, setScreen] = useState("welcome"); // welcome, lang-selection, editor
   const [langFiles, setLangFiles] = useState([]);
   const [template, setTemplate] = useState(null);
+  const [autosave] = useState(() => loadAutosave());
+  const [initialTranslations, setInitialTranslations] = useState(null);
   const toast = useToast();
 
   const openEditor = (content) => {
+    setInitialTranslations(null);
     setTemplate(content);
+    setScreen("editor");
+  };
+
+  const handleResume = () => {
+    setTemplate(autosave.template);
+    setInitialTranslations(autosave.translations);
     setScreen("editor");
   };
 
@@ -144,13 +154,14 @@ const App = () => {
         return template ? (
           <EditorScreen
             template={template}
+            initialTranslations={initialTranslations}
             onExportJson={handleExportJson}
             onExportResourcePack={handleExportResourcePack}
           />
         ) : null; // Or a loading spinner
       case "welcome":
       default:
-        return <WelcomeScreen onFileDrop={handleFileDrop} />;
+        return <WelcomeScreen onFileDrop={handleFileDrop} autosave={autosave} onResume={handleResume} />;
     }
   };
 

@@ -15,7 +15,7 @@ const FEATURES = [
   },
 ];
 
-const WelcomeScreen = ({ onFileDrop }) => {
+const WelcomeScreen = ({ onFileDrop, autosave, onResume }) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -89,6 +89,21 @@ const WelcomeScreen = ({ onFileDrop }) => {
           className="hidden"
           onChange={handleFileChange}
         />
+        {autosave && (
+          <div className="mt-6 flex items-center justify-between gap-4 rounded-[10px] border-2 border-primary/40 bg-base-200 p-4 text-left animate-fade-in">
+            <div>
+              <p className="m-0 font-semibold">Є незавершена сесія</p>
+              <p className="m-0 mt-1 text-sm text-base-content/60">
+                Підтверджено {autosave.translations.filter((t) => t.confirmed).length} /{" "}
+                {autosave.translations.length} · збережено{" "}
+                {new Date(autosave.savedAt).toLocaleString("uk-UA")}
+              </p>
+            </div>
+            <button type="button" className="btn btn-primary btn-sm" onClick={onResume}>
+              Продовжити
+            </button>
+          </div>
+        )}
         <div className="flex justify-around mt-12 gap-6 flex-wrap">
           {FEATURES.map((feature, index) => (
             <div
