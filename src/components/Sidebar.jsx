@@ -3,7 +3,7 @@ import { useToast } from "./Toast";
 import { hasApiKey } from "../lib/settings";
 
 const Sidebar = ({
-  translatedCount,
+  confirmedCount,
   total,
   onExportJson,
   onExportResourcePack,
@@ -81,11 +81,11 @@ const Sidebar = ({
 
         <div className="mb-6 rounded-lg bg-base-300 p-4 text-center">
           <div className="text-3xl font-black text-primary tabular-nums">
-            {translatedCount}
+            {confirmedCount}
             <span className="text-base-content/40 text-xl font-semibold"> / {total}</span>
           </div>
           <div className="text-xs uppercase tracking-wide text-base-content/50 mt-1">
-            перекладено
+            підтверджено
           </div>
         </div>
 

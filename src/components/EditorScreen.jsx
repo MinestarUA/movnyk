@@ -20,6 +20,7 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
       key,
       original: value,
       translated: "",
+      confirmed: false,
     }))
   );
 
@@ -37,7 +38,7 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
     return translations
       .map((item, originalIndex) => ({ ...item, originalIndex }))
       .filter((item) => {
-        if (onlyUntranslated && item.translated.trim()) return false;
+        if (onlyUntranslated && item.confirmed) return false;
         if (!normalized) return true;
         return (
           item.key.toLowerCase().includes(normalized) ||
@@ -46,12 +47,12 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
       });
   }, [translations, query, onlyUntranslated]);
 
-  const translatedCount = useMemo(
-    () => translations.filter((t) => t.translated.trim()).length,
+  const confirmedCount = useMemo(
+    () => translations.filter((t) => t.confirmed).length,
     [translations]
   );
   const total = translations.length;
-  const progress = total ? Math.round((translatedCount / total) * 100) : 0;
+  const progress = total ? Math.round((confirmedCount / total) * 100) : 0;
 
   // Derive the effective selection so it stays valid when the filtered set
   // changes, without needing an effect to reconcile state.
@@ -85,9 +86,17 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
       const active = document.activeElement;
       const isTranslationField = active?.dataset?.role === "translation";
 
-      // Enter (without Shift) inside a translation field advances to the next entry.
+      // Enter (without Shift) inside a translation field confirms the current
+      // entry (when non-empty) and advances to the next one.
       if (e.key === "Enter" && !e.shiftKey && isTranslationField) {
         e.preventDefault();
+        if (activeKey) {
+          setTranslations((prev) =>
+            prev.map((t) =>
+              t.key === activeKey && t.translated.trim() ? { ...t, confirmed: true } : t
+            )
+          );
+        }
         move(1);
         return;
       }
@@ -109,7 +118,7 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move]);
+  }, [move, activeKey]);
 
   const handleTranslationChange = useCallback((index, newValue) => {
     setTranslations((prev) =>
@@ -118,6 +127,14 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
   }, []);
 
   const handleSelect = useCallback((key) => setSelectedKey(key), []);
+
+  const handleConfirmToggle = useCallback((key) => {
+    setTranslations((prev) =>
+      prev.map((t) =>
+        t.key === key && t.translated.trim() ? { ...t, confirmed: !t.confirmed } : t
+      )
+    );
+  }, []);
 
   const handleCopy = (text) => {
     navigator.clipboard?.writeText(text);
@@ -176,7 +193,7 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
           setTranslations((prev) =>
             prev.map((t) =>
               typeof result[t.key] === "string" && !t.translated.trim()
-                ? { ...t, translated: result[t.key] }
+                ? { ...t, translated: result[t.key], confirmed: true }
                 : t
             )
           );
@@ -216,12 +233,12 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
             <div className="flex items-center gap-3 min-w-[220px]">
               <progress
                 className="progress progress-primary flex-1"
-                value={translatedCount}
+                value={confirmedCount}
                 max={total || 1}
                 aria-label="Прогрес перекладу"
               />
               <span className="text-sm font-semibold tabular-nums whitespace-nowrap">
-                {translatedCount} / {total}
+                {confirmedCount} / {total}
                 <span className="text-base-content/50 font-normal"> ({progress}%)</span>
               </span>
             </div>
@@ -271,6 +288,7 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
                 focusRequestRef,
                 handleTranslationChange,
                 handleSelect,
+                handleConfirmToggle,
                 handleCopy,
                 handleDefinition,
               }}
@@ -279,7 +297,7 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
         </div>
       </main>
       <Sidebar
-        translatedCount={translatedCount}
+        confirmedCount={confirmedCount}
         total={total}
         onExportJson={() => onExportJson(translations)}
         onExportResourcePack={() => onExportResourcePack(translations)}
@@ -309,6 +327,7 @@ const Row = ({
   focusRequestRef,
   handleTranslationChange,
   handleSelect,
+  handleConfirmToggle,
   handleCopy,
   handleDefinition,
 }) => {
@@ -322,6 +341,7 @@ const Row = ({
       focusRequestRef={focusRequestRef}
       onSelect={() => handleSelect(item.key)}
       onTranslate={(newValue) => handleTranslationChange(item.originalIndex, newValue)}
+      onConfirmToggle={() => handleConfirmToggle(item.key)}
       onCopy={() => handleCopy(item.original)}
       onDefinition={() => handleDefinition(item.original)}
     />

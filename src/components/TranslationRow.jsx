@@ -7,6 +7,7 @@ const TranslationRow = ({
   focusRequestRef,
   onSelect,
   onTranslate,
+  onConfirmToggle,
   onCopy,
   onDefinition,
 }) => {
@@ -21,7 +22,7 @@ const TranslationRow = ({
     }
   }, [isSelected, focusRequestRef]);
 
-  const isTranslated = Boolean(item.translated.trim());
+  const hasDraft = Boolean(item.translated.trim());
 
   return (
     <div style={rowStyle} className="px-1">
@@ -30,7 +31,7 @@ const TranslationRow = ({
         className={`flex items-stretch h-[134px] bg-base-300 border-2 rounded-xl overflow-hidden transition-colors duration-200 ${
           isSelected
             ? "border-primary ring-1 ring-primary"
-            : isTranslated
+            : item.confirmed
               ? "border-success/40"
               : "border-neutral"
         }`}
@@ -38,8 +39,8 @@ const TranslationRow = ({
         <div className="px-5 py-2 flex flex-col justify-center flex-[1.5] bg-base-200 font-mono text-base-content/60 border-r-2 border-neutral">
           <span className="text-xs font-bold text-base-content/50 mb-2 uppercase flex items-center gap-1">
             Ключ
-            {isTranslated && (
-              <span className="text-success" title="Перекладено" aria-label="Перекладено">
+            {item.confirmed && (
+              <span className="text-success" title="Підтверджено" aria-label="Підтверджено">
                 ✓
               </span>
             )}
@@ -69,6 +70,14 @@ const TranslationRow = ({
           />
         </div>
         <div className="flex flex-col justify-center gap-2 p-3 bg-base-200 border-l-2 border-neutral">
+          <button
+            className={`btn btn-sm ${item.confirmed ? "btn-success" : "btn-neutral"}`}
+            onClick={onConfirmToggle}
+            disabled={!hasDraft}
+            title={item.confirmed ? "Зняти підтвердження" : "Підтвердити переклад"}
+          >
+            ✓
+          </button>
           <button
             className="btn btn-neutral btn-sm"
             onClick={onDefinition}
