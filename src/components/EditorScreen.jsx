@@ -532,24 +532,30 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
               <p>Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр.</p>
             </div>
           ) : (
-            <List
-              listRef={listRef}
-              className="[scrollbar-gutter:stable] pr-1 flex-1 min-h-0"
-              rowComponent={Row}
-              rowCount={filtered.length}
-              rowHeight={ROW_HEIGHT}
-              style={{ width: "100%" }}
-              rowProps={{
-                filtered,
-                selectedKey: activeKey,
-                focusRequestRef,
-                handleTranslationChange,
-                handleSelect,
-                handleConfirmToggle,
-                handleCopy,
-                handleDefinition,
-              }}
-            />
+            // Bleed the list into the parent's right padding so its scrollbar
+            // hugs the sidebar edge instead of floating over the rows (visible
+            // with Firefox's wide scrollbars). Rows carry their own right
+            // padding (TranslationRow pr-6) to stay clear of the scrollbar.
+            <div className="flex-1 min-h-0 -mr-6">
+              <List
+                listRef={listRef}
+                className="[scrollbar-gutter:stable]"
+                rowComponent={Row}
+                rowCount={filtered.length}
+                rowHeight={ROW_HEIGHT}
+                style={{ width: "100%", height: "100%" }}
+                rowProps={{
+                  filtered,
+                  selectedKey: activeKey,
+                  focusRequestRef,
+                  handleTranslationChange,
+                  handleSelect,
+                  handleConfirmToggle,
+                  handleCopy,
+                  handleDefinition,
+                }}
+              />
+            </div>
           )}
         </div>
       </main>

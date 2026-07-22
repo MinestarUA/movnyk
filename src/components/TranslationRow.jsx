@@ -37,7 +37,9 @@ const TranslationRow = ({
   const hasDraft = Boolean(item.translated.trim());
 
   return (
-    <div style={rowStyle} className="px-1">
+    // pr-6 keeps the row card clear of the list's scrollbar, which sits at the
+    // right edge of the bleed wrapper (flush against the sidebar).
+    <div style={rowStyle} className="pl-1 pr-6">
       <div
         onClick={onSelect}
         className={`flex items-stretch h-[134px] bg-base-300 border-2 rounded-xl overflow-hidden transition-colors duration-200 ${
