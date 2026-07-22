@@ -120,6 +120,30 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
         return;
       }
 
+      // If focus fell to <body> (the focused row was scrolled out of the
+      // virtualized window), a printable key scrolls back and refocuses.
+      if (
+        active === document.body &&
+        e.key.length === 1 &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        activeIndex >= 0 &&
+        activeKey
+      ) {
+        e.preventDefault();
+        focusRequestRef.current = true;
+        listRef.current?.scrollToRow({ index: activeIndex, align: "smart" });
+        requestAnimationFrame(() => {
+          document
+            .querySelector(
+              `textarea[data-role="translation"][data-key="${CSS.escape(activeKey)}"]`
+            )
+            ?.focus();
+        });
+        return;
+      }
+
       // Plain arrows navigate only when focus is not in an editable field.
       const inEditable = active?.tagName === "TEXTAREA" || active?.tagName === "INPUT";
       if (!inEditable && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -130,7 +154,7 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move, activeKey]);
+  }, [move, activeKey, activeIndex]);
 
   const handleTranslationChange = useCallback((index, newValue) => {
     setTranslations((prev) =>
@@ -390,6 +414,7 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
           ) : (
             <List
               listRef={listRef}
+              className="[scrollbar-gutter:stable] pr-1"
               rowComponent={Row}
               rowCount={filtered.length}
               rowHeight={ROW_HEIGHT}

@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useLayoutEffect } from "react";
 
 const TranslationRow = ({
   rowStyle,
@@ -21,6 +21,18 @@ const TranslationRow = ({
       focusRequestRef.current = false;
     }
   }, [isSelected, focusRequestRef]);
+
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    return () => {
+      // If the virtualized list unmounts this row while its textarea is
+      // focused, request focus restoration on the next mount. (Layout cleanup
+      // runs before the DOM node is removed, so activeElement is still valid.)
+      if (el && document.activeElement === el) {
+        focusRequestRef.current = true;
+      }
+    };
+  }, [focusRequestRef]);
 
   const hasDraft = Boolean(item.translated.trim());
 
@@ -61,6 +73,7 @@ const TranslationRow = ({
           <textarea
             ref={textareaRef}
             data-role="translation"
+            data-key={item.key}
             className="textarea textarea-bordered h-full leading-[1.2] text-base text-base-content break-all resize-none"
             value={item.translated}
             onChange={(e) => onTranslate(e.target.value)}
