@@ -59,29 +59,31 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
   const filtered = useMemo(() => {
     const statusActive = filterUntranslated || filterUnconfirmed;
-    return translations
-      .map((item, originalIndex) => ({ ...item, originalIndex }))
-      .filter((item) => {
-        if (queryError) return false;
-        if (queryRe && !itemMatches(item, queryRe)) return false;
-        if (!statusActive) return true;
-        // Keep the row being edited visible so typing never hides it.
-        if (item.key === selectedKey) return true;
-        const empty = !item.translated.trim();
-        if (filterUntranslated && empty) return true;
-        if (filterUnconfirmed && !empty && !item.confirmed) return true;
-        return false;
-      });
+    const result = [];
+    translations.forEach((item, originalIndex) => {
+      const matchesQuery = queryError ? false : !queryRe || itemMatches(item, queryRe);
+      const empty = !item.translated.trim();
+      const matchesStatus =
+        !statusActive ||
+        (filterUntranslated && empty) ||
+        (filterUnconfirmed && !empty && !item.confirmed);
+      const passes = matchesQuery && matchesStatus;
+      // The selected row is pinned into view even when it fails the query or
+      // status filter, so the row being edited never vanishes mid-work.
+      const pinned = !passes && item.key === selectedKey;
+      if (passes || pinned) result.push({ ...item, originalIndex, pinned });
+    });
+    return result;
   }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, selectedKey]);
 
   // Rows the status filter hides even though they match the search query —
-  // surfaced in the empty state so a filtered-out search is never a dead end.
+  // surfaced as a banner so a filtered-out search is never a dead end.
   const hiddenMatches = useMemo(() => {
     if (!queryRe || queryError) return 0;
     if (!(filterUntranslated || filterUnconfirmed)) return 0;
-    if (filtered.length > 0) return 0;
+    if (filtered.some((item) => !item.pinned)) return 0;
     return translations.filter((t) => itemMatches(t, queryRe)).length;
-  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, filtered.length]);
+  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, filtered]);
 
   const confirmedCount = useMemo(
     () => translations.filter((t) => t.confirmed).length,
@@ -495,36 +497,37 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           )}
         </header>
 
-        <div className="flex-1 min-h-0 px-6 py-4">
+        <div className="flex-1 min-h-0 px-6 py-4 flex flex-col">
+          {hiddenMatches > 0 && (
+            <div className="mb-3 flex items-center justify-center gap-3 rounded-lg border-2 border-warning/40 bg-base-200 px-4 py-2 text-sm">
+              <span>
+                Фільтр приховує збігів:{" "}
+                <span className="font-semibold tabular-nums">{hiddenMatches}</span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-xs btn-primary"
+                onClick={() => {
+                  setFilterUntranslated(false);
+                  setFilterUnconfirmed(false);
+                }}
+              >
+                Зняти фільтри й показати
+              </button>
+            </div>
+          )}
           {filtered.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center gap-3 text-base-content/50 text-center">
+            <div className="flex-1 flex items-center justify-center text-base-content/50 text-center">
               <p>Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр.</p>
-              {hiddenMatches > 0 && (
-                <>
-                  <p className="text-base-content/70">
-                    Фільтр приховує збігів: <span className="font-semibold">{hiddenMatches}</span>
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-primary"
-                    onClick={() => {
-                      setFilterUntranslated(false);
-                      setFilterUnconfirmed(false);
-                    }}
-                  >
-                    Зняти фільтри й показати
-                  </button>
-                </>
-              )}
             </div>
           ) : (
             <List
               listRef={listRef}
-              className="[scrollbar-gutter:stable] pr-1"
+              className="[scrollbar-gutter:stable] pr-1 flex-1 min-h-0"
               rowComponent={Row}
               rowCount={filtered.length}
               rowHeight={ROW_HEIGHT}
-              style={{ width: "100%", height: "100%" }}
+              style={{ width: "100%" }}
               rowProps={{
                 filtered,
                 selectedKey: activeKey,
