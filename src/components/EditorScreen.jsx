@@ -246,8 +246,11 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     navigator.clipboard?.writeText(text);
   };
 
-  const handleDefinition = (text) => {
-    const input = "Переклади цей текст:\n" + text;
+  const handleDefinition = (item) => {
+    const draft = item.translated.trim();
+    const input = draft
+      ? `Чи правильно перекладати "${item.original}" як "${draft}"?`
+      : "Переклади цей текст:\n" + item.original;
     window.open(`https://www.google.com/search?q=${encodeURIComponent(input)}&udm=50`, "_blank");
   };
 
@@ -507,7 +510,7 @@ const Row = ({
       onTranslate={(newValue) => handleTranslationChange(item.originalIndex, newValue)}
       onConfirmToggle={() => handleConfirmToggle(item.key)}
       onCopy={() => handleCopy(item.original)}
-      onDefinition={() => handleDefinition(item.original)}
+      onDefinition={() => handleDefinition(item)}
     />
   );
 };

@@ -94,9 +94,13 @@ const TranslationRow = ({
           <button
             className="btn btn-neutral btn-sm"
             onClick={onDefinition}
-            title="Скористатися Google для перекладу"
+            title={
+              hasDraft
+                ? "Перевірити якість перекладу через Google"
+                : "Скористатися Google для перекладу"
+            }
           >
-            Переклад
+            {hasDraft ? "Перевірити" : "Переклад"}
           </button>
           <button
             className="btn btn-neutral btn-sm"
