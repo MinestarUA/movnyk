@@ -10,6 +10,7 @@ import { mergeLangFile } from "../lib/importing";
 import { saveAutosave } from "../lib/autosave";
 import {
   compileQuery,
+  isFindShortcut,
   itemMatches,
   translationMatches,
   replaceInTranslation,
@@ -152,7 +153,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       // Ctrl/Cmd + F opens the in-app search instead of the browser's find,
       // carrying the current text selection (key, original or translation)
       // into the search field.
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+      if (isFindShortcut(e)) {
         e.preventDefault();
         let selected;
         if (

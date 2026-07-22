@@ -16,6 +16,13 @@ export const compileQuery = (query, { regex = false } = {}) => {
   }
 };
 
+// True when a keydown event is the "find" shortcut (Ctrl/Cmd + F). Matches by
+// physical key (e.code) so it works on non-Latin layouts (e.g. Ukrainian,
+// where e.key is "а"), with an e.key fallback for non-QWERTY Latin layouts
+// like Dvorak.
+export const isFindShortcut = (e) =>
+  (e.ctrlKey || e.metaKey) && (e.code === "KeyF" || e.key.toLowerCase() === "f");
+
 export const itemMatches = (item, re) =>
   re.test(item.key) || re.test(String(item.original)) || re.test(item.translated);
 

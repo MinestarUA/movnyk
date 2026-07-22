@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compileQuery,
+  isFindShortcut,
   itemMatches,
   translationMatches,
   replaceInTranslation,
@@ -73,5 +74,29 @@ describe("replaceInTranslation", () => {
   it("returns text unchanged for empty or invalid patterns", () => {
     expect(replaceInTranslation("text", "", "x")).toBe("text");
     expect(replaceInTranslation("text", "([", "x", { regex: true })).toBe("text");
+  });
+});
+
+describe("isFindShortcut", () => {
+  const ev = (props) => ({ ctrlKey: false, metaKey: false, key: "", code: "", ...props });
+
+  it("matches Ctrl+F and Cmd+F on a Latin layout", () => {
+    expect(isFindShortcut(ev({ ctrlKey: true, key: "f", code: "KeyF" }))).toBe(true);
+    expect(isFindShortcut(ev({ metaKey: true, key: "F", code: "KeyF" }))).toBe(true);
+  });
+
+  it("matches on a non-Latin layout via the physical key position", () => {
+    // Ukrainian layout: the physical F key produces "а"
+    expect(isFindShortcut(ev({ ctrlKey: true, key: "а", code: "KeyF" }))).toBe(true);
+  });
+
+  it("matches on non-QWERTY Latin layouts via e.key", () => {
+    // Dvorak: the letter F lives on the physical KeyY position
+    expect(isFindShortcut(ev({ ctrlKey: true, key: "f", code: "KeyY" }))).toBe(true);
+  });
+
+  it("rejects other keys and bare F without a modifier", () => {
+    expect(isFindShortcut(ev({ ctrlKey: true, key: "g", code: "KeyG" }))).toBe(false);
+    expect(isFindShortcut(ev({ key: "f", code: "KeyF" }))).toBe(false);
   });
 });
