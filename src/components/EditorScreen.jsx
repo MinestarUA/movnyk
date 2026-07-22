@@ -6,6 +6,7 @@ import SettingsModal from "./SettingsModal";
 import { useToast } from "./Toast";
 import { loadSettings, saveSettings } from "../lib/settings";
 import { translateAll } from "../lib/gemini";
+import { mergeLangFile } from "../lib/importing";
 
 const ROW_HEIGHT = 150;
 
@@ -145,25 +146,33 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
     window.open(`https://www.google.com/search?q=${encodeURIComponent(input)}&udm=50`, "_blank");
   };
 
-  const handleLoadLangFile = (loadedTranslations) => {
-    let applied = 0;
-    setTranslations((prev) =>
-      prev.map((t) => {
-        if (loadedTranslations[t.key] != null) {
-          applied += 1;
-          return { ...t, translated: loadedTranslations[t.key] };
-        }
-        return t;
-      })
-    );
-    return applied;
+  const handleLoadLangFile = (loaded) => {
+    const { next, applied, skipped } = mergeLangFile(translations, loaded, {
+      skipIdentical: settings.skipIdenticalImport,
+    });
+    setTranslations(next);
+    return { applied, skipped };
   };
 
-  const handleSaveSettings = useCallback((next) => {
-    setSettings(next);
-    saveSettings(next);
-    toast("Налаштування збережено.", "success");
-  }, [toast]);
+  const handleSkipIdenticalChange = useCallback((value) => {
+    setSettings((prev) => {
+      const next = { ...prev, skipIdenticalImport: value };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  const handleSaveSettings = useCallback(
+    (next) => {
+      setSettings((prev) => {
+        const merged = { ...prev, ...next };
+        saveSettings(merged);
+        return merged;
+      });
+      toast("Налаштування збережено.", "success");
+    },
+    [toast]
+  );
 
   const handleCancelAutoTranslate = useCallback(() => {
     abortRef.current?.abort();
@@ -302,6 +311,8 @@ const EditorScreen = ({ template, onExportJson, onExportResourcePack }) => {
         onExportJson={() => onExportJson(translations)}
         onExportResourcePack={() => onExportResourcePack(translations)}
         onLoadLang={handleLoadLangFile}
+        skipIdentical={settings.skipIdenticalImport}
+        onSkipIdenticalChange={handleSkipIdenticalChange}
         settings={settings}
         onOpenSettings={() => setSettingsOpen(true)}
         onAutoTranslate={handleAutoTranslate}

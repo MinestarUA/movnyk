@@ -8,6 +8,8 @@ const Sidebar = ({
   onExportJson,
   onExportResourcePack,
   onLoadLang,
+  skipIdentical,
+  onSkipIdenticalChange,
   settings,
   onOpenSettings,
   onAutoTranslate,
@@ -28,9 +30,15 @@ const Sidebar = ({
       reader.onload = (event) => {
         try {
           const content = JSON.parse(event.target.result);
-          const applied = onLoadLang(content);
+          const { applied, skipped } = onLoadLang(content);
           if (applied > 0) {
-            toast(`Застосовано перекладів: ${applied}.`, "success");
+            toast(
+              `Застосовано перекладів: ${applied}.` +
+                (skipped > 0 ? ` Пропущено (збіг з оригіналом): ${skipped}.` : ""),
+              "success"
+            );
+          } else if (skipped > 0) {
+            toast("Усі збіги пропущено — переклади дублюють оригінал.", "warning");
           } else {
             toast("Жоден ключ із цього файлу не збігся з поточним проєктом.", "warning");
           }
@@ -147,6 +155,17 @@ const Sidebar = ({
           <button className="btn btn-neutral" onClick={handleLoadClick} disabled={running}>
             Приєднати Lang файл
           </button>
+          <label className="label cursor-pointer justify-start gap-2 py-0">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-xs checkbox-primary"
+              checked={skipIdentical}
+              onChange={(e) => onSkipIdenticalChange(e.target.checked)}
+            />
+            <span className="label-text text-xs">
+              Пропускати переклади, що збігаються з оригіналом
+            </span>
+          </label>
           <div className="divider my-1 text-xs text-base-content/40">Експорт</div>
           <button className="btn btn-primary" onClick={onExportJson}>
             Експортувати як JSON
