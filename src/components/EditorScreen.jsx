@@ -123,6 +123,28 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       const active = document.activeElement;
       const isTranslationField = active?.dataset?.role === "translation";
 
+      // Ctrl/Cmd + F opens the in-app search instead of the browser's find,
+      // carrying the current text selection (key, original or translation)
+      // into the search field.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        let selected;
+        if (
+          (active?.tagName === "TEXTAREA" || active?.tagName === "INPUT") &&
+          typeof active.selectionStart === "number"
+        ) {
+          selected = active.value.substring(active.selectionStart, active.selectionEnd);
+        } else {
+          selected = window.getSelection()?.toString() ?? "";
+        }
+        selected = selected.trim();
+        if (selected) setQuery(selected);
+        const searchInput = document.getElementById("translation-search");
+        searchInput?.focus();
+        searchInput?.select();
+        return;
+      }
+
       // Enter (without Shift) inside a translation field confirms the current
       // entry (when non-empty) and advances to the next one.
       if (e.key === "Enter" && !e.shiftKey && isTranslationField) {
@@ -344,7 +366,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
             <div>
               <h1 className="text-2xl font-black leading-none">Мовник</h1>
               <p className="text-xs text-base-content/50 mt-1">
-                ↵ Enter — наступний запис · Ctrl + ↑/↓ — навігація
+                ↵ Enter — наступний запис · Ctrl + ↑/↓ — навігація · Ctrl + F — пошук виділеного
               </p>
             </div>
             <div className="flex items-center gap-3 min-w-[220px]">
