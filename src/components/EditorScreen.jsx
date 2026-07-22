@@ -229,11 +229,22 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [move, activeKey, activeIndex]);
 
-  const handleTranslationChange = useCallback((index, newValue) => {
-    setTranslations((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, translated: newValue } : item))
-    );
-  }, []);
+  // Manual edits (typing in the row) optionally drop the confirmed mark, so a
+  // touched translation goes back through review. Replace operations go
+  // through their own handlers and deliberately keep confirmation intact.
+  const handleTranslationChange = useCallback(
+    (index, newValue) => {
+      const unconfirm = settings.unconfirmOnEdit;
+      setTranslations((prev) =>
+        prev.map((item, i) =>
+          i === index
+            ? { ...item, translated: newValue, confirmed: unconfirm ? false : item.confirmed }
+            : item
+        )
+      );
+    },
+    [settings.unconfirmOnEdit]
+  );
 
   const handleSelect = useCallback((key) => setSelectedKey(key), []);
 

@@ -14,7 +14,7 @@ export const GEMINI_MODELS = [
   { id: "gemini-flash-latest", label: "Gemini Flash (остання версія)" },
 ];
 
-const DEFAULTS = { apiKey: "", model: DEFAULT_MODEL, skipIdenticalImport: true };
+const DEFAULTS = { apiKey: "", model: DEFAULT_MODEL, skipIdenticalImport: true, unconfirmOnEdit: true };
 
 export const loadSettings = () => {
   try {
@@ -26,6 +26,8 @@ export const loadSettings = () => {
       model: typeof parsed.model === "string" && parsed.model ? parsed.model : DEFAULT_MODEL,
       skipIdenticalImport:
         typeof parsed.skipIdenticalImport === "boolean" ? parsed.skipIdenticalImport : true,
+      unconfirmOnEdit:
+        typeof parsed.unconfirmOnEdit === "boolean" ? parsed.unconfirmOnEdit : true,
     };
   } catch {
     return { ...DEFAULTS };
@@ -40,6 +42,7 @@ export const saveSettings = (settings) => {
         apiKey: settings.apiKey ?? "",
         model: settings.model || DEFAULT_MODEL,
         skipIdenticalImport: settings.skipIdenticalImport !== false,
+        unconfirmOnEdit: settings.unconfirmOnEdit !== false,
       })
     );
   } catch (error) {

@@ -21,4 +21,10 @@ describe("settings", () => {
     saveSettings({ apiKey: "k", model: "gemini-2.5-flash", skipIdenticalImport: false });
     expect(loadSettings()).toMatchObject({ apiKey: "k", skipIdenticalImport: false });
   });
+
+  it("defaults unconfirmOnEdit to true and round-trips it", () => {
+    expect(loadSettings().unconfirmOnEdit).toBe(true);
+    saveSettings({ apiKey: "", model: "gemini-2.5-flash", unconfirmOnEdit: false });
+    expect(loadSettings().unconfirmOnEdit).toBe(false);
+  });
 });

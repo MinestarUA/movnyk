@@ -6,10 +6,11 @@ import { GEMINI_MODELS, DEFAULT_MODEL } from "../lib/settings";
 const SettingsModal = ({ settings, onSave, onClose }) => {
   const [apiKey, setApiKey] = useState(settings.apiKey ?? "");
   const [model, setModel] = useState(settings.model ?? DEFAULT_MODEL);
+  const [unconfirmOnEdit, setUnconfirmOnEdit] = useState(settings.unconfirmOnEdit !== false);
   const [showKey, setShowKey] = useState(false);
 
   const handleSave = () => {
-    onSave({ apiKey: apiKey.trim(), model });
+    onSave({ apiKey: apiKey.trim(), model, unconfirmOnEdit });
     onClose();
   };
 
@@ -86,6 +87,23 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-2">
+          <label className="label cursor-pointer justify-start gap-3 py-0">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm checkbox-primary"
+              checked={unconfirmOnEdit}
+              onChange={(e) => setUnconfirmOnEdit(e.target.checked)}
+            />
+            <span className="label-text text-sm">
+              Знімати затвердження після ручного редагування рядка
+            </span>
+          </label>
+          <p className="text-xs text-base-content/50">
+            Заміна через пошук не знімає затвердження — лише редагування вручну.
+          </p>
         </div>
 
         <div className="mt-8 flex justify-end gap-3">
