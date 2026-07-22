@@ -43,7 +43,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const [regexMode, setRegexMode] = useState(false);
   const [replaceMode, setReplaceMode] = useState(false);
   const [replaceValue, setReplaceValue] = useState("");
-  const [onlyUntranslated, setOnlyUntranslated] = useState(false);
+  const [filterUntranslated, setFilterUntranslated] = useState(false);
+  const [filterUnconfirmed, setFilterUnconfirmed] = useState(false);
   const [selectedKey, setSelectedKey] = useState(() => translations[0]?.key ?? null);
 
   const listRef = useRef(null);
@@ -57,18 +58,41 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   );
 
   const filtered = useMemo(() => {
+    const statusActive = filterUntranslated || filterUnconfirmed;
     return translations
       .map((item, originalIndex) => ({ ...item, originalIndex }))
       .filter((item) => {
-        if (onlyUntranslated && item.confirmed) return false;
         if (queryError) return false;
-        if (!queryRe) return true;
-        return itemMatches(item, queryRe);
+        if (queryRe && !itemMatches(item, queryRe)) return false;
+        if (!statusActive) return true;
+        // Keep the row being edited visible so typing never hides it.
+        if (item.key === selectedKey) return true;
+        const empty = !item.translated.trim();
+        if (filterUntranslated && empty) return true;
+        if (filterUnconfirmed && !empty && !item.confirmed) return true;
+        return false;
       });
-  }, [translations, queryRe, queryError, onlyUntranslated]);
+  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, selectedKey]);
+
+  // Rows the status filter hides even though they match the search query —
+  // surfaced in the empty state so a filtered-out search is never a dead end.
+  const hiddenMatches = useMemo(() => {
+    if (!queryRe || queryError) return 0;
+    if (!(filterUntranslated || filterUnconfirmed)) return 0;
+    if (filtered.length > 0) return 0;
+    return translations.filter((t) => itemMatches(t, queryRe)).length;
+  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, filtered.length]);
 
   const confirmedCount = useMemo(
     () => translations.filter((t) => t.confirmed).length,
+    [translations]
+  );
+  const untranslatedCount = useMemo(
+    () => translations.filter((t) => !t.translated.trim()).length,
+    [translations]
+  );
+  const unconfirmedCount = useMemo(
+    () => translations.filter((t) => t.translated.trim() && !t.confirmed).length,
     [translations]
   );
   const total = translations.length;
@@ -417,10 +441,25 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
               <input
                 type="checkbox"
                 className="checkbox checkbox-sm checkbox-primary"
-                checked={onlyUntranslated}
-                onChange={(e) => setOnlyUntranslated(e.target.checked)}
+                checked={filterUntranslated}
+                onChange={(e) => setFilterUntranslated(e.target.checked)}
               />
-              <span className="label-text text-sm">Лише неперекладені</span>
+              <span className="label-text text-sm">
+                Неперекладені{" "}
+                <span className="text-base-content/50 tabular-nums">({untranslatedCount})</span>
+              </span>
+            </label>
+            <label className="label cursor-pointer gap-2 py-0">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-sm checkbox-warning"
+                checked={filterUnconfirmed}
+                onChange={(e) => setFilterUnconfirmed(e.target.checked)}
+              />
+              <span className="label-text text-sm">
+                Незатверджені{" "}
+                <span className="text-base-content/50 tabular-nums">({unconfirmedCount})</span>
+              </span>
             </label>
             <span className="text-sm text-base-content/50 whitespace-nowrap">
               Показано: {filtered.length}
@@ -458,8 +497,25 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
         <div className="flex-1 min-h-0 px-6 py-4">
           {filtered.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-base-content/50 text-center">
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-base-content/50 text-center">
               <p>Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр.</p>
+              {hiddenMatches > 0 && (
+                <>
+                  <p className="text-base-content/70">
+                    Фільтр приховує збігів: <span className="font-semibold">{hiddenMatches}</span>
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary"
+                    onClick={() => {
+                      setFilterUntranslated(false);
+                      setFilterUnconfirmed(false);
+                    }}
+                  >
+                    Зняти фільтри й показати
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <List
