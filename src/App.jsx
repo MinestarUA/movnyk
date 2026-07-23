@@ -157,6 +157,7 @@ const App = () => {
             initialTranslations={initialTranslations}
             onExportJson={handleExportJson}
             onExportResourcePack={handleExportResourcePack}
+            onHome={() => setScreen("welcome")}
           />
         ) : null; // Or a loading spinner
       case "welcome":
