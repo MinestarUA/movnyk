@@ -26,7 +26,7 @@ const COLUMN_HEADER_STYLE = {
 
 const GRID_COLUMNS_HEADER = "26px minmax(180px,1fr) minmax(200px,1.3fr) minmax(200px,1.3fr) 132px";
 
-const EditorScreen = ({ template, initialTranslations, onExportJson, onExportResourcePack }) => {
+const EditorScreen = ({ template, initialTranslations, onExportJson, onExportResourcePack, onHome }) => {
   const toast = useToast();
   const [settings, setSettings] = useState(() => loadSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -258,9 +258,11 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
   const handleSelect = useCallback((key) => {
     setSelectedKey(key);
-    // Interacting with a row hands the screen over to editing, so tuck the
-    // action sidebar away to give the rows full width. The header toggle
-    // brings it back.
+    // Expanding a row hands the screen over to editing: pull focus into its
+    // translation field (the row's focus effect honours this request) and tuck
+    // the action sidebar away for full-width rows. The header toggle brings it
+    // back.
+    focusRequestRef.current = true;
     setSidebarOpen(false);
   }, []);
 
@@ -500,7 +502,31 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           gap: "var(--space-3)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
+          <button
+            type="button"
+            onClick={onHome}
+            title="На головну"
+            aria-label="На головну"
+            style={{
+              width: "34px",
+              height: "34px",
+              borderRadius: "var(--radius-md)",
+              background: "transparent",
+              border: "1px solid var(--color-divider)",
+              color: "var(--color-neutral-400)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 10.5L12 3l9 7.5" />
+              <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5" />
+            </svg>
+          </button>
           <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexShrink: 0 }}>
             <div
               style={{
