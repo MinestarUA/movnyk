@@ -11,6 +11,8 @@ const Sidebar = ({
   onLoadLang,
   skipIdentical,
   onSkipIdenticalChange,
+  confirmImport,
+  onConfirmImportChange,
   settings,
   onOpenSettings,
   onAutoTranslate,
@@ -232,6 +234,15 @@ const Sidebar = ({
               style={{ accentColor: "var(--color-accent)", width: "13px", height: "13px", marginTop: "2px", flexShrink: 0 }}
             />
             Пропускати переклади, що збігаються з оригіналом
+          </label>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "var(--color-neutral-400)", cursor: "pointer", lineHeight: 1.4 }}>
+            <input
+              type="checkbox"
+              checked={confirmImport}
+              onChange={(e) => onConfirmImportChange(e.target.checked)}
+              style={{ accentColor: "var(--color-accent)", width: "13px", height: "13px", marginTop: "2px", flexShrink: 0 }}
+            />
+            Позначати імпортовані рядки як підтверджені
           </label>
         </div>
 

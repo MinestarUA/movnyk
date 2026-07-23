@@ -334,6 +334,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const handleLoadLangFile = (loaded) => {
     const { next, applied, skipped } = mergeLangFile(translations, loaded, {
       skipIdentical: settings.skipIdenticalImport,
+      confirmImported: settings.confirmImport,
     });
     setTranslations(next);
     return { applied, skipped };
@@ -342,6 +343,14 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const handleSkipIdenticalChange = useCallback((value) => {
     setSettings((prev) => {
       const next = { ...prev, skipIdenticalImport: value };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  const handleConfirmImportChange = useCallback((value) => {
+    setSettings((prev) => {
+      const next = { ...prev, confirmImport: value };
       saveSettings(next);
       return next;
     });
@@ -814,6 +823,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           onLoadLang={handleLoadLangFile}
           skipIdentical={settings.skipIdenticalImport}
           onSkipIdenticalChange={handleSkipIdenticalChange}
+          confirmImport={settings.confirmImport}
+          onConfirmImportChange={handleConfirmImportChange}
           settings={settings}
           onOpenSettings={() => setSettingsOpen(true)}
           onAutoTranslate={handleAutoTranslate}

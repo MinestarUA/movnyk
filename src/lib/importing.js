@@ -3,7 +3,11 @@
 // treated as untranslated and left alone, so they are neither exported as
 // "done" nor hidden by the untranslated-only filter.
 
-export const mergeLangFile = (translations, loaded, { skipIdentical = true } = {}) => {
+export const mergeLangFile = (
+  translations,
+  loaded,
+  { skipIdentical = true, confirmImported = true } = {}
+) => {
   let applied = 0;
   let skipped = 0;
   const next = translations.map((t) => {
@@ -15,7 +19,7 @@ export const mergeLangFile = (translations, loaded, { skipIdentical = true } = {
       return t;
     }
     applied += 1;
-    return { ...t, translated: value, confirmed: true };
+    return { ...t, translated: value, confirmed: confirmImported };
   });
   return { next, applied, skipped };
 };

@@ -32,6 +32,12 @@ describe("mergeLangFile", () => {
     expect(next[0]).toMatchObject({ translated: "Apple", confirmed: true });
   });
 
+  it("leaves imported rows unconfirmed when confirmImported is off", () => {
+    const { next, applied } = mergeLangFile(rows, { a: "Яблуко" }, { confirmImported: false });
+    expect(applied).toBe(1);
+    expect(next[0]).toMatchObject({ translated: "Яблуко", confirmed: false });
+  });
+
   it("coerces non-string values and ignores null/undefined", () => {
     const { next, applied } = mergeLangFile(rows, { a: 5, b: null });
     expect(applied).toBe(1);
