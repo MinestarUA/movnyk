@@ -256,7 +256,13 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     [settings.unconfirmOnEdit]
   );
 
-  const handleSelect = useCallback((key) => setSelectedKey(key), []);
+  const handleSelect = useCallback((key) => {
+    setSelectedKey(key);
+    // Interacting with a row hands the screen over to editing, so tuck the
+    // action sidebar away to give the rows full width. The header toggle
+    // brings it back.
+    setSidebarOpen(false);
+  }, []);
 
   const handleConfirmToggle = useCallback((key) => {
     setTranslations((prev) =>
