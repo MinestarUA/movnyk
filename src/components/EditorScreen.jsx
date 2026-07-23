@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { List } from "react-window";
-import TranslationRow from "./TranslationRow";
+import { List, useDynamicRowHeight } from "react-window";
+import TranslationRow, { ROW_COLLAPSED } from "./TranslationRow";
 import Sidebar from "./Sidebar";
 import SettingsModal from "./SettingsModal";
 import { useToast } from "./Toast";
@@ -16,7 +16,15 @@ import {
   replaceInTranslation,
 } from "../lib/searching";
 
-const ROW_HEIGHT = 150;
+const COLUMN_HEADER_STYLE = {
+  fontFamily: "var(--font-heading)",
+  fontSize: "10px",
+  fontWeight: 500,
+  letterSpacing: "0.08em",
+  color: "var(--color-neutral-600)",
+};
+
+const GRID_COLUMNS_HEADER = "26px minmax(180px,1fr) minmax(200px,1.3fr) minmax(200px,1.3fr) 132px";
 
 const EditorScreen = ({ template, initialTranslations, onExportJson, onExportResourcePack }) => {
   const toast = useToast();
@@ -47,6 +55,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const [filterUntranslated, setFilterUntranslated] = useState(false);
   const [filterUnconfirmed, setFilterUnconfirmed] = useState(false);
   const [selectedKey, setSelectedKey] = useState(() => translations[0]?.key ?? null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const listRef = useRef(null);
   // Only pull focus into a row when the user navigates via keyboard, so typing
@@ -396,125 +405,333 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     }
   }, [translations, settings, toast]);
 
-  return (
-    <div className="flex h-screen text-base-content overflow-hidden animate-fade-in">
-      <main className="flex-grow flex flex-col min-w-0">
-        <header className="px-8 pt-6 pb-4 border-b-2 border-neutral bg-base-200/40 flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="text-2xl font-black leading-none">Мовник</h1>
-              <p className="text-xs text-base-content/50 mt-1">
-                ↵ Enter — наступний запис · Ctrl + ↑/↓ — навігація · Ctrl + F — пошук виділеного
-              </p>
-            </div>
-            <div className="flex items-center gap-3 min-w-[220px]">
-              <progress
-                className="progress progress-primary flex-1"
-                value={confirmedCount}
-                max={total || 1}
-                aria-label="Прогрес перекладу"
-              />
-              <span className="text-sm font-semibold tabular-nums whitespace-nowrap">
-                {confirmedCount} / {total}
-                <span className="text-base-content/50 font-normal"> ({progress}%)</span>
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] flex items-center gap-2">
-              <input
-                id="translation-search"
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Пошук за ключем, оригіналом або перекладом…"
-                className={`input input-bordered input-sm w-full ${queryError ? "input-error" : ""}`}
-                aria-label="Пошук перекладів"
-                aria-invalid={Boolean(queryError)}
-              />
-              <button
-                type="button"
-                className={`btn btn-sm font-mono ${regexMode ? "btn-primary" : "btn-ghost"}`}
-                onClick={() => setRegexMode((v) => !v)}
-                title="Регулярний вираз"
-                aria-pressed={regexMode}
-              >
-                .*
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${replaceMode ? "btn-primary" : "btn-ghost"}`}
-                onClick={() => setReplaceMode((v) => !v)}
-                title="Режим заміни"
-                aria-pressed={replaceMode}
-              >
-                Заміна
-              </button>
-            </div>
-            <label className="label cursor-pointer gap-2 py-0">
-              <input
-                type="checkbox"
-                className="checkbox checkbox-sm checkbox-primary"
-                checked={filterUntranslated}
-                onChange={(e) => setFilterUntranslated(e.target.checked)}
-              />
-              <span className="label-text text-sm">
-                Неперекладені{" "}
-                <span className="text-base-content/50 tabular-nums">({untranslatedCount})</span>
-              </span>
-            </label>
-            <label className="label cursor-pointer gap-2 py-0">
-              <input
-                type="checkbox"
-                className="checkbox checkbox-sm checkbox-warning"
-                checked={filterUnconfirmed}
-                onChange={(e) => setFilterUnconfirmed(e.target.checked)}
-              />
-              <span className="label-text text-sm">
-                Незатверджені{" "}
-                <span className="text-base-content/50 tabular-nums">({unconfirmedCount})</span>
-              </span>
-            </label>
-            <span className="text-sm text-base-content/50 whitespace-nowrap">
-              Показано: {filtered.length}
-            </span>
-          </div>
-          {replaceMode && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <input
-                type="text"
-                value={replaceValue}
-                onChange={(e) => setReplaceValue(e.target.value)}
-                placeholder="Замінити на… (у перекладах)"
-                className="input input-bordered input-sm flex-1 min-w-[200px]"
-                aria-label="Текст заміни"
-              />
-              <button
-                type="button"
-                className="btn btn-sm btn-neutral"
-                onClick={handleReplaceOne}
-                disabled={!queryRe}
-              >
-                Замінити
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-neutral"
-                onClick={handleReplaceAll}
-                disabled={!queryRe}
-              >
-                Замінити все
-              </button>
-            </div>
-          )}
-        </header>
+  // Rows are measured (ResizeObserver) so the expanded row can grow with its
+  // translation content instead of scrolling inside a fixed field. Reset the
+  // height cache whenever the visible set changes, since heights are keyed by
+  // index and filtering/searching remaps which row sits at each index.
+  const rowHeightCache = useDynamicRowHeight({
+    defaultRowHeight: ROW_COLLAPSED,
+    key: `${query}|${regexMode}|${filterUntranslated}|${filterUnconfirmed}`,
+  });
 
-        <div className="flex-1 min-h-0 px-6 py-4 flex flex-col">
+  const regexBtnStyle = {
+    height: "34px",
+    padding: "0 10px",
+    borderRadius: 0,
+    fontSize: "12px",
+    fontFamily: "var(--font-heading)",
+    fontWeight: 500,
+    cursor: "pointer",
+    background: regexMode ? "color-mix(in srgb, var(--color-accent) 12%, transparent)" : "var(--color-surface)",
+    borderTop: "1px solid var(--color-divider)",
+    borderBottom: "1px solid var(--color-divider)",
+    borderLeft: "1px solid var(--color-divider)",
+    borderRight: "none",
+    color: regexMode ? "var(--color-accent)" : "var(--color-neutral-400)",
+  };
+  const replaceBtnStyle = {
+    height: "34px",
+    padding: "0 12px",
+    borderRadius: "0 var(--radius-md) var(--radius-md) 0",
+    fontSize: "12px",
+    fontFamily: "var(--font-heading)",
+    fontWeight: 500,
+    cursor: "pointer",
+    background: replaceMode ? "color-mix(in srgb, var(--color-accent) 12%, transparent)" : "var(--color-surface)",
+    border: replaceMode ? "1px solid var(--color-accent)" : "1px solid var(--color-divider)",
+    color: replaceMode ? "var(--color-accent)" : "var(--color-neutral-400)",
+  };
+  const chipStyle = (active, tint) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "5px 11px",
+    borderRadius: "999px",
+    fontFamily: "var(--font-heading)",
+    fontSize: "12px",
+    fontWeight: 600,
+    cursor: "pointer",
+    background: active ? tint.bgOn : tint.bgOff,
+    border: `1px solid ${active ? tint.borderOn : tint.borderOff}`,
+    color: tint.color,
+  });
+  const pinkTint = {
+    bgOn: "rgba(255,95,162,0.22)",
+    bgOff: "rgba(255,95,162,0.1)",
+    borderOn: "#ff5fa2",
+    borderOff: "rgba(255,95,162,0.35)",
+    color: "#ff9dc6",
+    dot: "#ff5fa2",
+  };
+  const amberTint = {
+    bgOn: "rgba(240,190,90,0.22)",
+    bgOff: "rgba(240,190,90,0.08)",
+    borderOn: "#f0be5a",
+    borderOff: "rgba(240,190,90,0.3)",
+    color: "#f2cd85",
+    dot: "#f0be5a",
+  };
+
+  return (
+    <div
+      className="animate-fade-in"
+      style={{
+        height: "100vh",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--color-bg)",
+        color: "var(--color-text)",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          flexShrink: 0,
+          padding: "var(--space-4) var(--space-6) var(--space-3)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-3)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexShrink: 0 }}>
+            <div
+              style={{
+                fontFamily: "var(--font-heading)",
+                fontWeight: 500,
+                fontSize: "19px",
+                letterSpacing: "-0.015em",
+              }}
+            >
+              Мовник
+            </div>
+            <div style={{ fontSize: "10.5px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
+              Enter — наступний · Ctrl+↑/↓ — навігація · Ctrl+F — пошук
+            </div>
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0, maxWidth: "280px" }}>
+            <div
+              style={{
+                flex: 1,
+                height: "5px",
+                borderRadius: "3px",
+                background: "var(--color-neutral-800)",
+                overflow: "hidden",
+              }}
+              role="progressbar"
+              aria-label="Прогрес перекладу"
+              aria-valuenow={confirmedCount}
+              aria-valuemax={total || 1}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${Math.max(progress, total ? 0.6 : 0)}%`,
+                  minWidth: total ? "3px" : 0,
+                  background: "linear-gradient(90deg,#ff5fa2,#c860e8)",
+                  borderRadius: "3px",
+                  transition: "width 0.2s ease",
+                }}
+              />
+            </div>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--color-neutral-400)",
+                whiteSpace: "nowrap",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {confirmedCount} / {total} · {progress}%
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((v) => !v)}
+            title={sidebarOpen ? "Сховати панель дій" : "Показати панель дій"}
+            aria-pressed={sidebarOpen}
+            style={{
+              width: "30px",
+              height: "30px",
+              borderRadius: "var(--radius-md)",
+              background: "transparent",
+              border: "1px solid var(--color-divider)",
+              color: "var(--color-neutral-400)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <line x1="15" y1="4" x2="15" y2="20" />
+            </svg>
+          </button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
+          <div style={{ flex: 1, position: "relative", maxWidth: "520px", display: "flex", alignItems: "center" }}>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--color-neutral-500)"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              style={{ position: "absolute", left: "12px", pointerEvents: "none" }}
+              aria-hidden="true"
+            >
+              <circle cx="10" cy="10" r="7" />
+              <line x1="21" y1="21" x2="15.5" y2="15.5" />
+            </svg>
+            <input
+              id="translation-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Пошук за ключем, оригіналом або перекладом…"
+              aria-label="Пошук перекладів"
+              aria-invalid={Boolean(queryError)}
+              style={{
+                width: "100%",
+                height: "34px",
+                background: "var(--color-surface)",
+                border: queryError ? "1px solid var(--color-error, #ff5f6d)" : "1px solid var(--color-divider)",
+                borderRadius: "var(--radius-md) 0 0 var(--radius-md)",
+                borderRight: "none",
+                padding: "0 12px 0 32px",
+                color: "var(--color-text)",
+                fontSize: "13.5px",
+                fontFamily: "var(--font-body)",
+                outline: "none",
+              }}
+            />
+            <button
+              type="button"
+              className="mono"
+              style={regexBtnStyle}
+              onClick={() => setRegexMode((v) => !v)}
+              title="Пошук за регулярним виразом"
+              aria-pressed={regexMode}
+            >
+              .*
+            </button>
+            <button
+              type="button"
+              style={replaceBtnStyle}
+              onClick={() => setReplaceMode((v) => !v)}
+              title="Режим заміни"
+              aria-pressed={replaceMode}
+            >
+              Заміна
+            </button>
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          <span style={{ fontSize: "12px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
+            Показано: {filtered.length}
+          </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setFilterUntranslated((v) => !v)}
+              title="Показати лише неперекладені"
+              aria-pressed={filterUntranslated}
+              style={chipStyle(filterUntranslated, pinkTint)}
+            >
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: pinkTint.dot, flexShrink: 0 }} />
+              <span style={{ whiteSpace: "nowrap" }}>Неперекладені {untranslatedCount}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterUnconfirmed((v) => !v)}
+              title="Показати лише незатверджені"
+              aria-pressed={filterUnconfirmed}
+              style={chipStyle(filterUnconfirmed, amberTint)}
+            >
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: amberTint.dot, flexShrink: 0 }} />
+              <span style={{ whiteSpace: "nowrap" }}>Незатверджені {unconfirmedCount}</span>
+            </button>
+          </div>
+        </div>
+
+        {replaceMode && (
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
+            <input
+              type="text"
+              value={replaceValue}
+              onChange={(e) => setReplaceValue(e.target.value)}
+              placeholder="Замінити на… (у перекладах)"
+              aria-label="Текст заміни"
+              style={{
+                flex: 1,
+                minWidth: "200px",
+                height: "34px",
+                background: "var(--color-surface)",
+                border: "1px solid var(--color-divider)",
+                borderRadius: "var(--radius-md)",
+                padding: "0 12px",
+                color: "var(--color-text)",
+                fontSize: "13.5px",
+                fontFamily: "var(--font-body)",
+                outline: "none",
+              }}
+            />
+            <button type="button" className="btn btn-sm btn-neutral" onClick={handleReplaceOne} disabled={!queryRe}>
+              Замінити
+            </button>
+            <button type="button" className="btn btn-sm btn-neutral" onClick={handleReplaceAll} disabled={!queryRe}>
+              Замінити все
+            </button>
+          </div>
+        )}
+
+        <div
+          style={{
+            height: "1px",
+            background:
+              "linear-gradient(to right, transparent, var(--color-divider) 48px, var(--color-divider) calc(100% - 48px), transparent)",
+          }}
+        />
+      </div>
+
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+          <div
+            style={{
+              flexShrink: 0,
+              display: "grid",
+              gridTemplateColumns: GRID_COLUMNS_HEADER,
+              gap: "var(--space-6)",
+              padding: "0 var(--space-6)",
+              height: "28px",
+              alignItems: "center",
+            }}
+          >
+            <div />
+            <div style={COLUMN_HEADER_STYLE}>КЛЮЧ</div>
+            <div style={COLUMN_HEADER_STYLE}>ОРИГІНАЛ</div>
+            <div style={COLUMN_HEADER_STYLE}>ПЕРЕКЛАД</div>
+            <div style={{ ...COLUMN_HEADER_STYLE, textAlign: "right" }}>ДІЇ</div>
+          </div>
+
           {hiddenMatches > 0 && (
-            <div className="mb-3 flex items-center justify-center gap-3 rounded-lg border-2 border-warning/40 bg-base-200 px-4 py-2 text-sm">
+            <div
+              style={{ margin: "0 var(--space-6) var(--space-3)" }}
+              className="flex items-center justify-center gap-3 rounded-lg border border-warning/40 bg-base-200 px-4 py-2 text-sm"
+            >
               <span>
-                Фільтр приховує збігів:{" "}
-                <span className="font-semibold tabular-nums">{hiddenMatches}</span>
+                Фільтр приховує збігів: <span className="font-semibold tabular-nums">{hiddenMatches}</span>
               </span>
               <button
                 type="button"
@@ -528,22 +745,18 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
               </button>
             </div>
           )}
+
           {filtered.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-base-content/50 text-center">
+            <div className="flex-1 flex items-center justify-center text-center" style={{ color: "var(--color-neutral-500)" }}>
               <p>Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр.</p>
             </div>
           ) : (
-            // Bleed the list into the parent's right padding so its scrollbar
-            // hugs the sidebar edge instead of floating over the rows (visible
-            // with Firefox's wide scrollbars). Rows carry their own right
-            // padding (TranslationRow pr-6) to stay clear of the scrollbar.
-            <div className="flex-1 min-h-0 -mr-6">
+            <div style={{ flex: 1, minHeight: 0, padding: "0 var(--space-6)", display: "flex" }}>
               <List
                 listRef={listRef}
-                className="[scrollbar-gutter:stable]"
                 rowComponent={Row}
                 rowCount={filtered.length}
-                rowHeight={ROW_HEIGHT}
+                rowHeight={rowHeightCache}
                 style={{ width: "100%", height: "100%" }}
                 rowProps={{
                   filtered,
@@ -559,21 +772,24 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
             </div>
           )}
         </div>
-      </main>
-      <Sidebar
-        confirmedCount={confirmedCount}
-        total={total}
-        onExportJson={() => onExportJson(translations)}
-        onExportResourcePack={() => onExportResourcePack(translations)}
-        onLoadLang={handleLoadLangFile}
-        skipIdentical={settings.skipIdenticalImport}
-        onSkipIdenticalChange={handleSkipIdenticalChange}
-        settings={settings}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onAutoTranslate={handleAutoTranslate}
-        onCancelAutoTranslate={handleCancelAutoTranslate}
-        aiState={aiState}
-      />
+
+        <Sidebar
+          open={sidebarOpen}
+          confirmedCount={confirmedCount}
+          total={total}
+          onExportJson={() => onExportJson(translations)}
+          onExportResourcePack={() => onExportResourcePack(translations)}
+          onLoadLang={handleLoadLangFile}
+          skipIdentical={settings.skipIdenticalImport}
+          onSkipIdenticalChange={handleSkipIdenticalChange}
+          settings={settings}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onAutoTranslate={handleAutoTranslate}
+          onCancelAutoTranslate={handleCancelAutoTranslate}
+          aiState={aiState}
+        />
+      </div>
+
       {settingsOpen && (
         <SettingsModal
           settings={settings}

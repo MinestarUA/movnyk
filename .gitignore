@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Session design spec, kept local only
+docs/superpowers/specs/2026-07-23-design-system-redesign-design.md

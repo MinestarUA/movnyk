@@ -3,6 +3,7 @@ import { useToast } from "./Toast";
 import { hasApiKey } from "../lib/settings";
 
 const Sidebar = ({
+  open = true,
   confirmedCount,
   total,
   onExportJson,
@@ -58,135 +59,207 @@ const Sidebar = ({
   const running = aiState?.running;
   const aiProgress = running && aiState.total ? Math.round((aiState.done / aiState.total) * 100) : 0;
 
+  const dividerStyle = {
+    height: "1px",
+    background:
+      "linear-gradient(to right, transparent, var(--color-divider) 20%, var(--color-divider) 80%, transparent)",
+  };
+  const sectionLabelStyle = {
+    fontSize: "10.5px",
+    letterSpacing: "0.08em",
+    color: "var(--color-neutral-600)",
+    textTransform: "uppercase",
+  };
+  const outlineBtnStyle = {
+    height: "32px",
+    borderRadius: "var(--radius-md)",
+    background: "transparent",
+    border: "1px solid var(--color-divider)",
+    color: "var(--color-text)",
+    fontFamily: "var(--font-heading)",
+    fontWeight: 500,
+    fontSize: "12.5px",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "6px",
+  };
+  const exportBtnStyle = (filled) => ({
+    height: "32px",
+    borderRadius: "var(--radius-md)",
+    background: filled ? "rgba(255,95,162,0.14)" : "transparent",
+    border: "1px solid rgba(255,95,162,0.4)",
+    color: "#ff9dc6",
+    fontFamily: "var(--font-heading)",
+    fontWeight: 600,
+    fontSize: "12.5px",
+    cursor: "pointer",
+  });
+
   return (
-    <aside className="w-[300px] flex-shrink-0 bg-base-200 border-l-2 border-neutral h-screen p-8 flex flex-col shadow-[-5px_0_15px_rgba(0,0,0,0.1)] animate-slide-in-right overflow-y-auto">
-      <div className="h-full flex flex-col">
-        <div className="mb-6 flex items-center justify-between gap-2 border-b-2 border-b-neutral pb-6">
-          <h2 className="text-3xl">Дії</h2>
+    <aside
+      style={{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: "260px",
+        background: "color-mix(in srgb, var(--color-surface) 72%, transparent)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        borderLeft: "1px solid var(--color-divider)",
+        boxShadow: "-8px 0 24px rgba(0,0,0,0.35)",
+        transform: open ? "translateX(0)" : "translateX(100%)",
+        transition: "transform 0.2s ease",
+        zIndex: 10,
+      }}
+    >
+      <div
+        style={{
+          width: "260px",
+          padding: "var(--space-4) var(--space-4) var(--space-6)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-4)",
+          height: "100%",
+          overflowY: "auto",
+          boxSizing: "border-box",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: "16px" }}>Дії</div>
           <button
-            className="btn btn-ghost btn-sm gap-1"
             onClick={onOpenSettings}
             title="Налаштування"
             aria-label="Налаштування"
+            style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "var(--radius-md)",
+              background: "transparent",
+              border: "1px solid var(--color-divider)",
+              color: "var(--color-neutral-400)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.8}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"
-              />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+              <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+              <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
             </svg>
           </button>
         </div>
 
-        <div className="mb-6 rounded-lg bg-base-300 p-4 text-center">
-          <div className="text-3xl font-black text-primary tabular-nums">
-            {confirmedCount}
-            <span className="text-base-content/40 text-xl font-semibold"> / {total}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: "2px", padding: "var(--space-3) 0" }}>
+          <div style={{ fontSize: "26px", fontWeight: 700, fontFamily: "var(--font-heading)", lineHeight: 1.1 }}>
+            {confirmedCount}{" "}
+            <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--color-neutral-500)" }}>/ {total}</span>
           </div>
-          <div className="text-xs uppercase tracking-wide text-base-content/50 mt-1">
-            підтверджено
+          <div style={{ fontSize: "10.5px", letterSpacing: "0.08em", color: "var(--color-neutral-500)", textTransform: "uppercase" }}>
+            Підтверджено
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-          {keyReady && (
-            <>
-              {running ? (
-                <div className="rounded-lg border-2 border-primary/40 bg-base-300 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <span className="loading loading-spinner loading-sm text-primary" />
-                    Перекладаю з Gemini…
-                  </div>
-                  <progress
-                    className="progress progress-primary mt-3 w-full"
-                    value={aiState.done}
-                    max={aiState.total || 1}
-                    aria-label="Прогрес автоперекладу"
-                  />
-                  <div className="mt-1 text-xs tabular-nums text-base-content/60">
-                    {aiState.done} / {aiState.total} ({aiProgress}%)
-                  </div>
-                  <button
-                    className="btn btn-outline btn-error btn-sm mt-3 w-full"
-                    onClick={onCancelAutoTranslate}
-                  >
-                    Скасувати
-                  </button>
-                </div>
-              ) : (
-                <button className="btn btn-secondary gap-2" onClick={onAutoTranslate}>
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.8}
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"
-                    />
-                  </svg>
-                  Автопереклад з Gemini
-                </button>
-              )}
-              <div className="divider my-1 text-xs text-base-content/40">Файли</div>
-            </>
-          )}
+        {keyReady &&
+          (running ? (
+            <div style={{ borderRadius: "var(--radius-md)", border: "1px solid rgba(255,95,162,0.4)", background: "var(--color-bg)", padding: "var(--space-4)" }}>
+              <div className="flex items-center gap-2" style={{ fontSize: "13px", fontWeight: 600 }}>
+                <span className="loading loading-spinner loading-sm" style={{ color: "var(--accent-pink)" }} />
+                Перекладаю з Gemini…
+              </div>
+              <div style={{ height: "5px", borderRadius: "3px", background: "var(--color-neutral-800)", overflow: "hidden", marginTop: "10px" }}>
+                <div style={{ height: "100%", width: `${aiProgress}%`, background: "linear-gradient(90deg,#ff5fa2,#c860e8)", borderRadius: "3px", transition: "width 0.2s ease" }} />
+              </div>
+              <div style={{ marginTop: "4px", fontSize: "11px", color: "var(--color-neutral-500)", fontVariantNumeric: "tabular-nums" }}>
+                {aiState.done} / {aiState.total} ({aiProgress}%)
+              </div>
+              <button
+                onClick={onCancelAutoTranslate}
+                style={{ width: "100%", height: "32px", marginTop: "10px", borderRadius: "var(--radius-md)", background: "transparent", border: "1px solid var(--color-error, #ff5f6d)", color: "var(--color-error, #ff5f6d)", fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: "12.5px", cursor: "pointer" }}
+              >
+                Скасувати
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onAutoTranslate}
+              style={{
+                height: "36px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--accent-gradient)",
+                border: "none",
+                color: "#fff",
+                fontFamily: "var(--font-heading)",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                boxShadow: "var(--accent-glow)",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+              </svg>
+              Автопереклад з Gemini
+            </button>
+          ))}
 
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            onChange={handleFileChange}
-            accept=".json,.lang"
-          />
-          <button className="btn btn-neutral" onClick={handleLoadClick} disabled={running}>
+        <div style={dividerStyle} />
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={sectionLabelStyle}>Файли</div>
+          <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept=".json,.lang" />
+          <button style={{ ...outlineBtnStyle, opacity: running ? 0.5 : 1, cursor: running ? "not-allowed" : "pointer" }} onClick={handleLoadClick} disabled={running}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3v12" />
+              <path d="M7 8l5-5 5 5" />
+              <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+            </svg>
             Приєднати Lang файл
           </button>
-          <label className="label cursor-pointer justify-start gap-2 py-0">
+          <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "var(--color-neutral-400)", cursor: "pointer", lineHeight: 1.4 }}>
             <input
               type="checkbox"
-              className="checkbox checkbox-xs checkbox-primary"
               checked={skipIdentical}
               onChange={(e) => onSkipIdenticalChange(e.target.checked)}
+              style={{ accentColor: "var(--color-accent)", width: "13px", height: "13px", marginTop: "2px", flexShrink: 0 }}
             />
-            <span className="label-text text-xs">
-              Пропускати переклади, що збігаються з оригіналом
-            </span>
+            Пропускати переклади, що збігаються з оригіналом
           </label>
-          <div className="divider my-1 text-xs text-base-content/40">Експорт</div>
-          <button className="btn btn-primary" onClick={onExportJson}>
+        </div>
+
+        <div style={dividerStyle} />
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={sectionLabelStyle}>Експорт</div>
+          <button style={exportBtnStyle(true)} onClick={onExportJson}>
             Експортувати як JSON
           </button>
-          <button className="btn btn-outline btn-primary" onClick={onExportResourcePack}>
+          <button style={exportBtnStyle(false)} onClick={onExportResourcePack}>
             Експортувати як ресурспак
           </button>
         </div>
 
         {!keyReady && (
           <button
-            className="mt-6 text-xs text-base-content/50 underline decoration-dotted hover:text-primary"
             onClick={onOpenSettings}
+            style={{ fontSize: "12px", color: "var(--color-neutral-500)", textDecoration: "underline dotted", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}
           >
             Додайте ключ Gemini API, щоб перекладати автоматично
           </button>
         )}
 
-        <p className="mt-auto pt-6 text-xs text-base-content/40 text-center">
+        <div style={{ flex: 1 }} />
+        <div style={{ fontSize: "10.5px", color: "var(--color-neutral-600)", lineHeight: 1.5 }}>
           Порожні переклади не потрапляють до експорту.
-        </p>
+        </div>
       </div>
     </aside>
   );
