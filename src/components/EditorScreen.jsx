@@ -182,6 +182,26 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         return;
       }
 
+      // Escape clears the search query from anywhere in the editor, not just
+      // when the search box itself is focused. Functional setState keeps this
+      // in sync without adding `query` to the effect deps; preventDefault only
+      // fires when there was actually something to clear so other Escape
+      // consumers keep working on an empty query.
+      if (e.key === "Escape") {
+        let cleared = false;
+        setQuery((q) => {
+          if (q) {
+            cleared = true;
+            return "";
+          }
+          return q;
+        });
+        if (cleared) {
+          e.preventDefault();
+          return;
+        }
+      }
+
       // Enter (without Shift) inside a translation field confirms the current
       // entry (when non-empty) and advances to the next one.
       if (e.key === "Enter" && !e.shiftKey && isTranslationField) {
