@@ -15,7 +15,7 @@ const FEATURES = [
   },
 ];
 
-const WelcomeScreen = ({ onFileDrop, autosave, onResume }) => {
+const WelcomeScreen = ({ onFileDrop, onPasteClipboard, autosave, onResume }) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -89,6 +89,29 @@ const WelcomeScreen = ({ onFileDrop, autosave, onResume }) => {
           className="hidden"
           onChange={handleFileChange}
         />
+        <div className="mt-4 flex items-center justify-center gap-3 animate-fade-in [animation-delay:0.5s]">
+          <span className="text-sm text-base-content/40">або</span>
+          <button
+            type="button"
+            onClick={onPasteClipboard}
+            className="btn btn-ghost btn-sm gap-2 text-base-content/70 hover:text-primary"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            Вставити JSON з буфера обміну
+          </button>
+        </div>
         {autosave && (
           <div className="mt-6 flex items-center justify-between gap-4 rounded-[10px] border-2 border-primary/40 bg-base-200 p-4 text-left animate-fade-in">
             <div>

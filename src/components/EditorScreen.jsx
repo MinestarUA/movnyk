@@ -27,7 +27,7 @@ const COLUMN_HEADER_STYLE = {
 
 const GRID_COLUMNS_HEADER = "26px minmax(180px,1fr) minmax(200px,1.3fr) minmax(200px,1.3fr) 132px";
 
-const EditorScreen = ({ template, initialTranslations, onExportJson, onExportResourcePack, onHome }) => {
+const EditorScreen = ({ template, initialTranslations, onExportJson, onExportResourcePack, onExportClipboard, onHome }) => {
   const toast = useToast();
   const [settings, setSettings] = useState(() => loadSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -818,6 +818,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           total={total}
           onExportJson={() => onExportJson(translations)}
           onExportResourcePack={() => onExportResourcePack(translations)}
+          onExportClipboard={() => onExportClipboard(translations)}
           onLoadLang={handleLoadLangFile}
           skipIdentical={settings.skipIdenticalImport}
           onSkipIdenticalChange={handleSkipIdenticalChange}

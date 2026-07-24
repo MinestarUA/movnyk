@@ -120,6 +120,48 @@ const App = () => {
     toast("Файл JSON завантажено.", "success");
   };
 
+  const handleExportClipboard = async (translations) => {
+    const translationObject = createTranslationObject(translations);
+    if (Object.keys(translationObject).length === 0) {
+      toast("Немає перекладів для експорту.", "warning");
+      return;
+    }
+    const jsonString = JSON.stringify(translationObject, null, 2);
+    try {
+      await navigator.clipboard.writeText(jsonString);
+      toast("JSON скопійовано до буфера обміну.", "success");
+    } catch (error) {
+      console.error("Clipboard write failed:", error);
+      toast("Не вдалося скопіювати до буфера обміну.", "error");
+    }
+  };
+
+  const handlePasteClipboard = async () => {
+    let text;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch (error) {
+      console.error("Clipboard read failed:", error);
+      toast("Не вдалося прочитати буфер обміну. Дозвольте доступ до буфера обміну.", "error");
+      return;
+    }
+    if (!text || !text.trim()) {
+      toast("Буфер обміну порожній.", "warning");
+      return;
+    }
+    try {
+      const content = JSON.parse(text);
+      if (typeof content !== "object" || content === null || Array.isArray(content)) {
+        toast("Вміст буфера обміну не є коректним lang-файлом JSON.", "error");
+        return;
+      }
+      openEditor(content);
+    } catch (error) {
+      console.error("Error parsing clipboard JSON:", error);
+      toast("Не вдалося обробити вміст буфера обміну. Переконайтеся, що це коректний JSON.", "error");
+    }
+  };
+
   const handleExportResourcePack = async (translations) => {
     const translationObject = createTranslationObject(translations);
     if (Object.keys(translationObject).length === 0) {
@@ -157,12 +199,20 @@ const App = () => {
             initialTranslations={initialTranslations}
             onExportJson={handleExportJson}
             onExportResourcePack={handleExportResourcePack}
+            onExportClipboard={handleExportClipboard}
             onHome={() => setScreen("welcome")}
           />
         ) : null; // Or a loading spinner
       case "welcome":
       default:
-        return <WelcomeScreen onFileDrop={handleFileDrop} autosave={autosave} onResume={handleResume} />;
+        return (
+          <WelcomeScreen
+            onFileDrop={handleFileDrop}
+            onPasteClipboard={handlePasteClipboard}
+            autosave={autosave}
+            onResume={handleResume}
+          />
+        );
     }
   };
 
