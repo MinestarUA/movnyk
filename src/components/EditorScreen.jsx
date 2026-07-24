@@ -555,7 +555,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
           <div style={{ flex: 1 }} />
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0, maxWidth: "280px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0, maxWidth: "320px" }}>
             <WalkingCat progress={progress} confirmedCount={confirmedCount} total={total} />
             <div
               style={{

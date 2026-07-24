@@ -32,6 +32,8 @@ export default function WalkingCat({ progress = 0, confirmedCount, total }) {
       aria-valuemax={valueMax}
       style={{
         flex: 1,
+        minWidth: "150px",
+        marginRight: "6px",
         position: "relative",
         height: "22px",
         display: "flex",
@@ -77,8 +79,9 @@ export default function WalkingCat({ progress = 0, confirmedCount, total }) {
         style={{
           position: "absolute",
           bottom: "5px",
-          left: `${rest}%`,
-          transform: "translateX(-50%)",
+          // Traverse the full track: 0% → flush left, 100% → flush right
+          // (minus the cat's own width so it never clips or overlaps the counter).
+          left: `calc(${rest} * (100% - 22px) / 100)`,
           transition: "left 0.42s cubic-bezier(.4,1.3,.5,1)",
           width: "22px",
           height: "16px",
@@ -95,7 +98,7 @@ export default function WalkingCat({ progress = 0, confirmedCount, total }) {
 function CatSvg({ pose }) {
   const happy = pose === "happy";
   return (
-    <svg viewBox="0 0 22 16" width="22" height="16" aria-hidden="true" style={{ overflow: "visible" }}>
+    <svg viewBox="0 0 22 16" width="22" height="16" aria-hidden="true" style={{ overflow: "visible", transform: "scaleX(-1)" }}>
       {/* body */}
       <ellipse cx="10" cy="8" rx="7" ry="4.2" fill="#f7a8cf" />
       {/* head */}
@@ -135,8 +138,8 @@ function CatSvg({ pose }) {
 }
 
 const catKeyframes = `
-@keyframes cat-hop { 0%,100% { transform: translateX(-50%) translateY(0); } 40% { transform: translateX(-50%) translateY(-4px); } }
-@keyframes cat-bounce { 0%,100% { transform: translateX(-50%) translateY(0); } 30% { transform: translateX(-50%) translateY(-5px); } 60% { transform: translateX(-50%) translateY(-1px); } }
+@keyframes cat-hop { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-4px); } }
+@keyframes cat-bounce { 0%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } 60% { transform: translateY(-1px); } }
 @keyframes leg-swing-a { 0%,100% { transform: rotate(14deg); } 50% { transform: rotate(-14deg); } }
 @keyframes leg-swing-b { 0%,100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
 .cat--hop { animation: cat-hop 0.42s ease; }
