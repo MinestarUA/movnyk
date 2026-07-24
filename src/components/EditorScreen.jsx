@@ -3,6 +3,7 @@ import { List, useDynamicRowHeight } from "react-window";
 import TranslationRow, { ROW_COLLAPSED } from "./TranslationRow";
 import Sidebar from "./Sidebar";
 import SettingsModal from "./SettingsModal";
+import WalkingCat from "./WalkingCat.jsx";
 import { useToast } from "./Toast";
 import { loadSettings, saveSettings } from "../lib/settings";
 import { translateAll } from "../lib/gemini";
@@ -555,30 +556,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           <div style={{ flex: 1 }} />
 
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0, maxWidth: "280px" }}>
-            <div
-              style={{
-                flex: 1,
-                height: "5px",
-                borderRadius: "3px",
-                background: "var(--color-neutral-800)",
-                overflow: "hidden",
-              }}
-              role="progressbar"
-              aria-label="Прогрес перекладу"
-              aria-valuenow={confirmedCount}
-              aria-valuemax={total || 1}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${Math.max(progress, total ? 0.6 : 0)}%`,
-                  minWidth: total ? "3px" : 0,
-                  background: "linear-gradient(90deg,#ff5fa2,#c860e8)",
-                  borderRadius: "3px",
-                  transition: "width 0.2s ease",
-                }}
-              />
-            </div>
+            <WalkingCat progress={progress} confirmedCount={confirmedCount} total={total} />
             <div
               style={{
                 fontSize: "12px",
