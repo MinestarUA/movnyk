@@ -23,5 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-# Session design specs, kept local only
-docs/superpowers/specs/
+# Session design specs & plans, kept local only
+docs/superpowers/
