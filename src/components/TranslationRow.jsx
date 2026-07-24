@@ -7,6 +7,56 @@ const ROW_RULE =
 
 const GRID_COLUMNS = "26px minmax(180px,1fr) minmax(200px,1.3fr) minmax(200px,1.3fr) 132px";
 
+// Leading/trailing whitespace in the original is invisible in a normal text
+// node, so trailing blank lines (a common source of translation mismatches)
+// can't be spotted. Render those runs as tinted "blocks": each newline becomes
+// a highlighted ↵ marker followed by a real break, so empty lines still glow.
+const wsMarkStyle = {
+  background: "color-mix(in srgb, var(--color-accent) 22%, transparent)",
+  borderRadius: "2px",
+  color: "var(--color-accent-700)",
+  fontSize: "10px",
+  lineHeight: "inherit",
+};
+
+const renderWhitespaceRun = (run, keyPrefix) =>
+  [...run].map((ch, i) => {
+    const key = `${keyPrefix}-${i}`;
+    if (ch === "\n") {
+      return (
+        <span key={key}>
+          <span style={wsMarkStyle}>↵</span>
+          {"\n"}
+        </span>
+      );
+    }
+    // space, tab, or other whitespace → a tinted middle dot
+    return (
+      <span key={key} style={wsMarkStyle}>
+        ·
+      </span>
+    );
+  });
+
+// Split original into [leading ws][core][trailing ws] and highlight the edges.
+const renderOriginal = (text) => {
+  if (!text) return text;
+  const lead = (text.match(/^\s+/) || [""])[0];
+  const trail = (text.match(/\s+$/) || [""])[0];
+  // All-whitespace string: leading and trailing overlap — highlight once.
+  if (lead.length + trail.length >= text.length) {
+    return renderWhitespaceRun(text, "ws-all");
+  }
+  const core = text.slice(lead.length, text.length - trail.length);
+  return (
+    <>
+      {lead && renderWhitespaceRun(lead, "ws-lead")}
+      {core}
+      {trail && renderWhitespaceRun(trail, "ws-trail")}
+    </>
+  );
+};
+
 const SearchIcon = ({ size = 15 }) => (
   <svg
     width={size}
@@ -273,7 +323,7 @@ const TranslationRow = ({
           textOverflow: "ellipsis",
         }}
       >
-        {item.original}
+        {expanded ? renderOriginal(item.original) : item.original}
       </div>
 
       {expanded ? (
