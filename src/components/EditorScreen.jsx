@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { List, useDynamicRowHeight } from "react-window";
 import TranslationRow, { ROW_COLLAPSED } from "./TranslationRow";
 import Sidebar from "./Sidebar";
 import SettingsModal from "./SettingsModal";
+import ErrorBoundary from "./ErrorBoundary";
 import WalkingCat from "./WalkingCat.jsx";
 import { useToast } from "./Toast";
 import { loadSettings, saveSettings } from "../lib/settings";
@@ -16,6 +17,9 @@ import {
   translationMatches,
   replaceInTranslation,
 } from "../lib/searching";
+
+// Monaco is several hundred kilobytes; row-mode users never download it.
+const CodeView = lazy(() => import("./CodeView"));
 
 const COLUMN_HEADER_STYLE = {
   fontFamily: "var(--font-heading)",
@@ -799,19 +803,46 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
         {viewMode === "code" ? (
-          <div
-            data-testid="code-view-placeholder"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--color-neutral-500)",
-            }}
+          <ErrorBoundary
+            fallback={
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "var(--space-3)",
+                  color: "var(--color-neutral-500)",
+                }}
+              >
+                <span>Не вдалося завантажити редактор коду.</span>
+                <button type="button" className="btn btn-sm btn-neutral" onClick={() => setViewMode("rows")}>
+                  Повернутися до рядків
+                </button>
+              </div>
+            }
           >
-            Редактор коду
-          </div>
+            <Suspense
+              fallback={
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--color-neutral-500)",
+                  }}
+                >
+                  Завантаження редактора…
+                </div>
+              }
+            >
+              <CodeView translations={translations} onApply={() => {}} onError={() => {}} />
+            </Suspense>
+          </ErrorBoundary>
         ) : (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
             <div

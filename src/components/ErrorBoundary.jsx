@@ -20,6 +20,10 @@ class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      // An opt-in local fallback lets a single failing region degrade on its own
+      // instead of taking the whole screen down with it.
+      if (this.props.fallback) return this.props.fallback;
+
       // You can render any custom fallback UI
       return (
         <div style={{ padding: '20px', textAlign: 'center', color: '#d1d2d3' }}>
