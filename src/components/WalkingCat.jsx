@@ -4,22 +4,26 @@ import { restBucket, catStep } from "./catStep.js";
 // Animated progress indicator: an SVG cat that walks along a ground line.
 // Position snaps to 5% marks; confirming a row without crossing a mark bobs the
 // cat in place; crossing a mark plays a walk stride; 100% swaps to a happy pose.
-export default function WalkingCat({ progress = 0, confirmedCount, total }) {
+export default function WalkingCat({ progress = 0, confirmedCount = 0, total }) {
   const rest = restBucket(progress);
+  const complete = progress >= 100;
   const prevRestRef = useRef(rest);
+  const prevCountRef = useRef(confirmedCount);
   const [anim, setAnim] = useState({ move: "none", pose: "walking" });
 
   useEffect(() => {
-    const prev = prevRestRef.current;
-    const step = catStep(prev, rest, progress);
+    const prevRest = prevRestRef.current;
+    const countChanged = confirmedCount !== prevCountRef.current;
+    const step = catStep(prevRest, rest, complete, countChanged);
     prevRestRef.current = rest;
+    prevCountRef.current = confirmedCount;
     setAnim(step);
     if (step.move !== "none") {
       // Clear the class once the animation has run so the same move can retrigger.
       const t = setTimeout(() => setAnim((a) => ({ ...a, move: "none" })), 480);
       return () => clearTimeout(t);
     }
-  }, [rest, progress]);
+  }, [rest, confirmedCount, complete]);
 
   const valueNow = confirmedCount != null ? confirmedCount : progress;
   const valueMax = total != null ? total || 1 : 100;

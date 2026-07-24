@@ -16,22 +16,25 @@ describe("restBucket", () => {
 });
 
 describe("catStep", () => {
-  it("same bucket → hop, walking", () => {
-    expect(catStep(45, 45, 46)).toEqual({ move: "hop", pose: "walking" });
+  it("same bucket + row confirmed → hop, walking", () => {
+    expect(catStep(45, 45, false, true)).toEqual({ move: "hop", pose: "walking" });
+  });
+  it("same bucket, no row change → none", () => {
+    expect(catStep(45, 45, false, false)).toEqual({ move: "none", pose: "walking" });
   });
   it("bucket up → walk-forward, walking", () => {
-    expect(catStep(45, 50, 50)).toEqual({ move: "walk-forward", pose: "walking" });
+    expect(catStep(45, 50, false, true)).toEqual({ move: "walk-forward", pose: "walking" });
   });
   it("bucket down → walk-backward, walking", () => {
-    expect(catStep(50, 45, 48)).toEqual({ move: "walk-backward", pose: "walking" });
+    expect(catStep(50, 45, false, true)).toEqual({ move: "walk-backward", pose: "walking" });
   });
-  it("progress 100 → happy pose", () => {
-    expect(catStep(95, 100, 100)).toEqual({ move: "walk-forward", pose: "happy" });
+  it("complete crossing → walk-forward, happy", () => {
+    expect(catStep(95, 100, true, true)).toEqual({ move: "walk-forward", pose: "happy" });
   });
   it("no delta → none", () => {
-    expect(catStep(20, 20, 20)).toEqual({ move: "none", pose: "walking" });
+    expect(catStep(20, 20, false, false)).toEqual({ move: "none", pose: "walking" });
   });
-  it("hop at 100 stays happy", () => {
-    expect(catStep(100, 100, 100)).toEqual({ move: "none", pose: "happy" });
+  it("row change at 100 stays happy, no hop", () => {
+    expect(catStep(100, 100, true, true)).toEqual({ move: "none", pose: "happy" });
   });
 });
