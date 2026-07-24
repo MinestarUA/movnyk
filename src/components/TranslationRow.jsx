@@ -268,7 +268,7 @@ const TranslationRow = ({
           fontSize: "13px",
           color: "var(--color-neutral-200)",
           lineHeight: 1.4,
-          whiteSpace: expanded ? "normal" : "nowrap",
+          whiteSpace: expanded ? "pre-wrap" : "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}
