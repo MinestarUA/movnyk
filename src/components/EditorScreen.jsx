@@ -9,6 +9,7 @@ import { useToast } from "./Toast";
 import { loadSettings, saveSettings } from "../lib/settings";
 import { translateAll } from "../lib/gemini";
 import { mergeLangFile } from "../lib/importing";
+import { applyCode } from "../lib/codeSync";
 import { saveAutosave } from "../lib/autosave";
 import {
   compileQuery,
@@ -37,6 +38,9 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiState, setAiState] = useState({ running: false, done: 0, total: 0 });
   const abortRef = useRef(null);
+  // Set from inside the state updater, which React may run twice in StrictMode —
+  // the toast is fired from an effect instead so it cannot double-fire.
+  const skippedRef = useRef(0);
   const [translations, setTranslations] = useState(() =>
     initialTranslations
       ? initialTranslations.map((t) => ({
@@ -376,6 +380,28 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     return { applied, skipped };
   };
 
+  // Code-mode edits land here already parsed; reconciliation and the unknown-key
+  // count live in codeSync so this stays a thin wire between the two.
+  const handleCodeApply = useCallback(
+    (parsed) => {
+      setTranslations((prev) => {
+        const { next, skipped } = applyCode(prev, parsed, {
+          unconfirmOnEdit: settings.unconfirmOnEdit,
+        });
+        if (skipped > 0) skippedRef.current = skipped;
+        return next;
+      });
+    },
+    [settings.unconfirmOnEdit]
+  );
+
+  useEffect(() => {
+    if (skippedRef.current > 0) {
+      toast(`Пропущено невідомих ключів: ${skippedRef.current}`, "warning");
+      skippedRef.current = 0;
+    }
+  }, [translations, toast]);
+
   const handleSkipIdenticalChange = useCallback((value) => {
     setSettings((prev) => {
       const next = { ...prev, skipIdenticalImport: value };
@@ -621,12 +647,17 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
               { id: "code", label: "Код" },
             ].map((mode) => {
               const active = viewMode === mode.id;
+              // An AI batch rewriting a multi-thousand-line buffer under the
+              // cursor is unusable, so code mode is closed off mid-run.
+              const blocked = mode.id === "code" && aiState.running;
               return (
                 <button
                   key={mode.id}
                   type="button"
                   onClick={() => setViewMode(mode.id)}
                   aria-pressed={active}
+                  disabled={blocked}
+                  title={blocked ? "Недоступно під час автоперекладу" : undefined}
                   style={{
                     height: "30px",
                     padding: "0 10px",
@@ -635,7 +666,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                     color: active ? "var(--color-text)" : "var(--color-neutral-400)",
                     fontSize: "12px",
                     fontFamily: "var(--font-body)",
-                    cursor: "pointer",
+                    cursor: blocked ? "not-allowed" : "pointer",
+                    opacity: blocked ? 0.5 : 1,
                   }}
                 >
                   {mode.label}
@@ -840,7 +872,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                 </div>
               }
             >
-              <CodeView translations={translations} onApply={() => {}} onError={() => {}} />
+              <CodeView translations={translations} onApply={handleCodeApply} onError={() => {}} />
             </Suspense>
           </ErrorBoundary>
         ) : (
