@@ -27,4 +27,16 @@ describe("settings", () => {
     saveSettings({ apiKey: "", model: "gemini-2.5-flash", unconfirmOnEdit: false });
     expect(loadSettings().unconfirmOnEdit).toBe(false);
   });
+
+  it("defaults skipApprovedImport to true and round-trips it", () => {
+    expect(loadSettings().skipApprovedImport).toBe(true);
+    saveSettings({ apiKey: "", model: "gemini-2.5-flash", skipApprovedImport: false });
+    expect(loadSettings().skipApprovedImport).toBe(false);
+  });
+
+  it("defaults focusSearchOnFind to true and round-trips it", () => {
+    expect(loadSettings().focusSearchOnFind).toBe(true);
+    saveSettings({ apiKey: "", model: "gemini-2.5-flash", focusSearchOnFind: false });
+    expect(loadSettings().focusSearchOnFind).toBe(false);
+  });
 });

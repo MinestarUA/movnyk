@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { isTranslatable } from "../lib/translations";
 
 const FEATURES = [
   {
@@ -117,8 +118,9 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, autosave, onResume }) => 
             <div>
               <p className="m-0 font-semibold">Є незавершена сесія</p>
               <p className="m-0 mt-1 text-sm text-base-content/60">
-                Підтверджено {autosave.translations.filter((t) => t.confirmed).length} /{" "}
-                {autosave.translations.length} · збережено{" "}
+                Затверджено{" "}
+                {autosave.translations.filter((t) => t.confirmed && isTranslatable(t)).length} /{" "}
+                {autosave.translations.filter(isTranslatable).length} · збережено{" "}
                 {new Date(autosave.savedAt).toLocaleString("uk-UA")}
               </p>
             </div>

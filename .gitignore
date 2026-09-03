@@ -25,3 +25,4 @@ dist-ssr
 
 # Session design specs & plans, kept local only
 docs/superpowers/
+.claude/

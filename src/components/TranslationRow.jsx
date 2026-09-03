@@ -218,6 +218,7 @@ const TranslationRow = ({
   item,
   isSelected,
   focusRequestRef,
+  cursorPositionRef,
   onSelect,
   onTranslate,
   onConfirmToggle,
@@ -241,10 +242,22 @@ const TranslationRow = ({
     // Focus only when the selection was driven by keyboard navigation, so
     // filtering/searching never yanks the caret out of another field.
     if (isSelected && focusRequestRef?.current) {
-      textareaRef.current?.focus();
-      focusRequestRef.current = false;
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        focusRequestRef.current = false;
+        if (
+          cursorPositionRef?.current?.key === item.key &&
+          cursorPositionRef.current.start != null
+        ) {
+          const { start, end } = cursorPositionRef.current;
+          el.setSelectionRange(start, end);
+        } else if (el.value) {
+          el.setSelectionRange(el.value.length, el.value.length);
+        }
+      }
     }
-  }, [isSelected, focusRequestRef]);
+  }, [isSelected, item.key, focusRequestRef, cursorPositionRef]);
 
   // Auto-grow the field to fit its content so long multiline translations
   // don't force scrolling inside a small box. Runs synchronously before paint
@@ -260,13 +273,19 @@ const TranslationRow = ({
     const el = textareaRef.current;
     return () => {
       // If the virtualized list unmounts this row while its textarea is
-      // focused, request focus restoration on the next mount. (Layout cleanup
-      // runs before the DOM node is removed, so activeElement is still valid.)
+      // focused, request focus and caret restoration on the next mount.
       if (el && document.activeElement === el) {
         focusRequestRef.current = true;
+        if (cursorPositionRef) {
+          cursorPositionRef.current = {
+            key: item.key,
+            start: el.selectionStart,
+            end: el.selectionEnd,
+          };
+        }
       }
     };
-  }, [focusRequestRef]);
+  }, [item.key, focusRequestRef, cursorPositionRef]);
 
   const hasDraft = Boolean(item.translated.trim());
   const status = item.confirmed ? "confirmed" : hasDraft ? "pending" : "empty";
@@ -332,8 +351,53 @@ const TranslationRow = ({
           data-role="translation"
           data-key={item.key}
           value={item.translated}
-          onChange={(e) => onTranslate(e.target.value)}
-          onFocus={onSelect}
+          onChange={(e) => {
+            onTranslate(e.target.value);
+            if (cursorPositionRef) {
+              cursorPositionRef.current = {
+                key: item.key,
+                start: e.target.selectionStart,
+                end: e.target.selectionEnd,
+              };
+            }
+          }}
+          onSelect={(e) => {
+            if (cursorPositionRef) {
+              cursorPositionRef.current = {
+                key: item.key,
+                start: e.target.selectionStart,
+                end: e.target.selectionEnd,
+              };
+            }
+          }}
+          onKeyUp={(e) => {
+            if (cursorPositionRef) {
+              cursorPositionRef.current = {
+                key: item.key,
+                start: e.target.selectionStart,
+                end: e.target.selectionEnd,
+              };
+            }
+          }}
+          onMouseUp={(e) => {
+            if (cursorPositionRef) {
+              cursorPositionRef.current = {
+                key: item.key,
+                start: e.target.selectionStart,
+                end: e.target.selectionEnd,
+              };
+            }
+          }}
+          onFocus={(e) => {
+            onSelect();
+            if (cursorPositionRef) {
+              cursorPositionRef.current = {
+                key: item.key,
+                start: e.target.selectionStart,
+                end: e.target.selectionEnd,
+              };
+            }
+          }}
           onClick={stop}
           placeholder="Перекласти…"
           aria-label={`Переклад для ${item.key}`}
@@ -393,10 +457,10 @@ const TranslationRow = ({
             style={confirmLabelBtnStyle(item.confirmed, !hasDraft)}
             onClick={onConfirmToggle}
             disabled={!hasDraft}
-            title={item.confirmed ? "Зняти підтвердження" : "Підтвердити переклад"}
+            title={item.confirmed ? "Зняти затвердження" : "Затвердити переклад"}
           >
             <CheckIcon size={14} />
-            {item.confirmed ? "Підтверджено" : "Підтвердити"}
+            {item.confirmed ? "Затверджено" : "Затвердити"}
           </button>
           <button
             type="button"
@@ -424,7 +488,7 @@ const TranslationRow = ({
             style={confirmBtnStyle(item.confirmed, !hasDraft)}
             onClick={onConfirmToggle}
             disabled={!hasDraft}
-            title={item.confirmed ? "Зняти підтвердження" : "Підтвердити переклад"}
+            title={item.confirmed ? "Зняти затвердження" : "Затвердити переклад"}
           >
             <CheckIcon size={13} />
           </button>

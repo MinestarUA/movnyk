@@ -11,6 +11,7 @@ import { translateAll } from "../lib/gemini";
 import { mergeLangFile } from "../lib/importing";
 import { applyCode } from "../lib/codeSync";
 import { saveAutosave } from "../lib/autosave";
+import { isTranslatable } from "../lib/translations";
 import {
   compileQuery,
   isFindShortcut,
@@ -59,8 +60,11 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
   const [query, setQuery] = useState("");
   const [regexMode, setRegexMode] = useState(false);
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [wholeWord, setWholeWord] = useState(false);
   const [replaceMode, setReplaceMode] = useState(false);
   const [replaceValue, setReplaceValue] = useState("");
+  const [preserveCase, setPreserveCase] = useState(false);
   const [filterUntranslated, setFilterUntranslated] = useState(false);
   const [filterUnconfirmed, setFilterUnconfirmed] = useState(false);
   const [selectedKey, setSelectedKey] = useState(() => translations[0]?.key ?? null);
@@ -73,10 +77,11 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   // Only pull focus into a row when the user navigates via keyboard, so typing
   // in the search box (or clicking elsewhere) is never interrupted.
   const focusRequestRef = useRef(true);
+  const cursorPositionRef = useRef({ key: null, start: null, end: null });
 
   const { re: queryRe, error: queryError } = useMemo(
-    () => compileQuery(query, { regex: regexMode }),
-    [query, regexMode]
+    () => compileQuery(query, { regex: regexMode, caseSensitive, wholeWord }),
+    [query, regexMode, caseSensitive, wholeWord]
   );
 
   const filtered = useMemo(() => {
@@ -85,10 +90,11 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     translations.forEach((item, originalIndex) => {
       const matchesQuery = queryError ? false : !queryRe || itemMatches(item, queryRe);
       const empty = !item.translated.trim();
+      const translatable = isTranslatable(item);
       const matchesStatus =
         !statusActive ||
-        (filterUntranslated && empty) ||
-        (filterUnconfirmed && !empty && !item.confirmed);
+        (filterUntranslated && empty && translatable) ||
+        (filterUnconfirmed && !empty && !item.confirmed && translatable);
       const passes = matchesQuery && matchesStatus;
       // The selected row is pinned into view even when it fails the query or
       // status filter, so the row being edited never vanishes mid-work.
@@ -108,19 +114,25 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, filtered]);
 
   const confirmedCount = useMemo(
-    () => translations.filter((t) => t.confirmed).length,
+    () => translations.filter((t) => t.confirmed && isTranslatable(t)).length,
     [translations]
   );
   const untranslatedCount = useMemo(
-    () => translations.filter((t) => !t.translated.trim()).length,
+    () =>
+      translations.filter((t) => !t.translated.trim() && isTranslatable(t)).length,
     [translations]
   );
   const unconfirmedCount = useMemo(
-    () => translations.filter((t) => t.translated.trim() && !t.confirmed).length,
+    () =>
+      translations.filter((t) => t.translated.trim() && !t.confirmed && isTranslatable(t))
+        .length,
     [translations]
   );
-  const total = translations.length;
-  const progress = total ? Math.round((confirmedCount / total) * 100) : 0;
+  const total = useMemo(
+    () => translations.filter(isTranslatable).length,
+    [translations]
+  );
+  const progress = total ? Math.floor((confirmedCount / total) * 100) : 0;
 
   // Derive the effective selection so it stays valid when the filtered set
   // changes, without needing an effect to reconcile state.
@@ -139,12 +151,9 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       const ok = saveAutosave({ template, translations });
       if (!ok && !quotaWarnedRef.current) {
         quotaWarnedRef.current = true;
-        toast(
-          "Не вдалося зберегти прогрес локально — сховище браузера переповнене.",
-          "warning"
-        );
+        toast("Не вдалося зберегти сесію: вичерпано сховище браузера.", "warning");
       }
-    }, 800);
+    }, 400);
     return () => clearTimeout(id);
   }, [template, translations, toast]);
 
@@ -181,9 +190,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
       // Ctrl/Cmd + F opens the in-app search instead of the browser's find,
       // carrying the current text selection (key, original or translation)
-      // into the search field.
+      // into the search field. Focus moves to search only if enabled in settings.
       if (isFindShortcut(e)) {
-        e.preventDefault();
         let selected;
         if (
           (active?.tagName === "TEXTAREA" || active?.tagName === "INPUT") &&
@@ -194,18 +202,30 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           selected = window.getSelection()?.toString() ?? "";
         }
         selected = selected.trim();
-        if (selected) setQuery(selected);
-        const searchInput = document.getElementById("translation-search");
-        searchInput?.focus();
-        searchInput?.select();
+
+        if (selected) {
+          e.preventDefault();
+          setQuery(selected);
+          if (settings.focusSearchOnFind) {
+            const searchInput = document.getElementById("translation-search");
+            searchInput?.focus();
+            searchInput?.select();
+          }
+          return;
+        }
+
+        if (settings.focusSearchOnFind) {
+          e.preventDefault();
+          const searchInput = document.getElementById("translation-search");
+          searchInput?.focus();
+          searchInput?.select();
+          return;
+        }
         return;
       }
 
-      // Escape clears the search query from anywhere in the editor, not just
-      // when the search box itself is focused. Functional setState keeps this
-      // in sync without adding `query` to the effect deps; preventDefault only
-      // fires when there was actually something to clear so other Escape
-      // consumers keep working on an empty query.
+      // Escape clears the search query from anywhere in the editor.
+      // Keeps focus and caret in the current translation field without shifting.
       if (e.key === "Escape") {
         let cleared = false;
         setQuery((q) => {
@@ -217,6 +237,28 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         });
         if (cleared) {
           e.preventDefault();
+          if (isTranslationField && active) {
+            focusRequestRef.current = true;
+            cursorPositionRef.current = {
+              key: activeKey,
+              start: active.selectionStart,
+              end: active.selectionEnd,
+            };
+            requestAnimationFrame(() => {
+              const el = document.querySelector(
+                `textarea[data-role="translation"][data-key="${CSS.escape(activeKey)}"]`
+              );
+              if (el) {
+                el.focus();
+                if (cursorPositionRef.current?.start != null) {
+                  el.setSelectionRange(
+                    cursorPositionRef.current.start,
+                    cursorPositionRef.current.end
+                  );
+                }
+              }
+            });
+          }
           return;
         }
       }
@@ -244,7 +286,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       }
 
       // If focus fell to <body> (the focused row was scrolled out of the
-      // virtualized window), a printable key scrolls back and refocuses.
+      // virtualized window), a printable key scrolls back and refocuses,
+      // restoring the caret position.
       if (
         active === document.body &&
         e.key.length === 1 &&
@@ -258,11 +301,21 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         focusRequestRef.current = true;
         listRef.current?.scrollToRow({ index: activeIndex, align: "smart" });
         requestAnimationFrame(() => {
-          document
-            .querySelector(
-              `textarea[data-role="translation"][data-key="${CSS.escape(activeKey)}"]`
-            )
-            ?.focus();
+          const el = document.querySelector(
+            `textarea[data-role="translation"][data-key="${CSS.escape(activeKey)}"]`
+          );
+          if (el) {
+            el.focus();
+            if (
+              cursorPositionRef.current?.key === activeKey &&
+              cursorPositionRef.current.start != null
+            ) {
+              el.setSelectionRange(
+                cursorPositionRef.current.start,
+                cursorPositionRef.current.end
+              );
+            }
+          }
         });
         return;
       }
@@ -277,7 +330,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move, activeKey, activeIndex, viewMode]);
+  }, [move, activeKey, activeIndex, viewMode, settings.focusSearchOnFind]);
 
   // Manual edits (typing in the row) optionally drop the confirmed mark, so a
   // touched translation goes back through review. Replace operations go
@@ -303,6 +356,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     // the action sidebar away for full-width rows. The header toggle brings it
     // back.
     focusRequestRef.current = true;
+    cursorPositionRef.current = { key, start: null, end: null };
     setSidebarOpen(false);
   }, []);
 
@@ -321,6 +375,9 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       if (!translationMatches(t, queryRe)) return t;
       const replaced = replaceInTranslation(t.translated, query, replaceValue, {
         regex: regexMode,
+        caseSensitive,
+        wholeWord,
+        preserveCase,
       });
       if (replaced === t.translated) return t;
       changed += 1;
@@ -331,7 +388,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       changed > 0 ? `Замінено у рядках: ${changed}.` : "Збігів у перекладах не знайдено.",
       changed > 0 ? "success" : "info"
     );
-  }, [queryRe, translations, query, replaceValue, regexMode, toast]);
+  }, [queryRe, translations, query, replaceValue, regexMode, caseSensitive, wholeWord, preserveCase, toast]);
 
   const handleReplaceOne = useCallback(() => {
     if (!queryRe || filtered.length === 0) return;
@@ -342,6 +399,9 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       if (!translationMatches(item, queryRe)) continue;
       const replaced = replaceInTranslation(item.translated, query, replaceValue, {
         regex: regexMode,
+        caseSensitive,
+        wholeWord,
+        preserveCase,
       });
       setTranslations((prev) =>
         prev.map((t) => (t.key === item.key ? { ...t, translated: replaced } : t))
@@ -357,7 +417,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       return;
     }
     toast("Збігів у перекладах не знайдено.", "info");
-  }, [queryRe, filtered, activeIndex, query, replaceValue, regexMode, toast]);
+  }, [queryRe, filtered, activeIndex, query, replaceValue, regexMode, caseSensitive, wholeWord, preserveCase, toast]);
 
   const handleCopy = (text) => {
     navigator.clipboard?.writeText(text);
@@ -375,6 +435,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     const { next, applied, skipped } = mergeLangFile(translations, loaded, {
       skipIdentical: settings.skipIdenticalImport,
       confirmImported: settings.confirmImport,
+      skipApproved: settings.skipApprovedImport,
     });
     setTranslations(next);
     return { applied, skipped };
@@ -418,6 +479,14 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     });
   }, []);
 
+  const handleSkipApprovedChange = useCallback((value) => {
+    setSettings((prev) => {
+      const next = { ...prev, skipApprovedImport: value };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
   const handleSaveSettings = useCallback(
     (next) => {
       setSettings((prev) => {
@@ -436,8 +505,9 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
   const handleAutoTranslate = useCallback(async () => {
     // Snapshot the entries still needing a translation up front.
+    // Empty lines without original are excluded.
     const targets = translations
-      .filter((t) => !t.translated.trim())
+      .filter((t) => !t.translated.trim() && isTranslatable(t))
       .map((t) => ({ key: t.key, original: t.original }));
 
     if (targets.length === 0) {
@@ -490,36 +560,28 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   // index and filtering/searching remaps which row sits at each index.
   const rowHeightCache = useDynamicRowHeight({
     defaultRowHeight: ROW_COLLAPSED,
-    key: `${query}|${regexMode}|${filterUntranslated}|${filterUnconfirmed}`,
+    key: `${query}|${regexMode}|${caseSensitive}|${wholeWord}|${filterUntranslated}|${filterUnconfirmed}`,
   });
 
-  const regexBtnStyle = {
+  const toggleBtnStyle = (active, isLast = false) => ({
     height: "34px",
     padding: "0 10px",
-    borderRadius: 0,
+    borderRadius: isLast ? "0 var(--radius-md) var(--radius-md) 0" : 0,
     fontSize: "12px",
     fontFamily: "var(--font-heading)",
     fontWeight: 500,
     cursor: "pointer",
-    background: regexMode ? "color-mix(in srgb, var(--color-accent) 12%, transparent)" : "var(--color-surface)",
-    borderTop: "1px solid var(--color-divider)",
-    borderBottom: "1px solid var(--color-divider)",
+    background: active ? "color-mix(in srgb, var(--color-accent) 12%, transparent)" : "var(--color-surface)",
+    borderTop: active ? "1px solid var(--color-accent)" : "1px solid var(--color-divider)",
+    borderBottom: active ? "1px solid var(--color-accent)" : "1px solid var(--color-divider)",
     borderLeft: "1px solid var(--color-divider)",
-    borderRight: "none",
-    color: regexMode ? "var(--color-accent)" : "var(--color-neutral-400)",
-  };
-  const replaceBtnStyle = {
-    height: "34px",
-    padding: "0 12px",
-    borderRadius: "0 var(--radius-md) var(--radius-md) 0",
-    fontSize: "12px",
-    fontFamily: "var(--font-heading)",
-    fontWeight: 500,
-    cursor: "pointer",
-    background: replaceMode ? "color-mix(in srgb, var(--color-accent) 12%, transparent)" : "var(--color-surface)",
-    border: replaceMode ? "1px solid var(--color-accent)" : "1px solid var(--color-divider)",
-    color: replaceMode ? "var(--color-accent)" : "var(--color-neutral-400)",
-  };
+    borderRight: isLast
+      ? active
+        ? "1px solid var(--color-accent)"
+        : "1px solid var(--color-divider)"
+      : "none",
+    color: active ? "var(--color-accent)" : "var(--color-neutral-400)",
+  });
   const chipStyle = (active, tint) => ({
     display: "flex",
     alignItems: "center",
@@ -703,63 +765,108 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         </div>
 
         {viewMode === "rows" && (
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
-            <div style={{ flex: 1, position: "relative", maxWidth: "520px", display: "flex", alignItems: "center" }}>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--color-neutral-500)"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                style={{ position: "absolute", left: "12px", pointerEvents: "none" }}
-                aria-hidden="true"
-              >
-                <circle cx="10" cy="10" r="7" />
-                <line x1="21" y1="21" x2="15.5" y2="15.5" />
-              </svg>
-              <input
-                id="translation-search"
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Пошук за ключем, оригіналом або перекладом…"
-                aria-label="Пошук перекладів"
-                aria-invalid={Boolean(queryError)}
-                style={{
-                  width: "100%",
-                  height: "34px",
-                  background: "var(--color-surface)",
-                  border: queryError ? "1px solid var(--color-error, #ff5f6d)" : "1px solid var(--color-divider)",
-                  borderRadius: "var(--radius-md) 0 0 var(--radius-md)",
-                  borderRight: "none",
-                  padding: "0 12px 0 32px",
-                  color: "var(--color-text)",
-                  fontSize: "13.5px",
-                  fontFamily: "var(--font-body)",
-                  outline: "none",
-                }}
-              />
-              <button
-                type="button"
-                className="mono"
-                style={regexBtnStyle}
-                onClick={() => setRegexMode((v) => !v)}
-                title="Пошук за регулярним виразом"
-                aria-pressed={regexMode}
-              >
-                .*
-              </button>
-              <button
-                type="button"
-                style={replaceBtnStyle}
-                onClick={() => setReplaceMode((v) => !v)}
-                title="Режим заміни"
-                aria-pressed={replaceMode}
-              >
-                Заміна
-              </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", maxWidth: replaceMode ? "840px" : "560px" }}>
+              <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", minWidth: "260px" }}>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--color-neutral-500)"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  style={{ position: "absolute", left: "12px", pointerEvents: "none" }}
+                  aria-hidden="true"
+                >
+                  <circle cx="10" cy="10" r="7" />
+                  <line x1="21" y1="21" x2="15.5" y2="15.5" />
+                </svg>
+                <input
+                  id="translation-search"
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Пошук за ключем, оригіналом або перекладом…"
+                  aria-label="Пошук перекладів"
+                  aria-invalid={Boolean(queryError)}
+                  style={{
+                    width: "100%",
+                    height: "34px",
+                    background: "var(--color-surface)",
+                    border: queryError ? "1px solid var(--color-error, #ff5f6d)" : "1px solid var(--color-divider)",
+                    borderRadius: "var(--radius-md) 0 0 var(--radius-md)",
+                    borderRight: "none",
+                    padding: "0 12px 0 32px",
+                    color: "var(--color-text)",
+                    fontSize: "13.5px",
+                    fontFamily: "var(--font-body)",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  type="button"
+                  className="mono"
+                  style={toggleBtnStyle(caseSensitive)}
+                  onClick={() => setCaseSensitive((v) => !v)}
+                  title="Враховувати регістр"
+                  aria-pressed={caseSensitive}
+                >
+                  Aa
+                </button>
+                <button
+                  type="button"
+                  className="mono"
+                  style={toggleBtnStyle(wholeWord)}
+                  onClick={() => setWholeWord((v) => !v)}
+                  title="Цілі слова"
+                  aria-pressed={wholeWord}
+                >
+                  \b
+                </button>
+                <button
+                  type="button"
+                  className="mono"
+                  style={toggleBtnStyle(regexMode)}
+                  onClick={() => setRegexMode((v) => !v)}
+                  title="Пошук за регулярним виразом"
+                  aria-pressed={regexMode}
+                >
+                  .*
+                </button>
+                <button
+                  type="button"
+                  style={toggleBtnStyle(replaceMode, true)}
+                  onClick={() => setReplaceMode((v) => !v)}
+                  title="Режим заміни"
+                  aria-pressed={replaceMode}
+                >
+                  Заміна
+                </button>
+              </div>
+
+              {replaceMode && (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "8px", flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-neutral"
+                    style={{ height: "34px", padding: "0 12px", borderRadius: "var(--radius-md)", fontSize: "12.5px" }}
+                    onClick={handleReplaceOne}
+                    disabled={!queryRe}
+                  >
+                    Замінити
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-neutral"
+                    style={{ height: "34px", padding: "0 12px", borderRadius: "var(--radius-md)", fontSize: "12.5px" }}
+                    onClick={handleReplaceAll}
+                    disabled={!queryRe}
+                  >
+                    Замінити все
+                  </button>
+                </div>
+              )}
             </div>
 
             <div style={{ flex: 1 }} />
@@ -794,33 +901,49 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         )}
 
         {viewMode === "rows" && replaceMode && (
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
-            <input
-              type="text"
-              value={replaceValue}
-              onChange={(e) => setReplaceValue(e.target.value)}
-              placeholder="Замінити на… (у перекладах)"
-              aria-label="Текст заміни"
-              style={{
-                flex: 1,
-                minWidth: "200px",
-                height: "34px",
-                background: "var(--color-surface)",
-                border: "1px solid var(--color-divider)",
-                borderRadius: "var(--radius-md)",
-                padding: "0 12px",
-                color: "var(--color-text)",
-                fontSize: "13.5px",
-                fontFamily: "var(--font-body)",
-                outline: "none",
-              }}
-            />
-            <button type="button" className="btn btn-sm btn-neutral" onClick={handleReplaceOne} disabled={!queryRe}>
-              Замінити
-            </button>
-            <button type="button" className="btn btn-sm btn-neutral" onClick={handleReplaceAll} disabled={!queryRe}>
-              Замінити все
-            </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", maxWidth: "560px" }}>
+            <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
+              <input
+                type="text"
+                value={replaceValue}
+                onChange={(e) => setReplaceValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                      handleReplaceAll();
+                    } else {
+                      handleReplaceOne();
+                    }
+                  }
+                }}
+                placeholder="Замінити на… (у перекладах)"
+                aria-label="Текст заміни"
+                style={{
+                  width: "100%",
+                  height: "34px",
+                  background: "var(--color-surface)",
+                  border: "1px solid var(--color-divider)",
+                  borderRadius: "var(--radius-md) 0 0 var(--radius-md)",
+                  borderRight: "none",
+                  padding: "0 12px",
+                  color: "var(--color-text)",
+                  fontSize: "13.5px",
+                  fontFamily: "var(--font-body)",
+                  outline: "none",
+                }}
+              />
+              <button
+                type="button"
+                className="mono"
+                style={toggleBtnStyle(preserveCase, true)}
+                onClick={() => setPreserveCase((v) => !v)}
+                title="Зберігати регістр при заміні"
+                aria-pressed={preserveCase}
+              >
+                AB
+              </button>
+            </div>
           </div>
         )}
 
@@ -932,6 +1055,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                     filtered,
                     selectedKey: activeKey,
                     focusRequestRef,
+                    cursorPositionRef,
                     handleTranslationChange,
                     handleSelect,
                     handleConfirmToggle,
@@ -952,6 +1076,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           onExportResourcePack={() => onExportResourcePack(translations)}
           onExportClipboard={() => onExportClipboard(translations)}
           onLoadLang={handleLoadLangFile}
+          skipApproved={settings.skipApprovedImport !== false}
+          onSkipApprovedChange={handleSkipApprovedChange}
           skipIdentical={settings.skipIdenticalImport}
           onSkipIdenticalChange={handleSkipIdenticalChange}
           confirmImport={settings.confirmImport}
@@ -981,6 +1107,7 @@ const Row = ({
   filtered,
   selectedKey,
   focusRequestRef,
+  cursorPositionRef,
   handleTranslationChange,
   handleSelect,
   handleConfirmToggle,
@@ -995,6 +1122,7 @@ const Row = ({
       item={item}
       isSelected={item.key === selectedKey}
       focusRequestRef={focusRequestRef}
+      cursorPositionRef={cursorPositionRef}
       onSelect={() => handleSelect(item.key)}
       onTranslate={(newValue) => handleTranslationChange(item.originalIndex, newValue)}
       onConfirmToggle={() => handleConfirmToggle(item.key)}

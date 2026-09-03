@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useToast } from "./Toast";
 import { hasApiKey } from "../lib/settings";
+import { parseLangContent } from "../lib/importing";
 
 const Sidebar = ({
   open = true,
@@ -10,6 +11,8 @@ const Sidebar = ({
   onExportResourcePack,
   onExportClipboard,
   onLoadLang,
+  skipApproved,
+  onSkipApprovedChange,
   skipIdentical,
   onSkipIdenticalChange,
   confirmImport,
@@ -33,22 +36,22 @@ const Sidebar = ({
       const reader = new FileReader();
       reader.onload = (event) => {
         try {
-          const content = JSON.parse(event.target.result);
+          const content = parseLangContent(event.target.result);
           const { applied, skipped } = onLoadLang(content);
           if (applied > 0) {
             toast(
               `Застосовано перекладів: ${applied}.` +
-                (skipped > 0 ? ` Пропущено (збіг з оригіналом): ${skipped}.` : ""),
+                (skipped > 0 ? ` Пропущено: ${skipped}.` : ""),
               "success"
             );
           } else if (skipped > 0) {
-            toast("Усі збіги пропущено — переклади дублюють оригінал.", "warning");
+            toast("Усі збіги пропущено.", "warning");
           } else {
             toast("Жоден ключ із цього файлу не збігся з поточним проєктом.", "warning");
           }
         } catch (error) {
-          console.error("Error parsing JSON file:", error);
-          toast("Не вдалося обробити файл. Переконайтеся, що це коректний JSON.", "error");
+          console.error("Error parsing lang file:", error);
+          toast("Не вдалося обробити файл. Переконайтеся, що це коректний JSON або .lang файл.", "error");
         }
       };
       reader.onerror = () => toast("Не вдалося прочитати файл.", "error");
@@ -58,9 +61,42 @@ const Sidebar = ({
     e.target.value = null;
   };
 
+  const handlePasteLangClipboard = async () => {
+    let text;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch (error) {
+      console.error("Clipboard read failed:", error);
+      toast("Не вдалося прочитати буфер обміну. Дозвольте доступ до буфера обміну.", "error");
+      return;
+    }
+    if (!text || !text.trim()) {
+      toast("Буфер обміну порожній.", "warning");
+      return;
+    }
+    try {
+      const content = parseLangContent(text);
+      const { applied, skipped } = onLoadLang(content);
+      if (applied > 0) {
+        toast(
+          `Застосовано перекладів: ${applied}.` +
+            (skipped > 0 ? ` Пропущено: ${skipped}.` : ""),
+          "success"
+        );
+      } else if (skipped > 0) {
+        toast("Усі збіги з буфера пропущено.", "warning");
+      } else {
+        toast("Жоден ключ із буфера не збігся з поточним проєктом.", "warning");
+      }
+    } catch (error) {
+      console.error("Error parsing clipboard lang:", error);
+      toast("Не вдалося обробити вміст буфера обміну. Переконайтеся, що це коректний JSON або .lang файл.", "error");
+    }
+  };
+
   const keyReady = hasApiKey(settings);
   const running = aiState?.running;
-  const aiProgress = running && aiState.total ? Math.round((aiState.done / aiState.total) * 100) : 0;
+  const aiProgress = running && aiState.total ? Math.floor((aiState.done / aiState.total) * 100) : 0;
 
   const dividerStyle = {
     height: "1px",
@@ -163,7 +199,7 @@ const Sidebar = ({
             <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--color-neutral-500)" }}>/ {total}</span>
           </div>
           <div style={{ fontSize: "10.5px", letterSpacing: "0.08em", color: "var(--color-neutral-500)", textTransform: "uppercase" }}>
-            Підтверджено
+            Затверджено
           </div>
         </div>
 
@@ -227,6 +263,22 @@ const Sidebar = ({
             </svg>
             Приєднати Lang файл
           </button>
+          <button style={{ ...outlineBtnStyle, opacity: running ? 0.5 : 1, cursor: running ? "not-allowed" : "pointer" }} onClick={handlePasteLangClipboard} disabled={running}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            Приєднати Lang з буфера
+          </button>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "var(--color-neutral-400)", cursor: "pointer", lineHeight: 1.4 }}>
+            <input
+              type="checkbox"
+              checked={skipApproved}
+              onChange={(e) => onSkipApprovedChange(e.target.checked)}
+              style={{ accentColor: "var(--color-accent)", width: "13px", height: "13px", marginTop: "2px", flexShrink: 0 }}
+            />
+            Пропускати вже затверджені переклади
+          </label>
           <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "var(--color-neutral-400)", cursor: "pointer", lineHeight: 1.4 }}>
             <input
               type="checkbox"
@@ -243,7 +295,7 @@ const Sidebar = ({
               onChange={(e) => onConfirmImportChange(e.target.checked)}
               style={{ accentColor: "var(--color-accent)", width: "13px", height: "13px", marginTop: "2px", flexShrink: 0 }}
             />
-            Позначати імпортовані рядки як підтверджені
+            Позначати імпортовані рядки як затверджені
           </label>
         </div>
 

@@ -7,10 +7,16 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
   const [apiKey, setApiKey] = useState(settings.apiKey ?? "");
   const [model, setModel] = useState(settings.model ?? DEFAULT_MODEL);
   const [unconfirmOnEdit, setUnconfirmOnEdit] = useState(settings.unconfirmOnEdit !== false);
+  const [focusSearchOnFind, setFocusSearchOnFind] = useState(settings.focusSearchOnFind === true);
   const [showKey, setShowKey] = useState(false);
 
   const handleSave = () => {
-    onSave({ apiKey: apiKey.trim(), model, unconfirmOnEdit });
+    onSave({
+      apiKey: apiKey.trim(),
+      model,
+      unconfirmOnEdit,
+      focusSearchOnFind,
+    });
     onClose();
   };
 
@@ -103,6 +109,23 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
           </label>
           <p className="text-xs text-base-content/50">
             Заміна через пошук не знімає затвердження — лише редагування вручну.
+          </p>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-2">
+          <label className="label cursor-pointer justify-start gap-3 py-0">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm checkbox-primary"
+              checked={focusSearchOnFind}
+              onChange={(e) => setFocusSearchOnFind(e.target.checked)}
+            />
+            <span className="label-text text-sm">
+              Переходити фокусом на пошук при використанні Ctrl+F
+            </span>
+          </label>
+          <p className="text-xs text-base-content/50">
+            Якщо вимкнено, Ctrl+F лише встановлює вибраний текст у пошук без переведення фокусу.
           </p>
         </div>
 

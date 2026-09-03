@@ -6,6 +6,7 @@ import WelcomeScreen from "./components/WelcomeScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useToast } from "./components/Toast";
 import { loadAutosave } from "./lib/autosave";
+import { createTranslationObject } from "./lib/exporting";
 
 const App = () => {
   const [screen, setScreen] = useState("welcome"); // welcome, lang-selection, editor
@@ -87,15 +88,6 @@ const App = () => {
     openEditor(selectedContent);
   };
 
-  const createTranslationObject = (translations) => {
-    return translations.reduce((acc, item) => {
-      if (item.translated) {
-        // Only include non-empty translations
-        acc[item.key] = item.translated;
-      }
-      return acc;
-    }, {});
-  };
 
   const triggerDownload = (blob, filename) => {
     const url = URL.createObjectURL(blob);
