@@ -5,6 +5,7 @@ import {
   itemMatches,
   translationMatches,
   replaceInTranslation,
+  splitMatches,
 } from "./searching";
 
 const item = { key: "block.mod.copper_door", original: "Copper Door", translated: "Мідні двері" };
@@ -252,3 +253,23 @@ describe("isFindShortcut", () => {
     expect(isFindShortcut(ev({ key: "f", code: "KeyF" }))).toBe(false);
   });
 });
+
+describe("splitMatches", () => {
+  it("splits text by query matches preserving non-matching parts", () => {
+    const { re } = compileQuery("sword", { caseSensitive: false });
+    const chunks = splitMatches("Iron sword and Diamond Sword", re);
+    expect(chunks).toEqual([
+      { text: "Iron ", isMatch: false },
+      { text: "sword", isMatch: true },
+      { text: " and Diamond ", isMatch: false },
+      { text: "Sword", isMatch: true },
+    ]);
+  });
+
+  it("handles null regex or empty string", () => {
+    expect(splitMatches("plain text", null)).toEqual([
+      { text: "plain text", isMatch: false },
+    ]);
+  });
+});
+

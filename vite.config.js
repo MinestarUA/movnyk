@@ -5,4 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/movnyk/',
   plugins: [react()],
+  test: {
+    include: ['src/**/*.test.js'],
+  },
 })

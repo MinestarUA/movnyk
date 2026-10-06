@@ -1,4 +1,4 @@
-// Gemini-powered batch translation of Minecraft mod localization strings.
+// Gemini-powered batch and single-string translation of Minecraft mod localization strings.
 // Runs entirely from the browser against the Generative Language REST API,
 // which supports CORS with an API key passed as a query parameter.
 
@@ -6,10 +6,9 @@ import { DEFAULT_MODEL } from "./settings";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 
-// The system prompt is what makes the translations actually good: it pins the
-// model to Minecraft's official Ukrainian terminology and, crucially, forbids
-// touching format placeholders and formatting codes that would break the game.
-const SYSTEM_PROMPT = `You are an expert game localizer translating Minecraft mod localization strings from English into Ukrainian (uk_ua) for a resource pack.
+// The system prompt pins the model to Minecraft's official Ukrainian terminology
+// and forbids touching format placeholders and formatting codes.
+export const SYSTEM_PROMPT = `You are an expert game localizer translating Minecraft mod localization strings from English into Ukrainian (uk_ua) for a resource pack.
 
 INPUT: a single JSON object. Each key is a Minecraft translation key — do NOT translate, reorder or alter keys. Each value is the English source string to translate.
 
@@ -29,7 +28,7 @@ TRANSLATION RULES:
 
 Return the complete JSON object for every key you were given.`;
 
-const parseErrorMessage = (status, rawBody) => {
+export const parseErrorMessage = (status, rawBody) => {
   let apiMessage;
   try {
     const parsed = JSON.parse(rawBody);
@@ -48,15 +47,81 @@ const parseErrorMessage = (status, rawBody) => {
     return "Перевищено ліміт запитів Gemini (429). Зачекайте трохи й спробуйте знову.";
   }
   if (status === 404) {
-    return "Обрану модель Gemini не знайдено (404). Змініть модель у налаштуваннях.";
+    return "Обрану модель Gemini не знайдено (404). Змініть модель у налаштуваннях на gemini-2.0-flash.";
   }
   return `Помилка Gemini API (${status})${apiMessage ? `: ${apiMessage}` : ""}`;
 };
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Test connection with a minimal request to verify key & model
+export const testGeminiConnection = async (rawKey, rawModel) => {
+  const apiKey = rawKey?.trim();
+  if (!apiKey) throw new Error("Введіть ключ Gemini API.");
+  const model = rawModel || DEFAULT_MODEL;
+
+  const body = {
+    contents: [{ role: "user", parts: [{ text: "Ping" }] }],
+  };
+
+  const response = await fetch(
+    `${ENDPOINT}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    const rawBody = await response.text();
+    throw new Error(parseErrorMessage(response.status, rawBody));
+  }
+
+  return true;
+};
+
+// Translate a single string using Gemini
+export const translateSingleGemini = async (text, settings = {}, signal) => {
+  const apiKey = settings?.apiKey?.trim();
+  if (!apiKey) throw new Error("Не вказано ключ Gemini API.");
+  const model = settings?.model || DEFAULT_MODEL;
+
+  const source = { test_key: String(text ?? "") };
+  const body = {
+    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents: [{ role: "user", parts: [{ text: JSON.stringify(source) }] }],
+    generationConfig: {
+      temperature: 0.2,
+      topP: 0.95,
+      responseMimeType: "application/json",
+    },
+  };
+
+  const response = await fetch(
+    `${ENDPOINT}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    }
+  );
+
+  if (!response.ok) {
+    const rawBody = await response.text();
+    throw new Error(parseErrorMessage(response.status, rawBody));
+  }
+
+  const data = await response.json();
+  const rawText =
+    data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+
+  const parsed = JSON.parse(rawText);
+  return parsed.test_key ?? "";
+};
+
 // Translate one batch of entries. `entries` is [{ key, original }, ...].
-// Returns a plain object mapping key -> translated string.
 const translateBatch = async (entries, { apiKey, model, signal }, attempt = 0) => {
   const source = {};
   for (const entry of entries) source[entry.key] = String(entry.original ?? "");
@@ -128,13 +193,11 @@ const translateBatch = async (entries, { apiKey, model, signal }, attempt = 0) =
   return result;
 };
 
-// Translate every entry, running a few batches concurrently and reporting
-// progress after each one. Throws only if the very first request fails
-// (e.g. bad key), so a single flaky batch never aborts the whole run.
+// Translate every entry with Gemini
 export const translateAll = async (
   entries,
   settings,
-  { onBatch, signal, batchSize = 40, concurrency = 3 } = {}
+  { onBatch, signal, batchSize = 35, concurrency = 2 } = {}
 ) => {
   const apiKey = settings?.apiKey?.trim();
   if (!apiKey) throw new Error("Не вказано ключ Gemini API.");
@@ -170,7 +233,6 @@ export const translateAll = async (
   const workerCount = Math.min(concurrency, batches.length) || 0;
   await Promise.all(Array.from({ length: workerCount }, worker));
 
-  // If nothing at all came back, surface the underlying cause to the user.
   if (succeeded === 0 && firstError) throw firstError;
 
   return { succeeded, failed, hadErrors: Boolean(firstError) };

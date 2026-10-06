@@ -36,7 +36,33 @@ describe("settings", () => {
 
   it("defaults focusSearchOnFind to true and round-trips it", () => {
     expect(loadSettings().focusSearchOnFind).toBe(true);
-    saveSettings({ apiKey: "", model: "gemini-2.5-flash", focusSearchOnFind: false });
+    saveSettings({ apiKey: "", model: "gemini-2.0-flash", focusSearchOnFind: false });
     expect(loadSettings().focusSearchOnFind).toBe(false);
+  });
+
+  it("normalizes non-existent gemini-2.5-flash model to gemini-2.0-flash", () => {
+    saveSettings({ apiKey: "", model: "gemini-2.5-flash" });
+    expect(loadSettings().model).toBe("gemini-2.0-flash");
+  });
+
+  it("defaults syncIdenticalTranslations to true and round-trips it", () => {
+    expect(loadSettings().syncIdenticalTranslations).toBe(true);
+    saveSettings({ syncIdenticalTranslations: false });
+    expect(loadSettings().syncIdenticalTranslations).toBe(false);
+  });
+
+  it("round-trips aiProvider and DeepL settings", () => {
+    expect(loadSettings().aiProvider).toBe("gemini");
+    saveSettings({
+      aiProvider: "deepl",
+      deeplApiKey: "key:fx",
+      useDeeplProxy: true,
+      deeplProxyUrl: "https://proxy.example.com",
+    });
+    const loaded = loadSettings();
+    expect(loaded.aiProvider).toBe("deepl");
+    expect(loaded.deeplApiKey).toBe("key:fx");
+    expect(loaded.useDeeplProxy).toBe(true);
+    expect(loaded.deeplProxyUrl).toBe("https://proxy.example.com");
   });
 });

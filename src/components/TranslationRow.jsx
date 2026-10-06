@@ -1,16 +1,13 @@
-import { useRef, useState, useEffect, useLayoutEffect } from "react";
+import { useRef, useState, useEffect, useLayoutEffect, useMemo } from "react";
+import { tokenizeString } from "../lib/tokens";
+import { checkTranslationQA } from "../lib/qa";
+import { splitMatches } from "../lib/searching";
 
-// Bottom hairline drawn as a background gradient so it fades in from the row's
-// inner padding edges, matching the design's inset divider.
 const ROW_RULE =
   "linear-gradient(to right, transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px, color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px";
 
-const GRID_COLUMNS = "26px minmax(180px,1fr) minmax(200px,1.3fr) minmax(200px,1.3fr) 132px";
+export const GRID_COLUMNS = "26px minmax(240px,1.3fr) minmax(240px,1.4fr) 140px";
 
-// Leading/trailing whitespace in the original is invisible in a normal text
-// node, so trailing blank lines (a common source of translation mismatches)
-// can't be spotted. Render those runs as tinted "blocks": each newline becomes
-// a highlighted ↵ marker followed by a real break, so empty lines still glow.
 const wsMarkStyle = {
   background: "color-mix(in srgb, var(--color-accent) 22%, transparent)",
   borderRadius: "2px",
@@ -30,7 +27,6 @@ const renderWhitespaceRun = (run, keyPrefix) =>
         </span>
       );
     }
-    // space, tab, or other whitespace → a tinted middle dot
     return (
       <span key={key} style={wsMarkStyle}>
         ·
@@ -38,22 +34,78 @@ const renderWhitespaceRun = (run, keyPrefix) =>
     );
   });
 
-// Split original into [leading ws][core][trailing ws] and highlight the edges.
-const renderOriginal = (text) => {
-  if (!text) return text;
-  const lead = (text.match(/^\s+/) || [""])[0];
-  const trail = (text.match(/\s+$/) || [""])[0];
-  // All-whitespace string: leading and trailing overlap — highlight once.
-  if (lead.length + trail.length >= text.length) {
-    return renderWhitespaceRun(text, "ws-all");
-  }
-  const core = text.slice(lead.length, text.length - trail.length);
+// Renders text with search query highlighting
+const HighlightedText = ({ text, queryRe }) => {
+  const chunks = useMemo(() => splitMatches(text, queryRe), [text, queryRe]);
   return (
     <>
-      {lead && renderWhitespaceRun(lead, "ws-lead")}
-      {core}
-      {trail && renderWhitespaceRun(trail, "ws-trail")}
+      {chunks.map((chunk, i) =>
+        chunk.isMatch ? (
+          <mark
+            key={i}
+            className="bg-yellow-400/35 text-yellow-200 px-0.5 rounded font-semibold"
+          >
+            {chunk.text}
+          </mark>
+        ) : (
+          chunk.text
+        )
+      )}
     </>
+  );
+};
+
+// Renders interactive tokens (formatting codes, escapes, placeholders) as clickable chips
+const InteractiveOriginal = ({ text, onInsertToken, queryRe }) => {
+  const tokenParts = useMemo(() => tokenizeString(text), [text]);
+
+  return (
+    <span>
+      {tokenParts.map((part, idx) => {
+        if (part.type === "text") {
+          const lead = (part.value.match(/^\s+/) || [""])[0];
+          const trail = (part.value.match(/\s+$/) || [""])[0];
+          if (lead.length + trail.length >= part.value.length) {
+            return (
+              <span key={idx}>
+                {renderWhitespaceRun(part.value, `ws-${idx}`)}
+              </span>
+            );
+          }
+          const core = part.value.slice(lead.length, part.value.length - trail.length);
+          return (
+            <span key={idx}>
+              {lead && renderWhitespaceRun(lead, `ws-l-${idx}`)}
+              <HighlightedText text={core} queryRe={queryRe} />
+              {trail && renderWhitespaceRun(trail, `ws-t-${idx}`)}
+            </span>
+          );
+        }
+
+        // Color/formatting codes
+        let badgeStyle = "bg-primary/20 text-primary border-primary/30";
+        if (part.type === "mc-code") {
+          badgeStyle = "bg-secondary/25 text-secondary border-secondary/40";
+        } else if (part.type === "escape") {
+          badgeStyle = "bg-accent/20 text-accent border-accent/40";
+        }
+
+        return (
+          <button
+            key={idx}
+            type="button"
+            title={`Натисніть, щоб вставити «${part.value}» у переклад`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onInsertToken?.(part.value);
+            }}
+            className={`inline-flex items-center px-1.5 py-0.2 mx-0.5 rounded text-xs font-mono font-bold border transition-transform hover:scale-105 active:scale-95 cursor-pointer ${badgeStyle}`}
+          >
+            {part.value}
+          </button>
+        );
+      })}
+    </span>
   );
 };
 
@@ -106,6 +158,22 @@ const CopyIcon = ({ size = 15 }) => (
   </svg>
 );
 
+const SparklesIcon = ({ size = 15 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
+  </svg>
+);
+
 const statusDotStyle = (status) => {
   const base = { width: "8px", height: "8px", borderRadius: "50%", display: "block" };
   if (status === "confirmed")
@@ -114,119 +182,26 @@ const statusDotStyle = (status) => {
   return { ...base, border: "1.5px solid var(--color-neutral-700)" };
 };
 
-const lookupBtnStyle = {
-  width: "32px",
-  height: "32px",
-  flexShrink: 0,
-  borderRadius: "var(--radius-sm)",
-  background: "rgba(255,95,162,0.1)",
-  border: "1px solid rgba(255,95,162,0.3)",
-  color: "#ff9dc6",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-};
-
-const copyBtnStyle = {
-  width: "32px",
-  height: "32px",
-  flexShrink: 0,
-  borderRadius: "var(--radius-sm)",
-  background: "transparent",
-  border: "1px solid var(--color-divider)",
-  color: "var(--color-neutral-500)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-};
-
-const confirmBtnStyle = (confirmed, disabled) => ({
-  width: "32px",
-  height: "32px",
-  flexShrink: 0,
-  borderRadius: "var(--radius-sm)",
-  background: confirmed ? "rgba(99,214,138,0.16)" : "transparent",
-  border: confirmed ? "1px solid rgba(99,214,138,0.5)" : "1px solid var(--color-divider)",
-  color: confirmed ? "var(--status-confirmed)" : "var(--color-neutral-500)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: disabled ? "not-allowed" : "pointer",
-  opacity: disabled ? 0.4 : 1,
-});
-
-// Labelled variants for the expanded row: full-width, icon + text, so the
-// buttons fill the actions column instead of leaving it mostly empty.
-const labelBtnBase = {
-  height: "32px",
-  width: "100%",
-  borderRadius: "var(--radius-sm)",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "6px",
-  padding: "0 8px",
-  fontFamily: "var(--font-heading)",
-  fontSize: "11.5px",
-  fontWeight: 500,
-  whiteSpace: "nowrap",
-  cursor: "pointer",
-};
-
-const lookupLabelBtnStyle = {
-  ...labelBtnBase,
-  background: "rgba(255,95,162,0.1)",
-  border: "1px solid rgba(255,95,162,0.3)",
-  color: "#ff9dc6",
-};
-
-const copyLabelBtnStyle = {
-  ...labelBtnBase,
-  background: "transparent",
-  border: "1px solid var(--color-divider)",
-  color: "var(--color-neutral-400)",
-};
-
-// Green confirmation shown briefly after a successful copy.
-const copiedLabelBtnStyle = {
-  ...labelBtnBase,
-  background: "rgba(99,214,138,0.16)",
-  border: "1px solid rgba(99,214,138,0.5)",
-  color: "var(--status-confirmed)",
-};
-
-const copiedIconBtnStyle = {
-  ...copyBtnStyle,
-  background: "rgba(99,214,138,0.16)",
-  border: "1px solid rgba(99,214,138,0.5)",
-  color: "var(--status-confirmed)",
-};
-
-const confirmLabelBtnStyle = (confirmed, disabled) => ({
-  ...labelBtnBase,
-  background: confirmed ? "rgba(99,214,138,0.16)" : "transparent",
-  border: confirmed ? "1px solid rgba(99,214,138,0.5)" : "1px solid var(--color-divider)",
-  color: confirmed ? "var(--status-confirmed)" : "var(--color-neutral-400)",
-  cursor: disabled ? "not-allowed" : "pointer",
-  opacity: disabled ? 0.4 : 1,
-});
-
 const TranslationRow = ({
   rowStyle,
   item,
   isSelected,
   focusRequestRef,
   cursorPositionRef,
+  queryRe,
+  qaEnabled = true,
+  duplicateCount = 1,
   onSelect,
   onTranslate,
   onConfirmToggle,
   onCopy,
   onDefinition,
+  onSuggest,
+  isSuggesting = false,
 }) => {
   const textareaRef = useRef(null);
   const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
   const copiedTimer = useRef(null);
 
   const handleCopyClick = () => {
@@ -236,11 +211,16 @@ const TranslationRow = ({
     copiedTimer.current = setTimeout(() => setCopied(false), 1500);
   };
 
+  const handleCopyKey = (e) => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(item.key);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 1500);
+  };
+
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   useEffect(() => {
-    // Focus only when the selection was driven by keyboard navigation, so
-    // filtering/searching never yanks the caret out of another field.
     if (isSelected && focusRequestRef?.current) {
       const el = textareaRef.current;
       if (el) {
@@ -259,21 +239,16 @@ const TranslationRow = ({
     }
   }, [isSelected, item.key, focusRequestRef, cursorPositionRef]);
 
-  // Auto-grow the field to fit its content so long multiline translations
-  // don't force scrolling inside a small box. Runs synchronously before paint
-  // so the row is measured at its final height (no flicker).
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!isSelected || !el) return;
     el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    el.style.height = `${Math.max(el.scrollHeight, ACTION_STACK_HEIGHT)}px`;
   }, [isSelected, item.translated]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
     return () => {
-      // If the virtualized list unmounts this row while its textarea is
-      // focused, request focus and caret restoration on the next mount.
       if (el && document.activeElement === el) {
         focusRequestRef.current = true;
         if (cursorPositionRef) {
@@ -287,10 +262,34 @@ const TranslationRow = ({
     };
   }, [item.key, focusRequestRef, cursorPositionRef]);
 
+  const handleInsertToken = (tokenValue) => {
+    const el = textareaRef.current;
+    if (!el) {
+      onTranslate((item.translated || "") + tokenValue);
+      return;
+    }
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const val = el.value || "";
+    const next = val.slice(0, start) + tokenValue + val.slice(end);
+    onTranslate(next);
+    setTimeout(() => {
+      el.focus();
+      const newPos = start + tokenValue.length;
+      el.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
+
   const hasDraft = Boolean(item.translated.trim());
   const status = item.confirmed ? "confirmed" : hasDraft ? "pending" : "empty";
   const expanded = isSelected;
   const stop = (e) => e.stopPropagation();
+
+  // Run QA checks
+  const qaIssues = useMemo(() => {
+    if (!qaEnabled || !hasDraft) return [];
+    return checkTranslationQA(item.original, item.translated);
+  }, [qaEnabled, hasDraft, item.original, item.translated]);
 
   const outerStyle = {
     ...rowStyle,
@@ -299,9 +298,6 @@ const TranslationRow = ({
     gap: "var(--space-6)",
     padding: expanded ? "var(--space-4) var(--space-2)" : "0 var(--space-2)",
     alignItems: expanded ? "start" : "center",
-    // No fixed height: the list measures each row (ResizeObserver) so an
-    // expanded row grows with its content. minHeight keeps the default sizes —
-    // a single line collapsed, the action-button stack when expanded.
     minHeight: expanded ? ROW_EXPANDED : ROW_COLLAPSED,
     background: expanded ? "var(--color-surface)" : ROW_RULE,
     borderRadius: expanded ? "var(--radius-md)" : "0",
@@ -313,148 +309,214 @@ const TranslationRow = ({
 
   return (
     <div style={outerStyle} onClick={onSelect}>
-      <div style={{ display: "flex", alignItems: expanded ? "flex-start" : "center", paddingTop: expanded ? "2px" : 0 }}>
+      {/* 1. Status Dot */}
+      <div style={{ display: "flex", alignItems: expanded ? "flex-start" : "center", paddingTop: expanded ? "4px" : 0 }}>
         <span style={statusDotStyle(status)} />
       </div>
 
-      <div
-        className="mono"
-        style={{
-          fontSize: "12px",
-          color: "var(--color-neutral-500)",
-          lineHeight: 1.4,
-          whiteSpace: expanded ? "normal" : "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          wordBreak: "break-all",
-        }}
-      >
-        {item.key}
-      </div>
-
-      <div
-        style={{
-          fontSize: "13px",
-          color: "var(--color-neutral-200)",
-          lineHeight: 1.4,
-          whiteSpace: expanded ? "pre-wrap" : "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {expanded ? renderOriginal(item.original) : item.original}
-      </div>
-
-      {expanded ? (
-        <textarea
-          ref={textareaRef}
-          data-role="translation"
-          data-key={item.key}
-          value={item.translated}
-          onChange={(e) => {
-            onTranslate(e.target.value);
-            if (cursorPositionRef) {
-              cursorPositionRef.current = {
-                key: item.key,
-                start: e.target.selectionStart,
-                end: e.target.selectionEnd,
-              };
-            }
-          }}
-          onSelect={(e) => {
-            if (cursorPositionRef) {
-              cursorPositionRef.current = {
-                key: item.key,
-                start: e.target.selectionStart,
-                end: e.target.selectionEnd,
-              };
-            }
-          }}
-          onKeyUp={(e) => {
-            if (cursorPositionRef) {
-              cursorPositionRef.current = {
-                key: item.key,
-                start: e.target.selectionStart,
-                end: e.target.selectionEnd,
-              };
-            }
-          }}
-          onMouseUp={(e) => {
-            if (cursorPositionRef) {
-              cursorPositionRef.current = {
-                key: item.key,
-                start: e.target.selectionStart,
-                end: e.target.selectionEnd,
-              };
-            }
-          }}
-          onFocus={(e) => {
-            onSelect();
-            if (cursorPositionRef) {
-              cursorPositionRef.current = {
-                key: item.key,
-                start: e.target.selectionStart,
-                end: e.target.selectionEnd,
-              };
-            }
-          }}
-          onClick={stop}
-          placeholder="Перекласти…"
-          aria-label={`Переклад для ${item.key}`}
-          style={{
-            width: "100%",
-            // Floor at the action-stack height so a short translation still
-            // fills the default row; the auto-grow effect raises it for longer
-            // content, and the row measures taller to match.
-            minHeight: `${ACTION_STACK_HEIGHT}px`,
-            background: "var(--color-bg)",
-            border: "1px solid var(--color-divider)",
-            borderRadius: "var(--radius-md)",
-            padding: "8px 10px",
-            color: "var(--color-text)",
-            fontSize: "13px",
-            fontFamily: "var(--font-body)",
-            lineHeight: 1.4,
-            resize: "none",
-            overflow: "hidden",
-            outline: "none",
-          }}
-          onFocusCapture={(e) => (e.target.style.borderColor = "var(--color-accent)")}
-          onBlurCapture={(e) => (e.target.style.borderColor = "var(--color-divider)")}
-        />
-      ) : (
+      {/* 2. Source Column: Original String on top, Key underneath (Compact 2-row layout) */}
+      <div className="flex flex-col justify-center min-w-0 pr-2">
+        {/* Top: Original text */}
         <div
           style={{
             fontSize: "13px",
-            color: hasDraft ? "var(--color-neutral-200)" : "var(--color-neutral-600)",
-            fontStyle: hasDraft ? "normal" : "italic",
-            whiteSpace: "nowrap",
+            color: "var(--color-neutral-200)",
+            lineHeight: 1.4,
+            whiteSpace: expanded ? "pre-wrap" : "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
           }}
         >
-          {item.translated || "Перекласти…"}
+          {expanded ? (
+            <InteractiveOriginal
+              text={item.original}
+              onInsertToken={handleInsertToken}
+              queryRe={queryRe}
+            />
+          ) : (
+            <HighlightedText text={item.original} queryRe={queryRe} />
+          )}
         </div>
-      )}
 
+        {/* Bottom: Key with optional duplicate badge */}
+        <div className="flex items-center gap-1.5 mt-0.5 min-w-0 text-[11px] text-base-content/40 font-mono">
+          <span
+            className="truncate select-text hover:text-base-content/70 transition-colors"
+            title={item.key}
+          >
+            <HighlightedText text={item.key} queryRe={queryRe} />
+          </span>
+          {expanded && (
+            <button
+              type="button"
+              onClick={handleCopyKey}
+              className="text-[10px] opacity-60 hover:opacity-100 transition-opacity shrink-0 px-1 py-0.5 rounded bg-base-300"
+              title="Скопіювати ключ"
+            >
+              {copiedKey ? "✓" : "📋"}
+            </button>
+          )}
+          {duplicateCount > 1 && (
+            <span
+              className="badge badge-xs badge-info font-sans shrink-0"
+              title={`Цей вихідний текст повторюється у ${duplicateCount} ключах. Зміни синхронізуються автоматично.`}
+            >
+              🔄 {duplicateCount}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* 3. Translation Column */}
+      <div className="flex flex-col justify-center min-w-0">
+        {expanded ? (
+          <div>
+            <textarea
+              ref={textareaRef}
+              data-role="translation"
+              data-key={item.key}
+              value={item.translated}
+              lang="uk"
+              spellCheck={true}
+              onChange={(e) => {
+                onTranslate(e.target.value);
+                if (cursorPositionRef) {
+                  cursorPositionRef.current = {
+                    key: item.key,
+                    start: e.target.selectionStart,
+                    end: e.target.selectionEnd,
+                  };
+                }
+              }}
+              onSelect={(e) => {
+                if (cursorPositionRef) {
+                  cursorPositionRef.current = {
+                    key: item.key,
+                    start: e.target.selectionStart,
+                    end: e.target.selectionEnd,
+                  };
+                }
+              }}
+              onKeyUp={(e) => {
+                if (cursorPositionRef) {
+                  cursorPositionRef.current = {
+                    key: item.key,
+                    start: e.target.selectionStart,
+                    end: e.target.selectionEnd,
+                  };
+                }
+              }}
+              onMouseUp={(e) => {
+                if (cursorPositionRef) {
+                  cursorPositionRef.current = {
+                    key: item.key,
+                    start: e.target.selectionStart,
+                    end: e.target.selectionEnd,
+                  };
+                }
+              }}
+              onFocus={(e) => {
+                onSelect();
+                if (cursorPositionRef) {
+                  cursorPositionRef.current = {
+                    key: item.key,
+                    start: e.target.selectionStart,
+                    end: e.target.selectionEnd,
+                  };
+                }
+              }}
+              onClick={stop}
+              placeholder="Введіть український переклад…"
+              aria-label={`Переклад для ${item.key}`}
+              style={{
+                width: "100%",
+                minHeight: `${ACTION_STACK_HEIGHT}px`,
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-divider)",
+                borderRadius: "var(--radius-md)",
+                padding: "8px 10px",
+                color: "var(--color-text)",
+                fontSize: "13px",
+                fontFamily: "var(--font-body)",
+                lineHeight: 1.4,
+                resize: "none",
+                overflow: "hidden",
+                outline: "none",
+              }}
+              onFocusCapture={(e) => (e.target.style.borderColor = "var(--color-accent)")}
+              onBlurCapture={(e) => (e.target.style.borderColor = "var(--color-divider)")}
+            />
+
+            {/* QA Warnings */}
+            {qaIssues.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {qaIssues.map((issue, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-warning/15 text-warning border border-warning/30 font-medium"
+                    title={issue.message}
+                  >
+                    ⚠️ {issue.message}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div
+              style={{
+                fontSize: "13px",
+                color: hasDraft ? "var(--color-neutral-200)" : "var(--color-neutral-600)",
+                fontStyle: hasDraft ? "normal" : "italic",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {hasDraft ? (
+                <HighlightedText text={item.translated} queryRe={queryRe} />
+              ) : (
+                "Перекласти…"
+              )}
+            </div>
+            {qaIssues.length > 0 && (
+              <span
+                className="text-warning text-xs shrink-0 cursor-help"
+                title={qaIssues.map((i) => i.message).join("\n")}
+              >
+                ⚠️
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 4. Actions Column */}
       {expanded ? (
-        // Expanded: labelled full-width buttons that fill the actions column.
         <div
           onClick={stop}
-          style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "stretch" }}
+          style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "stretch" }}
         >
+          {/* AI Suggestion Button */}
+          {onSuggest && (
+            <button
+              type="button"
+              className={`btn btn-sm btn-outline btn-primary text-xs ${isSuggesting ? "loading" : ""}`}
+              onClick={() => onSuggest(item)}
+              disabled={isSuggesting}
+              title="Запропонувати автоматичний переклад через ШІ"
+            >
+              <SparklesIcon size={14} />
+              {isSuggesting ? "Переклад..." : "ШІ-переклад"}
+            </button>
+          )}
+
           <button
             type="button"
-            style={lookupLabelBtnStyle}
-            onClick={onDefinition}
-            title={hasDraft ? "Перевірити якість перекладу через Google" : "Скористатися Google для перекладу"}
-          >
-            <SearchIcon size={14} />
-            {hasDraft ? "Перевірити" : "Переклад"}
-          </button>
-          <button
-            type="button"
-            style={confirmLabelBtnStyle(item.confirmed, !hasDraft)}
+            className={`btn btn-sm text-xs ${
+              item.confirmed ? "btn-success" : "btn-neutral"
+            }`}
             onClick={onConfirmToggle}
             disabled={!hasDraft}
             title={item.confirmed ? "Зняти затвердження" : "Затвердити переклад"}
@@ -462,30 +524,47 @@ const TranslationRow = ({
             <CheckIcon size={14} />
             {item.confirmed ? "Затверджено" : "Затвердити"}
           </button>
+
           <button
             type="button"
-            style={copied ? copiedLabelBtnStyle : copyLabelBtnStyle}
+            className="btn btn-sm btn-ghost text-xs"
             onClick={handleCopyClick}
             title="Копіювати оригінальний текст"
           >
             {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
             {copied ? "Скопійовано" : "Копіювати"}
           </button>
+
+          {onDefinition && (
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost text-xs opacity-70 hover:opacity-100"
+              onClick={onDefinition}
+              title="Пошук перекладу в Google"
+            >
+              <SearchIcon size={13} />
+              Google
+            </button>
+          )}
         </div>
       ) : (
-        // Collapsed: compact icon-only buttons.
-        <div onClick={stop} style={{ display: "flex", gap: "5px", justifyContent: "flex-end" }}>
+        <div onClick={stop} style={{ display: "flex", gap: "4px", justifyContent: "flex-end" }}>
+          {onSuggest && (
+            <button
+              type="button"
+              className="btn btn-xs btn-ghost text-primary"
+              onClick={() => onSuggest(item)}
+              disabled={isSuggesting}
+              title="Запропонувати ШІ-переклад"
+            >
+              <SparklesIcon size={13} />
+            </button>
+          )}
           <button
             type="button"
-            style={lookupBtnStyle}
-            onClick={onDefinition}
-            title={hasDraft ? "Перевірити якість перекладу через Google" : "Скористатися Google для перекладу"}
-          >
-            <SearchIcon size={13} />
-          </button>
-          <button
-            type="button"
-            style={confirmBtnStyle(item.confirmed, !hasDraft)}
+            className={`btn btn-xs ${
+              item.confirmed ? "btn-success" : "btn-ghost text-base-content/50"
+            }`}
             onClick={onConfirmToggle}
             disabled={!hasDraft}
             title={item.confirmed ? "Зняти затвердження" : "Затвердити переклад"}
@@ -494,9 +573,9 @@ const TranslationRow = ({
           </button>
           <button
             type="button"
-            style={copied ? copiedIconBtnStyle : copyBtnStyle}
+            className="btn btn-xs btn-ghost text-base-content/50"
             onClick={handleCopyClick}
-            title={copied ? "Скопійовано" : "Копіювати оригінальний текст"}
+            title={copied ? "Скопійовано" : "Копіювати оригінал"}
           >
             {copied ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
           </button>
@@ -506,14 +585,8 @@ const TranslationRow = ({
   );
 };
 
-// Height of the vertical action-button stack: 3 × 32px buttons + 2 × 8px gaps.
-const ACTION_STACK_HEIGHT = 112;
-
-export const ROW_COLLAPSED = 50;
-// Expanded row defaults to exactly the action-button stack height (112) plus
-// the row's vertical padding (2 × var(--space-4) ≈ 22.4), so a short
-// translation shows no space beyond what the actions need. Longer content
-// grows the row past this floor.
-export const ROW_EXPANDED = 135;
+const ACTION_STACK_HEIGHT = 120;
+export const ROW_COLLAPSED = 52;
+export const ROW_EXPANDED = 150;
 
 export default TranslationRow;

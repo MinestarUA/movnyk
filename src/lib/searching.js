@@ -150,3 +150,53 @@ export const replaceInTranslation = (
 
   return regex ? text.replace(re, replacement) : text.replace(re, () => replacement);
 };
+
+// Splits text into chunks with `isMatch: boolean` flags for UI search highlighting.
+export const splitMatches = (text, queryRe) => {
+  if (!text || !queryRe) {
+    return [{ text: text ?? "", isMatch: false }];
+  }
+
+  const str = String(text);
+  const flags = queryRe.flags.includes("g") ? queryRe.flags : `${queryRe.flags}g`;
+  let re;
+  try {
+    re = new RegExp(queryRe.source, flags);
+  } catch {
+    return [{ text: str, isMatch: false }];
+  }
+
+  const chunks = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = re.exec(str)) !== null) {
+    if (match.index > lastIndex) {
+      chunks.push({
+        text: str.slice(lastIndex, match.index),
+        isMatch: false,
+      });
+    }
+    const matchedText = match[0];
+    if (matchedText.length > 0) {
+      chunks.push({
+        text: matchedText,
+        isMatch: true,
+      });
+      lastIndex = match.index + matchedText.length;
+    } else {
+      // Avoid infinite loop on zero-length matches
+      re.lastIndex++;
+    }
+  }
+
+  if (lastIndex < str.length) {
+    chunks.push({
+      text: str.slice(lastIndex),
+      isMatch: false,
+    });
+  }
+
+  return chunks.length > 0 ? chunks : [{ text: str, isMatch: false }];
+};
+

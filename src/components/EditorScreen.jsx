@@ -6,12 +6,13 @@ import SettingsModal from "./SettingsModal";
 import ErrorBoundary from "./ErrorBoundary";
 import WalkingCat from "./WalkingCat.jsx";
 import { useToast } from "./Toast";
-import { loadSettings, saveSettings } from "../lib/settings";
-import { translateAll } from "../lib/gemini";
+import { loadSettings, saveSettings, hasApiKey } from "../lib/settings";
+import { translateAll, translateSingle } from "../lib/ai";
 import { mergeLangFile } from "../lib/importing";
 import { applyCode } from "../lib/codeSync";
 import { saveAutosave } from "../lib/autosave";
 import { isTranslatable } from "../lib/translations";
+import ProjectReferenceDrawer from "./ProjectReferenceDrawer";
 import {
   compileQuery,
   isFindShortcut,
@@ -31,7 +32,7 @@ const COLUMN_HEADER_STYLE = {
   color: "var(--color-neutral-600)",
 };
 
-const GRID_COLUMNS_HEADER = "26px minmax(180px,1fr) minmax(200px,1.3fr) minmax(200px,1.3fr) 132px";
+const GRID_COLUMNS_HEADER = "26px minmax(240px,1.3fr) minmax(240px,1.4fr) 140px";
 
 const EditorScreen = ({ template, initialTranslations, onExportJson, onExportResourcePack, onExportClipboard, onHome }) => {
   const toast = useToast();
@@ -69,9 +70,21 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const [filterUnconfirmed, setFilterUnconfirmed] = useState(false);
   const [selectedKey, setSelectedKey] = useState(() => translations[0]?.key ?? null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
+  const [suggestingKey, setSuggestingKey] = useState(null);
   // Code mode swaps the row grid for a Monaco pane. Deliberately not persisted:
   // a reload should land on the familiar row view.
   const [viewMode, setViewMode] = useState("rows");
+
+  const duplicateCounts = useMemo(() => {
+    const counts = new Map();
+    for (const t of translations) {
+      if (t.original) {
+        counts.set(t.original, (counts.get(t.original) || 0) + 1);
+      }
+    }
+    return counts;
+  }, [translations]);
 
   const listRef = useRef(null);
   // Only pull focus into a row when the user navigates via keyboard, so typing
@@ -187,6 +200,13 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     const handleKeyDown = (e) => {
       const active = document.activeElement;
       const isTranslationField = active?.dataset?.role === "translation";
+
+      // Ctrl/Cmd + Shift + F opens the independent project reference drawer
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "F" || e.code === "KeyF" || e.key === "f")) {
+        e.preventDefault();
+        setReferenceDrawerOpen((v) => !v);
+        return;
+      }
 
       // Ctrl/Cmd + F opens the in-app search instead of the browser's find,
       // carrying the current text selection (key, original or translation)
@@ -332,40 +352,80 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [move, activeKey, activeIndex, viewMode, settings.focusSearchOnFind]);
 
-  // Manual edits (typing in the row) optionally drop the confirmed mark, so a
-  // touched translation goes back through review. Replace operations go
-  // through their own handlers and deliberately keep confirmation intact.
+  // Manual edits optionally drop the confirmed mark.
+  // If syncIdenticalTranslations is enabled, updates all rows with identical original text.
   const handleTranslationChange = useCallback(
     (index, newValue) => {
       const unconfirm = settings.unconfirmOnEdit;
+      const targetOriginal = translations[index]?.original;
+      const syncIdentical = settings.syncIdenticalTranslations && targetOriginal !== undefined;
+
       setTranslations((prev) =>
-        prev.map((item, i) =>
-          i === index
-            ? { ...item, translated: newValue, confirmed: unconfirm ? false : item.confirmed }
-            : item
-        )
+        prev.map((item, i) => {
+          const isTarget = i === index;
+          const isIdentical = syncIdentical && item.original === targetOriginal;
+          if (isTarget || isIdentical) {
+            return {
+              ...item,
+              translated: newValue,
+              confirmed: unconfirm ? false : item.confirmed,
+            };
+          }
+          return item;
+        })
       );
     },
-    [settings.unconfirmOnEdit]
+    [settings.unconfirmOnEdit, settings.syncIdenticalTranslations, translations]
   );
 
   const handleSelect = useCallback((key) => {
     setSelectedKey(key);
-    // Expanding a row hands the screen over to editing: pull focus into its
-    // translation field (the row's focus effect honours this request) and tuck
-    // the action sidebar away for full-width rows. The header toggle brings it
-    // back.
     focusRequestRef.current = true;
     cursorPositionRef.current = { key, start: null, end: null };
     setSidebarOpen(false);
   }, []);
 
   const handleConfirmToggle = useCallback((key) => {
+    const target = translations.find((t) => t.key === key);
+    const syncIdentical = settings.syncIdenticalTranslations && target?.original !== undefined;
+    const newConfirmed = target ? !target.confirmed : false;
+
     setTranslations((prev) =>
-      prev.map((t) =>
-        t.key === key && t.translated.trim() ? { ...t, confirmed: !t.confirmed } : t
-      )
+      prev.map((t) => {
+        const isMatch = syncIdentical ? t.original === target.original : t.key === key;
+        return isMatch && t.translated.trim() ? { ...t, confirmed: newConfirmed } : t;
+      })
     );
+  }, [settings.syncIdenticalTranslations, translations]);
+
+  const handleSuggest = useCallback(
+    async (item) => {
+      if (!hasApiKey(settings)) {
+        toast("Вкажіть API ключ у налаштуваннях для автоматичного перекладу.", "warning");
+        setSettingsOpen(true);
+        return;
+      }
+      setSuggestingKey(item.key);
+      try {
+        const suggestion = await translateSingle(item.original, settings);
+        if (suggestion) {
+          handleTranslationChange(item.originalIndex, suggestion);
+          toast("Переклад застосовано!", "success");
+        }
+      } catch (err) {
+        toast(err.message || "Не вдалося отримати переклад.", "error");
+      } finally {
+        setSuggestingKey(null);
+      }
+    },
+    [settings, toast, handleTranslationChange]
+  );
+
+  const handleNavigateFromDrawer = useCallback((key) => {
+    setQuery("");
+    setSelectedKey(key);
+    setReferenceDrawerOpen(false);
+    focusRequestRef.current = true;
   }, []);
 
   const handleReplaceAll = useCallback(() => {
@@ -740,6 +800,24 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
           <button
             type="button"
+            onClick={() => setReferenceDrawerOpen((v) => !v)}
+            title="Довідник проєкту / Швидкий пошук (Ctrl+Shift+F)"
+            className={`btn btn-sm ${referenceDrawerOpen ? "btn-primary" : "btn-neutral"}`}
+            style={{
+              height: "30px",
+              fontSize: "12px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "0 10px",
+            }}
+          >
+            <span>📖</span>
+            <span className="hidden sm:inline">Довідник</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setSidebarOpen((v) => !v)}
             title={sidebarOpen ? "Сховати панель дій" : "Показати панель дій"}
             aria-pressed={sidebarOpen}
@@ -866,6 +944,20 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                     Замінити все
                   </button>
                 </div>
+              )}
+
+              {query && activeKey && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    focusRequestRef.current = true;
+                  }}
+                  className="btn btn-xs btn-outline btn-warning ml-3 shrink-0"
+                  title="Очистити пошук та повернутися до робочого рядка"
+                >
+                  📌 До рядка ({activeKey.length > 20 ? activeKey.slice(0, 20) + "…" : activeKey})
+                </button>
               )}
             </div>
 
@@ -1012,8 +1104,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
               }}
             >
               <div />
-              <div style={COLUMN_HEADER_STYLE}>КЛЮЧ</div>
-              <div style={COLUMN_HEADER_STYLE}>ОРИГІНАЛ</div>
+              <div style={COLUMN_HEADER_STYLE}>ОРИГІНАЛ ТА КЛЮЧ</div>
               <div style={COLUMN_HEADER_STYLE}>ПЕРЕКЛАД</div>
               <div style={{ ...COLUMN_HEADER_STYLE, textAlign: "right" }}>ДІЇ</div>
             </div>
@@ -1054,6 +1145,10 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                   rowProps={{
                     filtered,
                     selectedKey: activeKey,
+                    queryRe,
+                    qaEnabled: settings.qaChecksEnabled !== false,
+                    duplicateCounts,
+                    suggestingKey,
                     focusRequestRef,
                     cursorPositionRef,
                     handleTranslationChange,
@@ -1061,6 +1156,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                     handleConfirmToggle,
                     handleCopy,
                     handleDefinition,
+                    handleSuggest,
                   }}
                 />
               </div>
@@ -1090,6 +1186,14 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         />
       </div>
 
+      <ProjectReferenceDrawer
+        isOpen={referenceDrawerOpen}
+        onClose={() => setReferenceDrawerOpen(false)}
+        translations={translations}
+        onNavigateToRow={handleNavigateFromDrawer}
+        activeKey={activeKey}
+      />
+
       {settingsOpen && (
         <SettingsModal
           settings={settings}
@@ -1106,6 +1210,10 @@ const Row = ({
   style,
   filtered,
   selectedKey,
+  queryRe,
+  qaEnabled,
+  duplicateCounts,
+  suggestingKey,
   focusRequestRef,
   cursorPositionRef,
   handleTranslationChange,
@@ -1113,6 +1221,7 @@ const Row = ({
   handleConfirmToggle,
   handleCopy,
   handleDefinition,
+  handleSuggest,
 }) => {
   const item = filtered[index];
 
@@ -1121,6 +1230,10 @@ const Row = ({
       rowStyle={style}
       item={item}
       isSelected={item.key === selectedKey}
+      queryRe={queryRe}
+      qaEnabled={qaEnabled}
+      duplicateCount={duplicateCounts?.get(item.original) || 1}
+      isSuggesting={suggestingKey === item.key}
       focusRequestRef={focusRequestRef}
       cursorPositionRef={cursorPositionRef}
       onSelect={() => handleSelect(item.key)}
@@ -1128,6 +1241,7 @@ const Row = ({
       onConfirmToggle={() => handleConfirmToggle(item.key)}
       onCopy={() => handleCopy(item.original)}
       onDefinition={() => handleDefinition(item)}
+      onSuggest={handleSuggest}
     />
   );
 };
