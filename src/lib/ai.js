@@ -29,8 +29,6 @@ export const testConnection = (settings) => {
   if (settings?.aiProvider === "deepl") {
     return testDeeplConnection({
       apiKey: settings.deeplApiKey,
-      proxyUrl: settings.deeplProxyUrl,
-      useProxy: settings.useDeeplProxy,
     });
   }
   return testGeminiConnection(settings?.apiKey, settings?.model);

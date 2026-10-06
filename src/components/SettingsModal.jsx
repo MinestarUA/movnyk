@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { GEMINI_MODELS, DEFAULT_MODEL, AI_PROVIDERS } from "../lib/settings";
 import { testGeminiConnection, fetchAvailableGeminiModels } from "../lib/gemini";
-import { testDeeplConnection, DEFAULT_CORS_PROXY } from "../lib/deepl";
+import { testDeeplConnection, CORS_EXTENSION_URL } from "../lib/deepl";
 
 const SettingsModal = ({ settings, onSave, onClose }) => {
   const [aiProvider, setAiProvider] = useState(settings.aiProvider ?? "gemini");
@@ -13,8 +13,6 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
     Boolean(settings.model && !GEMINI_MODELS.some((m) => m.id === settings.model))
   );
   const [deeplApiKey, setDeeplApiKey] = useState(settings.deeplApiKey ?? "");
-  const [deeplProxyUrl, setDeeplProxyUrl] = useState(settings.deeplProxyUrl ?? "");
-  const [useDeeplProxy, setUseDeeplProxy] = useState(settings.useDeeplProxy ?? true);
 
   const [syncIdenticalTranslations, setSyncIdenticalTranslations] = useState(
     settings.syncIdenticalTranslations !== false
@@ -65,8 +63,6 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
       if (aiProvider === "deepl") {
         await testDeeplConnection({
           apiKey: deeplApiKey,
-          proxyUrl: deeplProxyUrl,
-          useProxy: useDeeplProxy,
         });
         setTestResult({ ok: true, message: "Підключення до DeepL успішне!" });
       } else {
@@ -86,8 +82,6 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
       apiKey: apiKey.trim(),
       model,
       deeplApiKey: deeplApiKey.trim(),
-      deeplProxyUrl: deeplProxyUrl.trim(),
-      useDeeplProxy,
       syncIdenticalTranslations,
       qaChecksEnabled,
       unconfirmOnEdit,
@@ -290,30 +284,23 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
               </p>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="label cursor-pointer justify-start gap-3 py-0">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-sm checkbox-primary"
-                  checked={useDeeplProxy}
-                  onChange={(e) => setUseDeeplProxy(e.target.checked)}
-                />
-                <span className="label-text text-sm font-medium">
-                  Використовувати CORS-проксі для DeepL
-                </span>
-              </label>
-              <p className="text-xs text-base-content/60">
-                Браузер блокує прямі запити до DeepL (CORS). Проксі дозволяє безпечно виконувати переклад прямо у браузері.
+            <div className="rounded-lg bg-base-200/90 p-3.5 text-xs text-base-content/80 border border-base-content/10 space-y-1">
+              <div className="flex items-center gap-2 font-semibold text-base-content">
+                <span>🔌</span>
+                <span>Робота з DeepL у браузері (без проксі)</span>
+              </div>
+              <p className="leading-relaxed">
+                Оскільки DeepL API блокує прямі запити з браузерів (CORS), рекомендуємо встановити безкоштовне розширення{" "}
+                <a
+                  href={CORS_EXTENSION_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link link-primary font-bold inline-flex items-center gap-1"
+                >
+                  CORS Unblock ↗
+                </a>{" "}
+                та активувати його лише для цього сайту. Тоді всі запити йтимуть напряму до DeepL без сторонніх серверів.
               </p>
-              {useDeeplProxy && (
-                <input
-                  type="text"
-                  value={deeplProxyUrl}
-                  onChange={(e) => setDeeplProxyUrl(e.target.value)}
-                  placeholder={`За замовчуванням: ${DEFAULT_CORS_PROXY}`}
-                  className="input input-bordered input-sm font-mono text-xs mt-1"
-                />
-              )}
             </div>
           </div>
         )}

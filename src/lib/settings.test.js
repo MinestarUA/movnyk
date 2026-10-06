@@ -56,13 +56,9 @@ describe("settings", () => {
     saveSettings({
       aiProvider: "deepl",
       deeplApiKey: "key:fx",
-      useDeeplProxy: true,
-      deeplProxyUrl: "https://proxy.example.com",
     });
     const loaded = loadSettings();
     expect(loaded.aiProvider).toBe("deepl");
     expect(loaded.deeplApiKey).toBe("key:fx");
-    expect(loaded.useDeeplProxy).toBe(true);
-    expect(loaded.deeplProxyUrl).toBe("https://proxy.example.com");
   });
 });

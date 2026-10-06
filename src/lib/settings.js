@@ -32,8 +32,6 @@ const DEFAULTS = {
   model: DEFAULT_MODEL,
   aiProvider: "gemini", // "gemini" | "deepl"
   deeplApiKey: "",
-  deeplProxyUrl: "",
-  useDeeplProxy: true,
   syncIdenticalTranslations: true,
   qaChecksEnabled: true,
   skipIdenticalImport: true,
@@ -58,8 +56,6 @@ export const loadSettings = () => {
       model: normalizeModel(typeof parsed.model === "string" && parsed.model ? parsed.model : DEFAULT_MODEL),
       aiProvider: parsed.aiProvider === "deepl" ? "deepl" : "gemini",
       deeplApiKey: typeof parsed.deeplApiKey === "string" ? parsed.deeplApiKey : "",
-      deeplProxyUrl: typeof parsed.deeplProxyUrl === "string" ? parsed.deeplProxyUrl : "",
-      useDeeplProxy: typeof parsed.useDeeplProxy === "boolean" ? parsed.useDeeplProxy : true,
       syncIdenticalTranslations:
         typeof parsed.syncIdenticalTranslations === "boolean" ? parsed.syncIdenticalTranslations : true,
       qaChecksEnabled:
@@ -89,8 +85,6 @@ export const saveSettings = (settings) => {
         model: normalizeModel(settings.model || DEFAULT_MODEL),
         aiProvider: settings.aiProvider || "gemini",
         deeplApiKey: settings.deeplApiKey ?? "",
-        deeplProxyUrl: settings.deeplProxyUrl ?? "",
-        useDeeplProxy: settings.useDeeplProxy !== false,
         syncIdenticalTranslations: settings.syncIdenticalTranslations !== false,
         qaChecksEnabled: settings.qaChecksEnabled !== false,
         skipIdenticalImport: settings.skipIdenticalImport !== false,
