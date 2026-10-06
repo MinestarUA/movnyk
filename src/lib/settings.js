@@ -3,14 +3,23 @@
 
 const STORAGE_KEY = "movnyk.settings";
 
-export const DEFAULT_MODEL = "gemini-2.0-flash";
+export const DEFAULT_MODEL = "gemini-3.8-flash";
 
-// Models exposed in the settings dropdown.
+// Models exposed in the settings dropdown based on available text-out models.
 export const GEMINI_MODELS = [
-  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash (швидкий, рекомендовано)" },
-  { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
-  { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro (найвища якість)" },
-  { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite (найшвидший)" },
+  { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash (найновіша, рекомендовано)" },
+  { id: "gemini-3.7-flash", label: "Gemini 3.7 Flash" },
+  { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash" },
+  { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash" },
+  { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite" },
+  { id: "gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
+  { id: "gemini-3.1-pro", label: "Gemini 3.1 Pro (найвища якість)" },
+  { id: "gemini-3-flash", label: "Gemini 3 Flash" },
+  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
+  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+  { id: "gemini-2.0-flash", label: "Gemini 2 Flash" },
+  { id: "gemini-2.0-flash-lite", label: "Gemini 2 Flash Lite" },
 ];
 
 export const AI_PROVIDERS = [
@@ -24,7 +33,7 @@ const DEFAULTS = {
   aiProvider: "gemini", // "gemini" | "deepl"
   deeplApiKey: "",
   deeplProxyUrl: "",
-  useDeeplProxy: false,
+  useDeeplProxy: true,
   syncIdenticalTranslations: true,
   qaChecksEnabled: true,
   skipIdenticalImport: true,
@@ -34,15 +43,9 @@ const DEFAULTS = {
   focusSearchOnFind: true,
 };
 
-// Normalize old models that might be saved in user's localStorage
 const normalizeModel = (model) => {
-  if (!model || model === "gemini-2.5-flash" || model === "gemini-flash-latest") {
-    return "gemini-2.0-flash";
-  }
-  if (model === "gemini-2.5-pro") {
-    return "gemini-1.5-pro";
-  }
-  return model;
+  if (!model) return DEFAULT_MODEL;
+  return String(model).replace(/^models\//, "").trim();
 };
 
 export const loadSettings = () => {
@@ -56,7 +59,7 @@ export const loadSettings = () => {
       aiProvider: parsed.aiProvider === "deepl" ? "deepl" : "gemini",
       deeplApiKey: typeof parsed.deeplApiKey === "string" ? parsed.deeplApiKey : "",
       deeplProxyUrl: typeof parsed.deeplProxyUrl === "string" ? parsed.deeplProxyUrl : "",
-      useDeeplProxy: typeof parsed.useDeeplProxy === "boolean" ? parsed.useDeeplProxy : false,
+      useDeeplProxy: typeof parsed.useDeeplProxy === "boolean" ? parsed.useDeeplProxy : true,
       syncIdenticalTranslations:
         typeof parsed.syncIdenticalTranslations === "boolean" ? parsed.syncIdenticalTranslations : true,
       qaChecksEnabled:
@@ -87,7 +90,7 @@ export const saveSettings = (settings) => {
         aiProvider: settings.aiProvider || "gemini",
         deeplApiKey: settings.deeplApiKey ?? "",
         deeplProxyUrl: settings.deeplProxyUrl ?? "",
-        useDeeplProxy: Boolean(settings.useDeeplProxy),
+        useDeeplProxy: settings.useDeeplProxy !== false,
         syncIdenticalTranslations: settings.syncIdenticalTranslations !== false,
         qaChecksEnabled: settings.qaChecksEnabled !== false,
         skipIdenticalImport: settings.skipIdenticalImport !== false,

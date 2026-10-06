@@ -1,12 +1,17 @@
 import { useState } from "react";
 import { GEMINI_MODELS, DEFAULT_MODEL, AI_PROVIDERS } from "../lib/settings";
-import { testGeminiConnection } from "../lib/gemini";
+import { testGeminiConnection, fetchAvailableGeminiModels } from "../lib/gemini";
 import { testDeeplConnection, DEFAULT_CORS_PROXY } from "../lib/deepl";
 
 const SettingsModal = ({ settings, onSave, onClose }) => {
   const [aiProvider, setAiProvider] = useState(settings.aiProvider ?? "gemini");
   const [apiKey, setApiKey] = useState(settings.apiKey ?? "");
   const [model, setModel] = useState(settings.model ?? DEFAULT_MODEL);
+  const [modelsList, setModelsList] = useState(GEMINI_MODELS);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [customModelMode, setCustomModelMode] = useState(
+    Boolean(settings.model && !GEMINI_MODELS.some((m) => m.id === settings.model))
+  );
   const [deeplApiKey, setDeeplApiKey] = useState(settings.deeplApiKey ?? "");
   const [deeplProxyUrl, setDeeplProxyUrl] = useState(settings.deeplProxyUrl ?? "");
   const [useDeeplProxy, setUseDeeplProxy] = useState(settings.useDeeplProxy ?? true);
@@ -22,6 +27,36 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
   // Testing connection state
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null); // { ok: boolean, message: string }
+
+  const handleFetchModels = async () => {
+    if (!apiKey.trim()) return;
+    setLoadingModels(true);
+    try {
+      const fetched = await fetchAvailableGeminiModels(apiKey);
+      if (fetched.length > 0) {
+        setModelsList(fetched);
+        if (!fetched.some((m) => m.id === model)) {
+          setModel(fetched[0].id);
+        }
+        setTestResult({
+          ok: true,
+          message: `Успішно завантажено ${fetched.length} доступних моделей з Google AI!`,
+        });
+      } else {
+        setTestResult({
+          ok: false,
+          message: "Не вдалося отримати список моделей. Перевірте ключ API.",
+        });
+      }
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        message: err.message || "Помилка завантаження моделей",
+      });
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   const handleTestConnection = async () => {
     setTesting(true);
@@ -150,24 +185,59 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold" htmlFor="gemini-model">
-                Модель Gemini
-              </label>
-              <select
-                id="gemini-model"
-                className="select select-bordered"
-                value={model}
-                onChange={(e) => {
-                  setModel(e.target.value);
-                  setTestResult(null);
-                }}
-              >
-                {GEMINI_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold" htmlFor="gemini-model">
+                  Модель Gemini
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className={`btn btn-xs btn-ghost text-xs ${loadingModels ? "loading" : ""}`}
+                    onClick={handleFetchModels}
+                    disabled={!apiKey.trim() || loadingModels}
+                    title="Отримати актуальний список моделей з вашого акаунта Google AI"
+                  >
+                    {loadingModels ? "Завантаження…" : "🔄 Оновити з Google"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-ghost text-xs opacity-75 hover:opacity-100"
+                    onClick={() => setCustomModelMode((v) => !v)}
+                  >
+                    {customModelMode ? "Список" : "Власна назва"}
+                  </button>
+                </div>
+              </div>
+
+              {customModelMode ? (
+                <input
+                  id="gemini-model"
+                  type="text"
+                  value={model}
+                  onChange={(e) => {
+                    setModel(e.target.value);
+                    setTestResult(null);
+                  }}
+                  placeholder="Наприклад: gemini-3.8-flash або gemini-2.5-flash"
+                  className="input input-bordered font-mono text-sm"
+                />
+              ) : (
+                <select
+                  id="gemini-model"
+                  className="select select-bordered"
+                  value={model}
+                  onChange={(e) => {
+                    setModel(e.target.value);
+                    setTestResult(null);
+                  }}
+                >
+                  {modelsList.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
         )}

@@ -40,9 +40,9 @@ describe("settings", () => {
     expect(loadSettings().focusSearchOnFind).toBe(false);
   });
 
-  it("normalizes non-existent gemini-2.5-flash model to gemini-2.0-flash", () => {
-    saveSettings({ apiKey: "", model: "gemini-2.5-flash" });
-    expect(loadSettings().model).toBe("gemini-2.0-flash");
+  it("normalizes models/ prefix", () => {
+    saveSettings({ apiKey: "", model: "models/gemini-3.8-flash" });
+    expect(loadSettings().model).toBe("gemini-3.8-flash");
   });
 
   it("defaults syncIdenticalTranslations to true and round-trips it", () => {

@@ -6,8 +6,16 @@ import { DEFAULT_MODEL } from "./settings";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 
-// The system prompt pins the model to Minecraft's official Ukrainian terminology
-// and forbids touching format placeholders and formatting codes.
+// Turn off aggressive safety filtering so game terminology (weapons, explosions,
+// death messages, hostile mobs, potions) is never falsely blocked by Google.
+const SAFETY_SETTINGS = [
+  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+];
+
 export const SYSTEM_PROMPT = `You are an expert game localizer translating Minecraft mod localization strings from English into Ukrainian (uk_ua) for a resource pack.
 
 INPUT: a single JSON object. Each key is a Minecraft translation key — do NOT translate, reorder or alter keys. Each value is the English source string to translate.
@@ -28,6 +36,14 @@ TRANSLATION RULES:
 
 Return the complete JSON object for every key you were given.`;
 
+const cleanModelId = (m) => String(m || DEFAULT_MODEL).replace(/^models\//, "").trim();
+
+const cleanJson = (raw) => {
+  const trimmed = String(raw ?? "").trim();
+  const match = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return match ? match[1].trim() : trimmed;
+};
+
 export const parseErrorMessage = (status, rawBody) => {
   let apiMessage;
   try {
@@ -47,21 +63,45 @@ export const parseErrorMessage = (status, rawBody) => {
     return "Перевищено ліміт запитів Gemini (429). Зачекайте трохи й спробуйте знову.";
   }
   if (status === 404) {
-    return "Обрану модель Gemini не знайдено (404). Змініть модель у налаштуваннях на gemini-2.0-flash.";
+    return "Обрану модель Gemini не знайдено (404). Виберіть доступну модель у налаштуваннях.";
   }
   return `Помилка Gemini API (${status})${apiMessage ? `: ${apiMessage}` : ""}`;
 };
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Retrieve the list of models actually available on the user's Google account
+export const fetchAvailableGeminiModels = async (rawKey) => {
+  const apiKey = rawKey?.trim();
+  if (!apiKey) return [];
+  try {
+    const response = await fetch(`${ENDPOINT}?key=${encodeURIComponent(apiKey)}`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    const list = data?.models || [];
+    return list
+      .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+      .map((m) => {
+        const id = m.name.replace(/^models\//, "");
+        return {
+          id,
+          label: `${m.displayName || id}`,
+        };
+      });
+  } catch {
+    return [];
+  }
+};
+
 // Test connection with a minimal request to verify key & model
 export const testGeminiConnection = async (rawKey, rawModel) => {
   const apiKey = rawKey?.trim();
   if (!apiKey) throw new Error("Введіть ключ Gemini API.");
-  const model = rawModel || DEFAULT_MODEL;
+  const model = cleanModelId(rawModel);
 
   const body = {
     contents: [{ role: "user", parts: [{ text: "Ping" }] }],
+    safetySettings: SAFETY_SETTINGS,
   };
 
   const response = await fetch(
@@ -85,12 +125,13 @@ export const testGeminiConnection = async (rawKey, rawModel) => {
 export const translateSingleGemini = async (text, settings = {}, signal) => {
   const apiKey = settings?.apiKey?.trim();
   if (!apiKey) throw new Error("Не вказано ключ Gemini API.");
-  const model = settings?.model || DEFAULT_MODEL;
+  const model = cleanModelId(settings?.model);
 
   const source = { test_key: String(text ?? "") };
   const body = {
     system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
     contents: [{ role: "user", parts: [{ text: JSON.stringify(source) }] }],
+    safetySettings: SAFETY_SETTINGS,
     generationConfig: {
       temperature: 0.2,
       topP: 0.95,
@@ -117,7 +158,7 @@ export const translateSingleGemini = async (text, settings = {}, signal) => {
   const rawText =
     data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
 
-  const parsed = JSON.parse(rawText);
+  const parsed = JSON.parse(cleanJson(rawText));
   return parsed.test_key ?? "";
 };
 
@@ -129,6 +170,7 @@ const translateBatch = async (entries, { apiKey, model, signal }, attempt = 0) =
   const body = {
     system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
     contents: [{ role: "user", parts: [{ text: JSON.stringify(source) }] }],
+    safetySettings: SAFETY_SETTINGS,
     generationConfig: {
       temperature: 0.3,
       topP: 0.95,
@@ -136,10 +178,11 @@ const translateBatch = async (entries, { apiKey, model, signal }, attempt = 0) =
     },
   };
 
+  const cleanModel = cleanModelId(model);
   let response;
   try {
     response = await fetch(
-      `${ENDPOINT}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `${ENDPOINT}/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,7 +213,7 @@ const translateBatch = async (entries, { apiKey, model, signal }, attempt = 0) =
     data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
 
   if (!text.trim()) {
-    const blockReason = data?.promptFeedback?.blockReason;
+    const blockReason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
     throw new Error(
       blockReason
         ? `Gemini заблокував відповідь (${blockReason}).`
@@ -180,7 +223,7 @@ const translateBatch = async (entries, { apiKey, model, signal }, attempt = 0) =
 
   let parsed;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(cleanJson(text));
   } catch (cause) {
     throw new Error("Gemini повернув некоректний JSON.", { cause });
   }
@@ -201,7 +244,7 @@ export const translateAll = async (
 ) => {
   const apiKey = settings?.apiKey?.trim();
   if (!apiKey) throw new Error("Не вказано ключ Gemini API.");
-  const model = settings?.model || DEFAULT_MODEL;
+  const model = cleanModelId(settings?.model);
 
   const batches = [];
   for (let i = 0; i < entries.length; i += batchSize) {
