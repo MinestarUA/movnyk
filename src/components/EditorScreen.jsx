@@ -91,6 +91,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   // in the search box (or clicking elsewhere) is never interrupted.
   const focusRequestRef = useRef(true);
   const cursorPositionRef = useRef({ key: null, start: null, end: null });
+  const referenceInputRef = useRef(null);
 
   const { re: queryRe, error: queryError } = useMemo(
     () => compileQuery(query, { regex: regexMode, caseSensitive, wholeWord }),
@@ -201,10 +202,16 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       const active = document.activeElement;
       const isTranslationField = active?.dataset?.role === "translation";
 
-      // Ctrl/Cmd + Shift + F opens the independent project reference drawer
+      // Ctrl/Cmd + Shift + F toggles or focuses the independent project reference panel
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "F" || e.code === "KeyF" || e.key === "f")) {
         e.preventDefault();
-        setReferenceDrawerOpen((v) => !v);
+        if (!referenceDrawerOpen) {
+          setReferenceDrawerOpen(true);
+        } else if (!referenceInputRef.current || document.activeElement === referenceInputRef.current) {
+          setReferenceDrawerOpen(false);
+        } else {
+          referenceInputRef.current?.focus();
+        }
         return;
       }
 
@@ -350,7 +357,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move, activeKey, activeIndex, viewMode, settings.focusSearchOnFind]);
+  }, [move, activeKey, activeIndex, viewMode, settings.focusSearchOnFind, referenceDrawerOpen]);
 
   // Manual edits optionally drop the confirmed mark.
   // If syncIdenticalTranslations is enabled, updates all rows with identical original text.
@@ -382,7 +389,6 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     setSelectedKey(key);
     focusRequestRef.current = true;
     cursorPositionRef.current = { key, start: null, end: null };
-    setSidebarOpen(false);
   }, []);
 
   const handleConfirmToggle = useCallback((key) => {
@@ -422,9 +428,11 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   );
 
   const handleNavigateFromDrawer = useCallback((key) => {
+    // Clear search and filters so the target row is guaranteed to be listed
     setQuery("");
+    setFilterUntranslated(false);
+    setFilterUnconfirmed(false);
     setSelectedKey(key);
-    setReferenceDrawerOpen(false);
     focusRequestRef.current = true;
   }, []);
 
@@ -620,7 +628,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   // index and filtering/searching remaps which row sits at each index.
   const rowHeightCache = useDynamicRowHeight({
     defaultRowHeight: ROW_COLLAPSED,
-    key: `${query}|${regexMode}|${caseSensitive}|${wholeWord}|${filterUntranslated}|${filterUnconfirmed}`,
+    key: `${query}|${regexMode}|${caseSensitive}|${wholeWord}|${filterUntranslated}|${filterUnconfirmed}|${referenceDrawerOpen}|${sidebarOpen}`,
   });
 
   const toggleBtnStyle = (active, isLast = false) => ({
@@ -1164,6 +1172,17 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           </div>
         )}
 
+        {viewMode !== "code" && (
+          <ProjectReferenceDrawer
+            isOpen={referenceDrawerOpen}
+            onClose={() => setReferenceDrawerOpen(false)}
+            translations={translations}
+            onNavigateToRow={handleNavigateFromDrawer}
+            activeKey={activeKey}
+            referenceInputRef={referenceInputRef}
+          />
+        )}
+
         <Sidebar
           open={sidebarOpen}
           confirmedCount={confirmedCount}
@@ -1185,14 +1204,6 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           aiState={aiState}
         />
       </div>
-
-      <ProjectReferenceDrawer
-        isOpen={referenceDrawerOpen}
-        onClose={() => setReferenceDrawerOpen(false)}
-        translations={translations}
-        onNavigateToRow={handleNavigateFromDrawer}
-        activeKey={activeKey}
-      />
 
       {settingsOpen && (
         <SettingsModal

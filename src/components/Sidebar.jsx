@@ -139,18 +139,18 @@ const Sidebar = ({
   return (
     <aside
       style={{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: "260px",
+        position: "relative",
+        width: open ? "260px" : "0",
+        minWidth: open ? "260px" : "0",
+        transition: "width 0.2s ease, min-width 0.2s ease",
         background: "color-mix(in srgb, var(--color-surface) 72%, transparent)",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
-        borderLeft: "1px solid var(--color-divider)",
-        boxShadow: "-8px 0 24px rgba(0,0,0,0.35)",
-        transform: open ? "translateX(0)" : "translateX(100%)",
-        transition: "transform 0.2s ease",
+        borderLeft: open ? "1px solid var(--color-divider)" : "none",
+        boxShadow: open ? "-4px 0 16px rgba(0,0,0,0.25)" : "none",
+        overflow: "hidden",
+        height: "100%",
+        flexShrink: 0,
         zIndex: 10,
       }}
     >
