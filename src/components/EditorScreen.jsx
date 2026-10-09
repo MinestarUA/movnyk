@@ -13,9 +13,11 @@ import { applyCode } from "../lib/codeSync";
 import { saveAutosave } from "../lib/autosave";
 import { isTranslatable } from "../lib/translations";
 import ProjectReferenceDrawer from "./ProjectReferenceDrawer";
+import { applyNewOriginal } from "../lib/originalUpdate";
 import {
   compileQuery,
   isFindShortcut,
+  isReferenceSearchShortcut,
   itemMatches,
   translationMatches,
   replaceInTranslation,
@@ -23,6 +25,21 @@ import {
 
 // Monaco is several hundred kilobytes; row-mode users never download it.
 const CodeView = lazy(() => import("./CodeView"));
+
+// Text the user has selected: inside a text field it is the field's selection,
+// elsewhere the page selection. Trimmed, empty string when nothing is selected.
+const getSelectedText = (active) => {
+  let selected;
+  if (
+    (active?.tagName === "TEXTAREA" || active?.tagName === "INPUT") &&
+    typeof active.selectionStart === "number"
+  ) {
+    selected = active.value.substring(active.selectionStart, active.selectionEnd);
+  } else {
+    selected = window.getSelection()?.toString() ?? "";
+  }
+  return selected.trim();
+};
 
 const COLUMN_HEADER_STYLE = {
   fontFamily: "var(--font-heading)",
@@ -71,6 +88,10 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const [selectedKey, setSelectedKey] = useState(() => translations[0]?.key ?? null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
+  const [referenceQuery, setReferenceQuery] = useState("");
+  // Rows dropped from the editor by an original update. Not editable, but the
+  // reference panel still finds their translations.
+  const [removedRows, setRemovedRows] = useState([]);
   const [suggestingKey, setSuggestingKey] = useState(null);
   // Code mode swaps the row grid for a Monaco pane. Deliberately not persisted:
   // a reload should land on the familiar row view.
@@ -218,17 +239,19 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       // Ctrl/Cmd + F opens the in-app search instead of the browser's find,
       // carrying the current text selection (key, original or translation)
       // into the search field. Focus moves to search only if enabled in settings.
+      // Ctrl/Cmd + D does the same for the reference panel: the selection becomes
+      // its query and the panel takes focus.
+      if (isReferenceSearchShortcut(e)) {
+        e.preventDefault();
+        const selected = getSelectedText(active);
+        if (selected) setReferenceQuery(selected);
+        setReferenceDrawerOpen(true);
+        referenceInputRef.current?.focus();
+        return;
+      }
+
       if (isFindShortcut(e)) {
-        let selected;
-        if (
-          (active?.tagName === "TEXTAREA" || active?.tagName === "INPUT") &&
-          typeof active.selectionStart === "number"
-        ) {
-          selected = active.value.substring(active.selectionStart, active.selectionEnd);
-        } else {
-          selected = window.getSelection()?.toString() ?? "";
-        }
-        selected = selected.trim();
+        const selected = getSelectedText(active);
 
         if (selected) {
           e.preventDefault();
@@ -508,6 +531,21 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     setTranslations(next);
     return { applied, skipped };
   };
+
+  const handleApplyNewOriginal = (newOriginal) => {
+    const { next, removed, stats } = applyNewOriginal(translations, newOriginal);
+    const nextKeys = new Set(Object.keys(newOriginal));
+    setTranslations(next);
+    // Earlier removals that came back in this original are back in the editor,
+    // so they leave the reference panel.
+    setRemovedRows((prev) => [...prev.filter((r) => !nextKeys.has(r.key)), ...removed]);
+    return stats;
+  };
+
+  const referenceEntries = useMemo(
+    () => [...translations, ...removedRows],
+    [translations, removedRows]
+  );
 
   // Code-mode edits land here already parsed; reconciliation and the unknown-key
   // count live in codeSync so this stays a thin wire between the two.
@@ -1176,10 +1214,12 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           <ProjectReferenceDrawer
             isOpen={referenceDrawerOpen}
             onClose={() => setReferenceDrawerOpen(false)}
-            translations={translations}
+            translations={referenceEntries}
             onNavigateToRow={handleNavigateFromDrawer}
             activeKey={activeKey}
             referenceInputRef={referenceInputRef}
+            query={referenceQuery}
+            onQueryChange={setReferenceQuery}
           />
         )}
 
@@ -1191,6 +1231,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           onExportResourcePack={() => onExportResourcePack(translations)}
           onExportClipboard={() => onExportClipboard(translations)}
           onLoadLang={handleLoadLangFile}
+          onApplyNewOriginal={handleApplyNewOriginal}
           skipApproved={settings.skipApprovedImport !== false}
           onSkipApprovedChange={handleSkipApprovedChange}
           skipIdentical={settings.skipIdenticalImport}

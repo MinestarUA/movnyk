@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compileQuery,
   isFindShortcut,
+  isReferenceSearchShortcut,
   itemMatches,
   translationMatches,
   replaceInTranslation,
@@ -227,6 +228,22 @@ describe("replaceInTranslation", () => {
     expect(replaceInTranslation("text", "", "x")).toBe("text");
     expect(replaceInTranslation("text", null, "x")).toBe("text");
     expect(replaceInTranslation("text", "([", "x", { regex: true })).toBe("text");
+  });
+});
+
+describe("isReferenceSearchShortcut", () => {
+  const ev = (props) => ({ ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, key: "", code: "", ...props });
+
+  it("matches Ctrl+D and Cmd+D, including on a non-Latin layout", () => {
+    expect(isReferenceSearchShortcut(ev({ ctrlKey: true, key: "d", code: "KeyD" }))).toBe(true);
+    expect(isReferenceSearchShortcut(ev({ metaKey: true, key: "D", code: "KeyD" }))).toBe(true);
+    expect(isReferenceSearchShortcut(ev({ ctrlKey: true, key: "в", code: "KeyD" }))).toBe(true);
+  });
+
+  it("rejects bare D and Ctrl+Shift+D / Ctrl+Alt+D", () => {
+    expect(isReferenceSearchShortcut(ev({ key: "d", code: "KeyD" }))).toBe(false);
+    expect(isReferenceSearchShortcut(ev({ ctrlKey: true, shiftKey: true, key: "D", code: "KeyD" }))).toBe(false);
+    expect(isReferenceSearchShortcut(ev({ ctrlKey: true, altKey: true, key: "d", code: "KeyD" }))).toBe(false);
   });
 });
 
