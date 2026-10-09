@@ -1,15 +1,13 @@
-import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { List, useDynamicRowHeight } from "react-window";
 import TranslationRow, { ROW_COLLAPSED } from "./TranslationRow";
 import Sidebar from "./Sidebar";
 import SettingsModal from "./SettingsModal";
-import ErrorBoundary from "./ErrorBoundary";
 import WalkingCat from "./WalkingCat.jsx";
 import { useToast } from "./Toast";
 import { loadSettings, saveSettings, hasApiKey } from "../lib/settings";
 import { translateAll, translateSingle } from "../lib/ai";
 import { mergeLangFile } from "../lib/importing";
-import { applyCode } from "../lib/codeSync";
 import { saveAutosave } from "../lib/autosave";
 import { isTranslatable } from "../lib/translations";
 import ProjectReferenceDrawer from "./ProjectReferenceDrawer";
@@ -22,9 +20,6 @@ import {
   translationMatches,
   replaceInTranslation,
 } from "../lib/searching";
-
-// Monaco is several hundred kilobytes; row-mode users never download it.
-const CodeView = lazy(() => import("./CodeView"));
 
 // Text the user has selected: inside a text field it is the field's selection,
 // elsewhere the page selection. Trimmed, empty string when nothing is selected.
@@ -57,9 +52,6 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiState, setAiState] = useState({ running: false, done: 0, total: 0 });
   const abortRef = useRef(null);
-  // Set from inside the state updater, which React may run twice in StrictMode —
-  // the toast is fired from an effect instead so it cannot double-fire.
-  const skippedRef = useRef(0);
   const [translations, setTranslations] = useState(() =>
     initialTranslations
       ? initialTranslations.map((t) => ({
@@ -93,9 +85,6 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   // reference panel still finds their translations.
   const [removedRows, setRemovedRows] = useState([]);
   const [suggestingKey, setSuggestingKey] = useState(null);
-  // Code mode swaps the row grid for a Monaco pane. Deliberately not persisted:
-  // a reload should land on the familiar row view.
-  const [viewMode, setViewMode] = useState("rows");
 
   const duplicateCounts = useMemo(() => {
     const counts = new Map();
@@ -211,14 +200,6 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   );
 
   useEffect(() => {
-    // In code mode Monaco owns the keyboard outright — Ctrl+F, Ctrl+H, Escape,
-    // Enter, Ctrl+arrows and its multi-cursor bindings all belong to the editor.
-    // The listener is not attached at all rather than opting out per shortcut:
-    // this one sits on window in the bubble phase, and any combination Monaco
-    // does not consume would leak through and fire a navigation command inside
-    // a text buffer.
-    if (viewMode === "code") return;
-
     const handleKeyDown = (e) => {
       const active = document.activeElement;
       const isTranslationField = active?.dataset?.role === "translation";
@@ -380,7 +361,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move, activeKey, activeIndex, viewMode, settings.focusSearchOnFind, referenceDrawerOpen]);
+  }, [move, activeKey, activeIndex, settings.focusSearchOnFind, referenceDrawerOpen]);
 
   // Manual edits optionally drop the confirmed mark.
   // If syncIdenticalTranslations is enabled, updates all rows with identical original text.
@@ -546,28 +527,6 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     () => [...translations, ...removedRows],
     [translations, removedRows]
   );
-
-  // Code-mode edits land here already parsed; reconciliation and the unknown-key
-  // count live in codeSync so this stays a thin wire between the two.
-  const handleCodeApply = useCallback(
-    (parsed) => {
-      setTranslations((prev) => {
-        const { next, skipped } = applyCode(prev, parsed, {
-          unconfirmOnEdit: settings.unconfirmOnEdit,
-        });
-        if (skipped > 0) skippedRef.current = skipped;
-        return next;
-      });
-    },
-    [settings.unconfirmOnEdit]
-  );
-
-  useEffect(() => {
-    if (skippedRef.current > 0) {
-      toast(`Пропущено невідомих ключів: ${skippedRef.current}`, "warning");
-      skippedRef.current = 0;
-    }
-  }, [translations, toast]);
 
   const handleSkipIdenticalChange = useCallback((value) => {
     setSettings((prev) => {
@@ -778,9 +737,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
               Мовник
             </div>
             <div style={{ fontSize: "10.5px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
-              {viewMode === "code"
-                ? "Ctrl+F — пошук у коді · Ctrl+H — заміна"
-                : "Enter — наступний · Ctrl+↑/↓ — навігація · Ctrl+F — пошук"}
+              Enter — наступний · Ctrl+↑/↓ — навігація · Ctrl+F — пошук
             </div>
           </div>
 
@@ -798,50 +755,6 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
             >
               {confirmedCount} / {total} · {progress}%
             </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              border: "1px solid var(--color-divider)",
-              borderRadius: "var(--radius-md)",
-              overflow: "hidden",
-              flexShrink: 0,
-            }}
-          >
-            {[
-              { id: "rows", label: "Рядки" },
-              { id: "code", label: "Код" },
-            ].map((mode) => {
-              const active = viewMode === mode.id;
-              // An AI batch rewriting a multi-thousand-line buffer under the
-              // cursor is unusable, so code mode is closed off mid-run.
-              const blocked = mode.id === "code" && aiState.running;
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => setViewMode(mode.id)}
-                  aria-pressed={active}
-                  disabled={blocked}
-                  title={blocked ? "Недоступно під час автоперекладу" : undefined}
-                  style={{
-                    height: "30px",
-                    padding: "0 10px",
-                    background: active ? "var(--color-surface-2)" : "transparent",
-                    border: "none",
-                    color: active ? "var(--color-text)" : "var(--color-neutral-400)",
-                    fontSize: "12px",
-                    fontFamily: "var(--font-body)",
-                    cursor: blocked ? "not-allowed" : "pointer",
-                    opacity: blocked ? 0.5 : 1,
-                  }}
-                >
-                  {mode.label}
-                </button>
-              );
-            })}
           </div>
 
           <button
@@ -888,183 +801,39 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           </button>
         </div>
 
-        {viewMode === "rows" && (
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", maxWidth: replaceMode ? "840px" : "560px" }}>
-              <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", minWidth: "260px" }}>
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--color-neutral-500)"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  style={{ position: "absolute", left: "12px", pointerEvents: "none" }}
-                  aria-hidden="true"
-                >
-                  <circle cx="10" cy="10" r="7" />
-                  <line x1="21" y1="21" x2="15.5" y2="15.5" />
-                </svg>
-                <input
-                  id="translation-search"
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Пошук за ключем, оригіналом або перекладом…"
-                  aria-label="Пошук перекладів"
-                  aria-invalid={Boolean(queryError)}
-                  style={{
-                    width: "100%",
-                    height: "34px",
-                    background: "var(--color-surface)",
-                    border: queryError ? "1px solid var(--color-error, #ff5f6d)" : "1px solid var(--color-divider)",
-                    borderRadius: "var(--radius-md) 0 0 var(--radius-md)",
-                    borderRight: "none",
-                    padding: "0 12px 0 32px",
-                    color: "var(--color-text)",
-                    fontSize: "13.5px",
-                    fontFamily: "var(--font-body)",
-                    outline: "none",
-                  }}
-                />
-                <button
-                  type="button"
-                  className="mono"
-                  style={toggleBtnStyle(caseSensitive)}
-                  onClick={() => setCaseSensitive((v) => !v)}
-                  title="Враховувати регістр"
-                  aria-pressed={caseSensitive}
-                >
-                  Aa
-                </button>
-                <button
-                  type="button"
-                  className="mono"
-                  style={toggleBtnStyle(wholeWord)}
-                  onClick={() => setWholeWord((v) => !v)}
-                  title="Цілі слова"
-                  aria-pressed={wholeWord}
-                >
-                  \b
-                </button>
-                <button
-                  type="button"
-                  className="mono"
-                  style={toggleBtnStyle(regexMode)}
-                  onClick={() => setRegexMode((v) => !v)}
-                  title="Пошук за регулярним виразом"
-                  aria-pressed={regexMode}
-                >
-                  .*
-                </button>
-                <button
-                  type="button"
-                  style={toggleBtnStyle(replaceMode, true)}
-                  onClick={() => setReplaceMode((v) => !v)}
-                  title="Режим заміни"
-                  aria-pressed={replaceMode}
-                >
-                  Заміна
-                </button>
-              </div>
-
-              {replaceMode && (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "8px", flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-neutral"
-                    style={{ height: "34px", padding: "0 12px", borderRadius: "var(--radius-md)", fontSize: "12.5px" }}
-                    onClick={handleReplaceOne}
-                    disabled={!queryRe}
-                  >
-                    Замінити
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-neutral"
-                    style={{ height: "34px", padding: "0 12px", borderRadius: "var(--radius-md)", fontSize: "12.5px" }}
-                    onClick={handleReplaceAll}
-                    disabled={!queryRe}
-                  >
-                    Замінити все
-                  </button>
-                </div>
-              )}
-
-              {query && activeKey && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuery("");
-                    focusRequestRef.current = true;
-                  }}
-                  className="btn btn-xs btn-outline btn-warning ml-3 shrink-0"
-                  title="Очистити пошук та повернутися до робочого рядка"
-                >
-                  📌 До рядка ({activeKey.length > 20 ? activeKey.slice(0, 20) + "…" : activeKey})
-                </button>
-              )}
-            </div>
-
-            <div style={{ flex: 1 }} />
-
-            <span style={{ fontSize: "12px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
-              Показано: {filtered.length}
-            </span>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={() => setFilterUntranslated((v) => !v)}
-                title="Показати лише неперекладені"
-                aria-pressed={filterUntranslated}
-                style={chipStyle(filterUntranslated, pinkTint)}
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", maxWidth: replaceMode ? "840px" : "560px" }}>
+            <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", minWidth: "260px" }}>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--color-neutral-500)"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                style={{ position: "absolute", left: "12px", pointerEvents: "none" }}
+                aria-hidden="true"
               >
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: pinkTint.dot, flexShrink: 0 }} />
-                <span style={{ whiteSpace: "nowrap" }}>Неперекладені {untranslatedCount}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterUnconfirmed((v) => !v)}
-                title="Показати лише незатверджені"
-                aria-pressed={filterUnconfirmed}
-                style={chipStyle(filterUnconfirmed, amberTint)}
-              >
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: amberTint.dot, flexShrink: 0 }} />
-                <span style={{ whiteSpace: "nowrap" }}>Незатверджені {unconfirmedCount}</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {viewMode === "rows" && replaceMode && (
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", maxWidth: "560px" }}>
-            <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
+                <circle cx="10" cy="10" r="7" />
+                <line x1="21" y1="21" x2="15.5" y2="15.5" />
+              </svg>
               <input
-                type="text"
-                value={replaceValue}
-                onChange={(e) => setReplaceValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (e.ctrlKey || e.metaKey || e.shiftKey) {
-                      handleReplaceAll();
-                    } else {
-                      handleReplaceOne();
-                    }
-                  }
-                }}
-                placeholder="Замінити на… (у перекладах)"
-                aria-label="Текст заміни"
+                id="translation-search"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Пошук за ключем, оригіналом або перекладом…"
+                aria-label="Пошук перекладів"
+                aria-invalid={Boolean(queryError)}
                 style={{
                   width: "100%",
                   height: "34px",
                   background: "var(--color-surface)",
-                  border: "1px solid var(--color-divider)",
+                  border: queryError ? "1px solid var(--color-error, #ff5f6d)" : "1px solid var(--color-divider)",
                   borderRadius: "var(--radius-md) 0 0 var(--radius-md)",
                   borderRight: "none",
-                  padding: "0 12px",
+                  padding: "0 12px 0 32px",
                   color: "var(--color-text)",
                   fontSize: "13.5px",
                   fontFamily: "var(--font-body)",
@@ -1074,16 +843,156 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
               <button
                 type="button"
                 className="mono"
-                style={toggleBtnStyle(preserveCase, true)}
-                onClick={() => setPreserveCase((v) => !v)}
-                title="Зберігати регістр при заміні"
-                aria-pressed={preserveCase}
+                style={toggleBtnStyle(caseSensitive)}
+                onClick={() => setCaseSensitive((v) => !v)}
+                title="Враховувати регістр"
+                aria-pressed={caseSensitive}
               >
-                AB
+                Aa
+              </button>
+              <button
+                type="button"
+                className="mono"
+                style={toggleBtnStyle(wholeWord)}
+                onClick={() => setWholeWord((v) => !v)}
+                title="Цілі слова"
+                aria-pressed={wholeWord}
+              >
+                \b
+              </button>
+              <button
+                type="button"
+                className="mono"
+                style={toggleBtnStyle(regexMode)}
+                onClick={() => setRegexMode((v) => !v)}
+                title="Пошук за регулярним виразом"
+                aria-pressed={regexMode}
+              >
+                .*
+              </button>
+              <button
+                type="button"
+                style={toggleBtnStyle(replaceMode, true)}
+                onClick={() => setReplaceMode((v) => !v)}
+                title="Режим заміни"
+                aria-pressed={replaceMode}
+              >
+                Заміна
               </button>
             </div>
+
+            {replaceMode && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "8px", flexShrink: 0 }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-neutral"
+                  style={{ height: "34px", padding: "0 12px", borderRadius: "var(--radius-md)", fontSize: "12.5px" }}
+                  onClick={handleReplaceOne}
+                  disabled={!queryRe}
+                >
+                  Замінити
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-neutral"
+                  style={{ height: "34px", padding: "0 12px", borderRadius: "var(--radius-md)", fontSize: "12.5px" }}
+                  onClick={handleReplaceAll}
+                  disabled={!queryRe}
+                >
+                  Замінити все
+                </button>
+              </div>
+            )}
+
+            {query && activeKey && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  focusRequestRef.current = true;
+                }}
+                className="btn btn-xs btn-outline btn-warning ml-3 shrink-0"
+                title="Очистити пошук та повернутися до робочого рядка"
+              >
+                📌 До рядка ({activeKey.length > 20 ? activeKey.slice(0, 20) + "…" : activeKey})
+              </button>
+            )}
           </div>
-        )}
+
+          <div style={{ flex: 1 }} />
+
+          <span style={{ fontSize: "12px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
+            Показано: {filtered.length}
+          </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setFilterUntranslated((v) => !v)}
+              title="Показати лише неперекладені"
+              aria-pressed={filterUntranslated}
+              style={chipStyle(filterUntranslated, pinkTint)}
+            >
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: pinkTint.dot, flexShrink: 0 }} />
+              <span style={{ whiteSpace: "nowrap" }}>Неперекладені {untranslatedCount}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterUnconfirmed((v) => !v)}
+              title="Показати лише незатверджені"
+              aria-pressed={filterUnconfirmed}
+              style={chipStyle(filterUnconfirmed, amberTint)}
+            >
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: amberTint.dot, flexShrink: 0 }} />
+              <span style={{ whiteSpace: "nowrap" }}>Незатверджені {unconfirmedCount}</span>
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", maxWidth: "560px" }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <input
+              type="text"
+              value={replaceValue}
+              onChange={(e) => setReplaceValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                    handleReplaceAll();
+                  } else {
+                    handleReplaceOne();
+                  }
+                }
+              }}
+              placeholder="Замінити на… (у перекладах)"
+              aria-label="Текст заміни"
+              style={{
+                width: "100%",
+                height: "34px",
+                background: "var(--color-surface)",
+                border: "1px solid var(--color-divider)",
+                borderRadius: "var(--radius-md) 0 0 var(--radius-md)",
+                borderRight: "none",
+                padding: "0 12px",
+                color: "var(--color-text)",
+                fontSize: "13.5px",
+                fontFamily: "var(--font-body)",
+                outline: "none",
+              }}
+            />
+            <button
+              type="button"
+              className="mono"
+              style={toggleBtnStyle(preserveCase, true)}
+              onClick={() => setPreserveCase((v) => !v)}
+              title="Зберігати регістр при заміні"
+              aria-pressed={preserveCase}
+            >
+              AB
+            </button>
+          </div>
+        </div>
 
         <div
           style={{
@@ -1095,133 +1004,88 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       </div>
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
-        {viewMode === "code" ? (
-          <ErrorBoundary
-            fallback={
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "var(--space-3)",
-                  color: "var(--color-neutral-500)",
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+          <div
+            style={{
+              flexShrink: 0,
+              display: "grid",
+              gridTemplateColumns: GRID_COLUMNS_HEADER,
+              gap: "var(--space-6)",
+              padding: "0 var(--space-6)",
+              height: "28px",
+              alignItems: "center",
+            }}
+          >
+            <div />
+            <div style={COLUMN_HEADER_STYLE}>ОРИГІНАЛ ТА КЛЮЧ</div>
+            <div style={COLUMN_HEADER_STYLE}>ПЕРЕКЛАД</div>
+            <div style={{ ...COLUMN_HEADER_STYLE, textAlign: "right" }}>ДІЇ</div>
+          </div>
+
+          {hiddenMatches > 0 && (
+            <div
+              style={{ margin: "0 var(--space-6) var(--space-3)" }}
+              className="flex items-center justify-center gap-3 rounded-lg border border-warning/40 bg-base-200 px-4 py-2 text-sm"
+            >
+              <span>
+                Фільтр приховує збігів: <span className="font-semibold tabular-nums">{hiddenMatches}</span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-xs btn-primary"
+                onClick={() => {
+                  setFilterUntranslated(false);
+                  setFilterUnconfirmed(false);
                 }}
               >
-                <span>Не вдалося завантажити редактор коду.</span>
-                <button type="button" className="btn btn-sm btn-neutral" onClick={() => setViewMode("rows")}>
-                  Повернутися до рядків
-                </button>
-              </div>
-            }
-          >
-            <Suspense
-              fallback={
-                <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--color-neutral-500)",
-                  }}
-                >
-                  Завантаження редактора…
-                </div>
-              }
-            >
-              <CodeView translations={translations} onApply={handleCodeApply} onError={() => {}} />
-            </Suspense>
-          </ErrorBoundary>
-        ) : (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-            <div
-              style={{
-                flexShrink: 0,
-                display: "grid",
-                gridTemplateColumns: GRID_COLUMNS_HEADER,
-                gap: "var(--space-6)",
-                padding: "0 var(--space-6)",
-                height: "28px",
-                alignItems: "center",
-              }}
-            >
-              <div />
-              <div style={COLUMN_HEADER_STYLE}>ОРИГІНАЛ ТА КЛЮЧ</div>
-              <div style={COLUMN_HEADER_STYLE}>ПЕРЕКЛАД</div>
-              <div style={{ ...COLUMN_HEADER_STYLE, textAlign: "right" }}>ДІЇ</div>
+                Зняти фільтри й показати
+              </button>
             </div>
+          )}
 
-            {hiddenMatches > 0 && (
-              <div
-                style={{ margin: "0 var(--space-6) var(--space-3)" }}
-                className="flex items-center justify-center gap-3 rounded-lg border border-warning/40 bg-base-200 px-4 py-2 text-sm"
-              >
-                <span>
-                  Фільтр приховує збігів: <span className="font-semibold tabular-nums">{hiddenMatches}</span>
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-xs btn-primary"
-                  onClick={() => {
-                    setFilterUntranslated(false);
-                    setFilterUnconfirmed(false);
-                  }}
-                >
-                  Зняти фільтри й показати
-                </button>
-              </div>
-            )}
+          {filtered.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-center" style={{ color: "var(--color-neutral-500)" }}>
+              <p>Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр.</p>
+            </div>
+          ) : (
+            <div style={{ flex: 1, minHeight: 0, padding: "0 var(--space-6)", display: "flex" }}>
+              <List
+                listRef={listRef}
+                rowComponent={Row}
+                rowCount={filtered.length}
+                rowHeight={rowHeightCache}
+                style={{ width: "100%", height: "100%" }}
+                rowProps={{
+                  filtered,
+                  selectedKey: activeKey,
+                  queryRe,
+                  qaEnabled: settings.qaChecksEnabled !== false,
+                  duplicateCounts,
+                  suggestingKey,
+                  focusRequestRef,
+                  cursorPositionRef,
+                  handleTranslationChange,
+                  handleSelect,
+                  handleConfirmToggle,
+                  handleCopy,
+                  handleDefinition,
+                  handleSuggest,
+                }}
+              />
+            </div>
+          )}
+        </div>
 
-            {filtered.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center text-center" style={{ color: "var(--color-neutral-500)" }}>
-                <p>Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр.</p>
-              </div>
-            ) : (
-              <div style={{ flex: 1, minHeight: 0, padding: "0 var(--space-6)", display: "flex" }}>
-                <List
-                  listRef={listRef}
-                  rowComponent={Row}
-                  rowCount={filtered.length}
-                  rowHeight={rowHeightCache}
-                  style={{ width: "100%", height: "100%" }}
-                  rowProps={{
-                    filtered,
-                    selectedKey: activeKey,
-                    queryRe,
-                    qaEnabled: settings.qaChecksEnabled !== false,
-                    duplicateCounts,
-                    suggestingKey,
-                    focusRequestRef,
-                    cursorPositionRef,
-                    handleTranslationChange,
-                    handleSelect,
-                    handleConfirmToggle,
-                    handleCopy,
-                    handleDefinition,
-                    handleSuggest,
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {viewMode !== "code" && (
-          <ProjectReferenceDrawer
-            isOpen={referenceDrawerOpen}
-            onClose={() => setReferenceDrawerOpen(false)}
-            translations={referenceEntries}
-            onNavigateToRow={handleNavigateFromDrawer}
-            activeKey={activeKey}
-            referenceInputRef={referenceInputRef}
-            query={referenceQuery}
-            onQueryChange={setReferenceQuery}
-          />
-        )}
+        <ProjectReferenceDrawer
+          isOpen={referenceDrawerOpen}
+          onClose={() => setReferenceDrawerOpen(false)}
+          translations={referenceEntries}
+          onNavigateToRow={handleNavigateFromDrawer}
+          activeKey={activeKey}
+          referenceInputRef={referenceInputRef}
+          query={referenceQuery}
+          onQueryChange={setReferenceQuery}
+        />
 
         <Sidebar
           open={sidebarOpen}
