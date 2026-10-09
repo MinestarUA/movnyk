@@ -51,4 +51,66 @@ describe("qa linter", () => {
     const issues = checkTranslationQA("Redstone", mixedWord);
     expect(issues.some((i) => i.id.startsWith("mixed-scripts"))).toBe(true);
   });
+
+  const ids = (original, translated) => checkTranslationQA(original, translated).map((i) => i.id);
+  const applyFix = (original, translated, id) =>
+    checkTranslationQA(original, translated)
+      .find((i) => i.id === id)
+      .fix(translated);
+
+  it("does not flag tokens glued to Cyrillic words as mixed scripts", () => {
+    expect(ids("%s blocks", "%sблоків")).toEqual([]);
+    expect(ids("§aGreen text", "§aЗелений текст")).toEqual([]);
+    expect(ids("Level %1$sup", "Рівень %1$sвгору")).toEqual([]);
+  });
+
+  it("ignores letters inside tokens when checking capitalization", () => {
+    expect(ids("§aHello", "§aПривіт")).toEqual([]);
+    expect(ids("%s items", "%s предметів")).toEqual([]);
+    expect(applyFix("§aHello", "§aпривіт", "capitalization-should-be-upper")).toBe("§aПривіт");
+  });
+
+  it("detects and fixes inner double spaces only", () => {
+    expect(ids("A b", "А  б")).toContain("double-space");
+    expect(ids("A  b", "А  б")).not.toContain("double-space");
+    expect(applyFix(" A b c", " А  б   в", "double-space")).toBe(" А б в");
+  });
+
+  it("fixes trailing punctuation before trailing whitespace", () => {
+    expect(applyFix("Done.\n", "Готово\n", "missing-trailing-punct")).toBe("Готово.\n");
+    expect(applyFix("Done", "Готово!", "extra-trailing-punct")).toBe("Готово");
+    expect(applyFix("Warning:", "Увага!", "mismatched-trailing-punct")).toBe("Увага:");
+  });
+
+  it("fixes leading and trailing whitespace", () => {
+    expect(applyFix("  lead", "лід", "missing-leading-ws")).toBe("  лід");
+    expect(applyFix("trail", "слід \n", "extra-trailing-ws")).toBe("слід");
+  });
+
+  it("suggests the ellipsis character instead of three dots", () => {
+    expect(ids("Loading...", "Завантаження...")).toEqual(["three-dots"]);
+    expect(applyFix("Loading...", "Зачекайте... завантаження...", "three-dots")).toBe(
+      "Зачекайте… завантаження…"
+    );
+    expect(ids("Loading…", "Завантаження…")).toEqual([]);
+  });
+
+  it("detects special characters missing from the translation", () => {
+    expect(ids("Speed → fast", "Швидкість швидко")).toContain("missing-special-char-→");
+    expect(ids("Speed → fast", "Швидкість → швидко")).toEqual([]);
+    expect(ids("Wait…", "Зачекайте...")).not.toContain("missing-special-char-…");
+    expect(ids("“Quote” don’t", "«Цитата» не")).toEqual([]);
+    expect(ids("A – b", "А — б")).toEqual([]);
+  });
+
+  it("reads trailing punctuation past trailing tokens", () => {
+    expect(ids("Done.§r", "Готово.§r")).toEqual([]);
+    expect(ids("Got %s!", "Отримано %s!")).toEqual([]);
+    expect(applyFix("Done.§r", "Готово§r", "missing-trailing-punct")).toBe("Готово.§r");
+  });
+
+  it("leaves longer dot runs alone", () => {
+    expect(ids("Hmm....", "Хмм....")).not.toContain("three-dots");
+  });
 });
+

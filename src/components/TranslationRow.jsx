@@ -1,38 +1,14 @@
 import { useRef, useState, useEffect, useLayoutEffect, useMemo } from "react";
-import { tokenizeString } from "../lib/tokens";
 import { checkTranslationQA } from "../lib/qa";
 import { splitMatches } from "../lib/searching";
+import { tokenizeString } from "../lib/tokens";
+import { colorOfCode } from "../lib/mcFormatting";
+import FormattedText from "./FormattedText";
 
 const ROW_RULE =
   "linear-gradient(to right, transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px, color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px";
 
 export const GRID_COLUMNS = "26px minmax(240px,1.3fr) minmax(240px,1.4fr) 140px";
-
-const wsMarkStyle = {
-  background: "color-mix(in srgb, var(--color-accent) 22%, transparent)",
-  borderRadius: "2px",
-  color: "var(--color-accent-700)",
-  fontSize: "10px",
-  lineHeight: "inherit",
-};
-
-const renderWhitespaceRun = (run, keyPrefix) =>
-  [...run].map((ch, i) => {
-    const key = `${keyPrefix}-${i}`;
-    if (ch === "\n") {
-      return (
-        <span key={key}>
-          <span style={wsMarkStyle}>↵</span>
-          {"\n"}
-        </span>
-      );
-    }
-    return (
-      <span key={key} style={wsMarkStyle}>
-        ·
-      </span>
-    );
-  });
 
 // Renders text with search query highlighting
 const HighlightedText = ({ text, queryRe }) => {
@@ -55,38 +31,38 @@ const HighlightedText = ({ text, queryRe }) => {
   );
 };
 
-// Renders interactive tokens (formatting codes, escapes, placeholders) as clickable chips
+// Renders interactive tokens (formatting codes, escapes, placeholders) as clickable chips,
+// with Minecraft formatting and colors previewed live.
 const InteractiveOriginal = ({ text, onInsertToken, queryRe }) => {
-  const tokenParts = useMemo(() => tokenizeString(text), [text]);
-
   return (
-    <span>
-      {tokenParts.map((part, idx) => {
-        if (part.type === "text") {
-          const lead = (part.value.match(/^\s+/) || [""])[0];
-          const trail = (part.value.match(/\s+$/) || [""])[0];
-          if (lead.length + trail.length >= part.value.length) {
-            return (
-              <span key={idx}>
-                {renderWhitespaceRun(part.value, `ws-${idx}`)}
-              </span>
-            );
-          }
-          const core = part.value.slice(lead.length, part.value.length - trail.length);
-          return (
-            <span key={idx}>
-              {lead && renderWhitespaceRun(lead, `ws-l-${idx}`)}
-              <HighlightedText text={core} queryRe={queryRe} />
-              {trail && renderWhitespaceRun(trail, `ws-t-${idx}`)}
-            </span>
-          );
-        }
-
-        // Color/formatting codes
+    <FormattedText
+      text={text}
+      queryRe={queryRe}
+      showWhitespace={true}
+      renderToken={(run, css, idx) => {
+        const token = run.token;
+        const codeColor = token.type === "mc-code" ? colorOfCode(token.value) : null;
         let badgeStyle = "bg-primary/20 text-primary border-primary/30";
-        if (part.type === "mc-code") {
-          badgeStyle = "bg-secondary/25 text-secondary border-secondary/40";
-        } else if (part.type === "escape") {
+        let customStyle = {};
+
+        if (token.type === "mc-code") {
+          if (codeColor) {
+            badgeStyle = "";
+            customStyle = {
+              backgroundColor: `color-mix(in srgb, ${codeColor} 20%, transparent)`,
+              color: codeColor,
+              borderColor: `color-mix(in srgb, ${codeColor} 45%, transparent)`,
+            };
+          } else {
+            badgeStyle = "bg-secondary/25 text-secondary border-secondary/40";
+            const char = token.value[1]?.toLowerCase();
+            customStyle = {
+              fontWeight: char === "l" ? 700 : undefined,
+              fontStyle: char === "o" ? "italic" : undefined,
+              textDecoration: char === "n" ? "underline" : char === "m" ? "line-through" : undefined,
+            };
+          }
+        } else if (token.type === "escape") {
           badgeStyle = "bg-accent/20 text-accent border-accent/40";
         }
 
@@ -94,18 +70,19 @@ const InteractiveOriginal = ({ text, onInsertToken, queryRe }) => {
           <button
             key={idx}
             type="button"
-            title={`Натисніть, щоб вставити «${part.value}» у переклад`}
+            title={`Натисніть, щоб вставити «${token.value}» у переклад`}
             onClick={(e) => {
               e.stopPropagation();
-              onInsertToken?.(part.value);
+              onInsertToken?.(token.value);
             }}
+            style={customStyle}
             className={`inline-flex items-center px-1.5 py-0.2 mx-0.5 rounded text-xs font-mono font-bold border transition-transform hover:scale-105 active:scale-95 cursor-pointer ${badgeStyle}`}
           >
-            {part.value}
+            {token.value}
           </button>
         );
-      })}
-    </span>
+      }}
+    />
   );
 };
 
@@ -281,6 +258,10 @@ const TranslationRow = ({
   };
 
   const hasDraft = Boolean(item.translated.trim());
+  const hasCodes = useMemo(
+    () => tokenizeString(item.translated || "").some((t) => t.type === "mc-code" && t.value[0] === "§"),
+    [item.translated]
+  );
   const status = item.confirmed ? "confirmed" : hasDraft ? "pending" : "empty";
   const expanded = isSelected;
   const stop = (e) => e.stopPropagation();
@@ -334,7 +315,7 @@ const TranslationRow = ({
               queryRe={queryRe}
             />
           ) : (
-            <HighlightedText text={item.original} queryRe={queryRe} />
+            <FormattedText text={item.original} queryRe={queryRe} />
           )}
         </div>
 
@@ -371,94 +352,157 @@ const TranslationRow = ({
       <div className="flex flex-col justify-center min-w-0">
         {expanded ? (
           <div>
-            <textarea
-              ref={textareaRef}
-              data-role="translation"
-              data-key={item.key}
-              value={item.translated}
-              lang="uk"
-              spellCheck={true}
-              onChange={(e) => {
-                onTranslate(e.target.value);
-                if (cursorPositionRef) {
-                  cursorPositionRef.current = {
-                    key: item.key,
-                    start: e.target.selectionStart,
-                    end: e.target.selectionEnd,
-                  };
-                }
-              }}
-              onSelect={(e) => {
-                if (cursorPositionRef) {
-                  cursorPositionRef.current = {
-                    key: item.key,
-                    start: e.target.selectionStart,
-                    end: e.target.selectionEnd,
-                  };
-                }
-              }}
-              onKeyUp={(e) => {
-                if (cursorPositionRef) {
-                  cursorPositionRef.current = {
-                    key: item.key,
-                    start: e.target.selectionStart,
-                    end: e.target.selectionEnd,
-                  };
-                }
-              }}
-              onMouseUp={(e) => {
-                if (cursorPositionRef) {
-                  cursorPositionRef.current = {
-                    key: item.key,
-                    start: e.target.selectionStart,
-                    end: e.target.selectionEnd,
-                  };
-                }
-              }}
-              onFocus={(e) => {
-                onSelect();
-                if (cursorPositionRef) {
-                  cursorPositionRef.current = {
-                    key: item.key,
-                    start: e.target.selectionStart,
-                    end: e.target.selectionEnd,
-                  };
-                }
-              }}
-              onClick={stop}
-              placeholder="Введіть український переклад…"
-              aria-label={`Переклад для ${item.key}`}
+            <div
+              className="relative transition-colors"
               style={{
                 width: "100%",
                 minHeight: `${ACTION_STACK_HEIGHT}px`,
                 background: "var(--color-bg)",
                 border: "1px solid var(--color-divider)",
                 borderRadius: "var(--radius-md)",
-                padding: "8px 10px",
-                color: "var(--color-text)",
-                fontSize: "13px",
-                fontFamily: "var(--font-body)",
-                lineHeight: 1.4,
-                resize: "none",
-                overflow: "hidden",
-                outline: "none",
               }}
-              onFocusCapture={(e) => (e.target.style.borderColor = "var(--color-accent)")}
-              onBlurCapture={(e) => (e.target.style.borderColor = "var(--color-divider)")}
-            />
+              onFocusCapture={(e) => (e.currentTarget.style.borderColor = "var(--color-accent)")}
+              onBlurCapture={(e) => (e.currentTarget.style.borderColor = "var(--color-divider)")}
+            >
+              {/* Mirror overlay displaying formatted preview while editing */}
+              {hasCodes && (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    padding: "8px 10px",
+                    color: "var(--color-text)",
+                    fontSize: "13px",
+                    fontFamily: "var(--font-body)",
+                    lineHeight: 1.4,
+                    whiteSpace: "pre-wrap",
+                    overflowWrap: "break-word",
+                    wordBreak: "break-word",
+                    overflow: "hidden",
+                    pointerEvents: "none",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <FormattedText text={item.translated} widthNeutral={true} />
+                  {item.translated.endsWith("\n") && "\u200b"}
+                </div>
+              )}
 
-            {/* QA Warnings */}
+              <textarea
+                ref={textareaRef}
+                data-role="translation"
+                data-key={item.key}
+                value={item.translated}
+                lang="uk"
+                spellCheck={true}
+                onChange={(e) => {
+                  onTranslate(e.target.value);
+                  if (cursorPositionRef) {
+                    cursorPositionRef.current = {
+                      key: item.key,
+                      start: e.target.selectionStart,
+                      end: e.target.selectionEnd,
+                    };
+                  }
+                }}
+                onSelect={(e) => {
+                  if (cursorPositionRef) {
+                    cursorPositionRef.current = {
+                      key: item.key,
+                      start: e.target.selectionStart,
+                      end: e.target.selectionEnd,
+                    };
+                  }
+                }}
+                onKeyUp={(e) => {
+                  if (cursorPositionRef) {
+                    cursorPositionRef.current = {
+                      key: item.key,
+                      start: e.target.selectionStart,
+                      end: e.target.selectionEnd,
+                    };
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (cursorPositionRef) {
+                    cursorPositionRef.current = {
+                      key: item.key,
+                      start: e.target.selectionStart,
+                      end: e.target.selectionEnd,
+                    };
+                  }
+                }}
+                onFocus={(e) => {
+                  onSelect();
+                  if (cursorPositionRef) {
+                    cursorPositionRef.current = {
+                      key: item.key,
+                      start: e.target.selectionStart,
+                      end: e.target.selectionEnd,
+                    };
+                  }
+                }}
+                onClick={stop}
+                placeholder="Введіть український переклад…"
+                aria-label={`Переклад для ${item.key}`}
+                style={{
+                  position: "relative",
+                  width: "100%",
+                  minHeight: `${ACTION_STACK_HEIGHT}px`,
+                  background: "transparent",
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  padding: "8px 10px",
+                  color: hasCodes ? "transparent" : "var(--color-text)",
+                  caretColor: "var(--color-text)",
+                  fontSize: "13px",
+                  fontFamily: "var(--font-body)",
+                  lineHeight: 1.4,
+                  resize: "none",
+                  overflow: "hidden",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            {/* QA Warnings with Quick Fix buttons */}
             {qaIssues.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-1.5">
-                {qaIssues.map((issue, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-warning/15 text-warning border border-warning/30 font-medium"
-                    title={issue.message}
-                  >
-                    ⚠️ {issue.message}
-                  </span>
-                ))}
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {qaIssues.map((issue, idx) => {
+                  const isInfo = issue.severity === "info";
+                  const badgeClass = isInfo
+                    ? "bg-info/15 text-info border-info/30"
+                    : "bg-warning/15 text-warning border-warning/30";
+                  const icon = isInfo ? "ℹ️" : "⚠️";
+
+                  return (
+                    <span
+                      key={idx}
+                      className={`inline-flex items-center gap-1.5 text-[11px] pl-2 pr-1.5 py-0.5 rounded border font-medium ${badgeClass}`}
+                      title={issue.message}
+                    >
+                      <span>{icon} {issue.message}</span>
+                      {typeof issue.fix === "function" && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const fixed = issue.fix(item.translated);
+                            if (fixed !== item.translated) {
+                              onTranslate(fixed);
+                            }
+                          }}
+                          className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-base-100/70 hover:bg-base-100 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-current/20 shadow-xs"
+                          title="Швидке виправлення в 1 клік"
+                        >
+                          Виправити ⚡
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -475,17 +519,17 @@ const TranslationRow = ({
               }}
             >
               {hasDraft ? (
-                <HighlightedText text={item.translated} queryRe={queryRe} />
+                <FormattedText text={item.translated} queryRe={queryRe} />
               ) : (
-                "Перекласти…"
+                "Переклади…"
               )}
             </div>
             {qaIssues.length > 0 && (
               <span
-                className="text-warning text-xs shrink-0 cursor-help"
+                className={`${qaIssues.every((i) => i.severity === "info") ? "text-info" : "text-warning"} text-xs shrink-0 cursor-help`}
                 title={qaIssues.map((i) => i.message).join("\n")}
               >
-                ⚠️
+                {qaIssues.every((i) => i.severity === "info") ? "ℹ️" : "⚠️"}
               </span>
             )}
           </div>
