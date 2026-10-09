@@ -25,19 +25,12 @@ export const MC_COLORS = {
   f: "#FFFFFF",
 };
 
-// Colours too dark to read on the app's dark background without an outline.
-const DARK_COLORS = new Set([MC_COLORS[0], MC_COLORS[1], MC_COLORS[8]]);
-const DARK_COLOR_OUTLINE = "0 0 1px #fff, 0 0 2px rgba(255,255,255,0.7)";
-
 // Converts a formatting state (or a partial one like { color }) to CSS. In the
 // edit field only width-neutral styles are allowed, otherwise the preview
 // drifts away from the textarea caret laid over it.
 export const mcStyleToCss = (style, { widthNeutral = false } = {}) => {
   const css = {};
-  if (style.color) {
-    css.color = style.color;
-    if (DARK_COLORS.has(style.color)) css.textShadow = DARK_COLOR_OUTLINE;
-  }
+  if (style.color) css.color = style.color;
   const lines = [];
   if (style.underline) lines.push("underline");
   if (style.strikethrough) lines.push("line-through");
