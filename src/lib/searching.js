@@ -63,6 +63,14 @@ export const compileQuery = (
 export const isFindShortcut = (e) =>
   (e.ctrlKey || e.metaKey) && (e.code === "KeyF" || e.key.toLowerCase() === "f");
 
+// True when a keydown event is the "search selection in reference" shortcut
+// (Ctrl/Cmd + D). Same physical-key matching as isFindShortcut.
+export const isReferenceSearchShortcut = (e) =>
+  (e.ctrlKey || e.metaKey) &&
+  !e.shiftKey &&
+  !e.altKey &&
+  (e.code === "KeyD" || e.key.toLowerCase() === "d");
+
 export const itemMatches = (item, re) =>
   re.test(item.key) || re.test(String(item.original)) || re.test(item.translated);
 

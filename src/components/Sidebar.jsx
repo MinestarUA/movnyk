@@ -11,6 +11,7 @@ const Sidebar = ({
   onExportResourcePack,
   onExportClipboard,
   onLoadLang,
+  onApplyNewOriginal,
   skipApproved,
   onSkipApprovedChange,
   skipIdentical,
@@ -90,6 +91,33 @@ const Sidebar = ({
       }
     } catch (error) {
       console.error("Error parsing clipboard lang:", error);
+      toast("Не вдалося обробити вміст буфера обміну. Переконайтеся, що це коректний JSON або .lang файл.", "error");
+    }
+  };
+
+  const handlePasteOriginalClipboard = async () => {
+    let text;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch (error) {
+      console.error("Clipboard read failed:", error);
+      toast("Не вдалося прочитати буфер обміну. Дозвольте доступ до буфера обміну.", "error");
+      return;
+    }
+    if (!text || !text.trim()) {
+      toast("Буфер обміну порожній.", "warning");
+      return;
+    }
+    try {
+      const newOriginal = parseLangContent(text);
+      const { changed, renamed, added, removed } = onApplyNewOriginal(newOriginal);
+      toast(
+        `Оригінал оновлено. Змінено: ${changed}, перейменовано: ${renamed}, нових: ${added}, видалено: ${removed}.` +
+          (removed > 0 ? " Видалені рядки є в довіднику." : ""),
+        "success"
+      );
+    } catch (error) {
+      console.error("Error parsing clipboard original:", error);
       toast("Не вдалося обробити вміст буфера обміну. Переконайтеся, що це коректний JSON або .lang файл.", "error");
     }
   };
@@ -269,6 +297,13 @@ const Sidebar = ({
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
             Приєднати Lang з буфера
+          </button>
+          <button style={{ ...outlineBtnStyle, opacity: running ? 0.5 : 1, cursor: running ? "not-allowed" : "pointer" }} onClick={handlePasteOriginalClipboard} disabled={running} title="Вставте новий оригінал (en_us.json) в буфер. Затвердження зі змінених рядків знімається, видалені лишаються в довіднику.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 4v5h-5" />
+            </svg>
+            Приєднати та оновити оригінал (з буфера)
           </button>
           <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "var(--color-neutral-400)", cursor: "pointer", lineHeight: 1.4 }}>
             <input

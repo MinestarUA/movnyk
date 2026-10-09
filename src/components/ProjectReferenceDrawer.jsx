@@ -9,8 +9,9 @@ const ProjectReferenceDrawer = ({
   onNavigateToRow,
   activeKey,
   referenceInputRef,
+  query,
+  onQueryChange,
 }) => {
-  const [query, setQuery] = useState("");
   const [copiedKey, setCopiedKey] = useState(null);
   const localInputRef = useRef(null);
 
@@ -73,12 +74,12 @@ const ProjectReferenceDrawer = ({
             ref={localInputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 e.stopPropagation();
                 if (query) {
-                  setQuery("");
+                  onQueryChange("");
                 } else {
                   onClose();
                 }
@@ -91,7 +92,7 @@ const ProjectReferenceDrawer = ({
             <button
               type="button"
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content text-xs"
-              onClick={() => setQuery("")}
+              onClick={() => onQueryChange("")}
             >
               ✕
             </button>
@@ -127,6 +128,9 @@ const ProjectReferenceDrawer = ({
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="font-medium text-xs text-base-content/90 min-w-0">
+                  {item.removed && (
+                    <span className="badge badge-warning badge-xs mr-1.5 align-middle">Видалено</span>
+                  )}
                   <FormattedText text={item.original} queryRe={queryRe} />
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -148,16 +152,18 @@ const ProjectReferenceDrawer = ({
                       {copiedKey === `trans-${item.key}` ? "✓" : "Переклад"}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="btn btn-xs btn-neutral text-[10px] h-6 min-h-0 px-1.5"
-                    title="Перейти до цього рядка у редакторі (без закриття довідника)"
-                    onClick={() => {
-                      onNavigateToRow(item.key);
-                    }}
-                  >
-                    Перейти ➔
-                  </button>
+                  {!item.removed && (
+                    <button
+                      type="button"
+                      className="btn btn-xs btn-neutral text-[10px] h-6 min-h-0 px-1.5"
+                      title="Перейти до цього рядка у редакторі (без закриття довідника)"
+                      onClick={() => {
+                        onNavigateToRow(item.key);
+                      }}
+                    >
+                      Перейти ➔
+                    </button>
+                  )}
                 </div>
               </div>
 
