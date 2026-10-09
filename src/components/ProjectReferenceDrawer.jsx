@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useImperativeHandle } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { compileQuery, itemMatches } from "../lib/searching";
 import FormattedText from "./FormattedText";
 
@@ -13,15 +13,20 @@ const ProjectReferenceDrawer = ({
   onQueryChange,
 }) => {
   const [copiedKey, setCopiedKey] = useState(null);
-  const localInputRef = useRef(null);
-
-  useImperativeHandle(referenceInputRef, () => localInputRef.current, []);
+  // The input mounts and unmounts with the drawer, so the parent's ref is set
+  // from the input itself rather than once at mount, when it is still null.
+  const setInputRef = useCallback(
+    (el) => {
+      referenceInputRef.current = el;
+    },
+    [referenceInputRef]
+  );
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => localInputRef.current?.focus(), 50);
+      setTimeout(() => referenceInputRef.current?.focus(), 50);
     }
-  }, [isOpen]);
+  }, [isOpen, referenceInputRef]);
 
   const { re: queryRe } = useMemo(
     () => compileQuery(query, { regex: false, caseSensitive: false, wholeWord: false }),
@@ -71,7 +76,7 @@ const ProjectReferenceDrawer = ({
       <div className="py-3">
         <div className="relative">
           <input
-            ref={localInputRef}
+            ref={setInputRef}
             type="text"
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
