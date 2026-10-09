@@ -138,7 +138,8 @@ const Sidebar = ({
     textTransform: "uppercase",
   };
   const outlineBtnStyle = {
-    height: "32px",
+    minHeight: "32px",
+    padding: "6px 10px",
     borderRadius: "var(--radius-md)",
     background: "transparent",
     border: "1px solid var(--color-divider)",
@@ -146,11 +147,34 @@ const Sidebar = ({
     fontFamily: "var(--font-heading)",
     fontWeight: 500,
     fontSize: "12.5px",
+    lineHeight: 1.3,
+    textAlign: "center",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     gap: "6px",
+  };
+  const importBtnStyle = {
+    ...outlineBtnStyle,
+    opacity: running ? 0.5 : 1,
+    cursor: running ? "not-allowed" : "pointer",
+  };
+  const checkboxLabelStyle = {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "8px",
+    fontSize: "12px",
+    color: "var(--color-neutral-400)",
+    cursor: "pointer",
+    lineHeight: 1.4,
+  };
+  const checkboxStyle = {
+    accentColor: "var(--color-accent)",
+    width: "13px",
+    height: "13px",
+    marginTop: "2px",
+    flexShrink: 0,
   };
   const exportBtnStyle = (filled) => ({
     height: "32px",
@@ -281,54 +305,58 @@ const Sidebar = ({
         <div style={dividerStyle} />
 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={sectionLabelStyle}>Файли</div>
+          <div style={sectionLabelStyle}>Імпорт</div>
           <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept=".json,.lang" />
-          <button style={{ ...outlineBtnStyle, opacity: running ? 0.5 : 1, cursor: running ? "not-allowed" : "pointer" }} onClick={handleLoadClick} disabled={running}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <button style={importBtnStyle} onClick={handleLoadClick} disabled={running}>
+            <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 3v12" />
               <path d="M7 8l5-5 5 5" />
               <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
             </svg>
             Приєднати Lang файл
           </button>
-          <button style={{ ...outlineBtnStyle, opacity: running ? 0.5 : 1, cursor: running ? "not-allowed" : "pointer" }} onClick={handlePasteLangClipboard} disabled={running}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <button style={importBtnStyle} onClick={handlePasteLangClipboard} disabled={running}>
+            <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="9" y="9" width="11" height="11" rx="2" />
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
             Приєднати Lang з буфера
           </button>
-          <button style={{ ...outlineBtnStyle, opacity: running ? 0.5 : 1, cursor: running ? "not-allowed" : "pointer" }} onClick={handlePasteOriginalClipboard} disabled={running} title="Вставте новий оригінал (en_us.json) в буфер. Затвердження зі змінених рядків знімається, видалені лишаються в довіднику.">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <button style={importBtnStyle} onClick={handlePasteOriginalClipboard} disabled={running} title="Вставте новий оригінал (en_us.json) в буфер. Затвердження зі змінених рядків знімається, видалені лишаються в довіднику.">
+            <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M21 12a9 9 0 1 1-2.64-6.36" />
               <path d="M21 4v5h-5" />
             </svg>
             Приєднати та оновити оригінал (з буфера)
           </button>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "var(--color-neutral-400)", cursor: "pointer", lineHeight: 1.4 }}>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={sectionLabelStyle}>Під час імпорту</div>
+          <label style={checkboxLabelStyle}>
             <input
               type="checkbox"
               checked={skipApproved}
               onChange={(e) => onSkipApprovedChange(e.target.checked)}
-              style={{ accentColor: "var(--color-accent)", width: "13px", height: "13px", marginTop: "2px", flexShrink: 0 }}
+              style={checkboxStyle}
             />
             Пропускати вже затверджені переклади
           </label>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "var(--color-neutral-400)", cursor: "pointer", lineHeight: 1.4 }}>
+          <label style={checkboxLabelStyle}>
             <input
               type="checkbox"
               checked={skipIdentical}
               onChange={(e) => onSkipIdenticalChange(e.target.checked)}
-              style={{ accentColor: "var(--color-accent)", width: "13px", height: "13px", marginTop: "2px", flexShrink: 0 }}
+              style={checkboxStyle}
             />
             Пропускати переклади, що збігаються з оригіналом
           </label>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "var(--color-neutral-400)", cursor: "pointer", lineHeight: 1.4 }}>
+          <label style={checkboxLabelStyle}>
             <input
               type="checkbox"
               checked={confirmImport}
               onChange={(e) => onConfirmImportChange(e.target.checked)}
-              style={{ accentColor: "var(--color-accent)", width: "13px", height: "13px", marginTop: "2px", flexShrink: 0 }}
+              style={checkboxStyle}
             />
             Позначати імпортовані рядки як затверджені
           </label>
