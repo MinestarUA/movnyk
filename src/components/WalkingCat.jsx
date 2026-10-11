@@ -4,9 +4,21 @@ import { restBucket, catStep } from "./catStep.js";
 // Animated progress indicator: an SVG cat that walks along a ground line.
 // Position snaps to 5% marks; confirming a row without crossing a mark bobs the
 // cat in place; crossing a mark plays a walk stride; 100% swaps to a happy pose.
-export default function WalkingCat({ progress = 0, confirmedCount = 0, total }) {
+const PALETTES = {
+  pink: { body: "#f7a8cf", leg: "#e07bb0", track: "linear-gradient(90deg,#ff5fa2,#c860e8)" },
+  teal: { body: "#8fe3d8", leg: "#4fbfb1", track: "linear-gradient(90deg,#5ee0d0,#3aa6e8)" },
+};
+
+export default function WalkingCat({
+  label = "Прогрес перекладу",
+  tone = "pink",
+  progress = 0,
+  confirmedCount = 0,
+  total,
+}) {
   const rest = restBucket(progress);
   const complete = progress >= 100;
+  const palette = PALETTES[tone];
   const prevRestRef = useRef(rest);
   const prevCountRef = useRef(confirmedCount);
   const [anim, setAnim] = useState({ move: "none", pose: "walking" });
@@ -31,12 +43,13 @@ export default function WalkingCat({ progress = 0, confirmedCount = 0, total }) 
   return (
     <div
       role="progressbar"
-      aria-label="Прогрес перекладу"
+      aria-label={label}
+      title={label}
       aria-valuenow={valueNow}
       aria-valuemax={valueMax}
       style={{
         flex: 1,
-        minWidth: "150px",
+        minWidth: "90px",
         marginRight: "6px",
         position: "relative",
         height: "22px",
@@ -64,7 +77,7 @@ export default function WalkingCat({ progress = 0, confirmedCount = 0, total }) 
           style={{
             height: "100%",
             width: `${Math.max(progress, total ? 0.6 : 0)}%`,
-            background: "linear-gradient(90deg,#ff5fa2,#c860e8)",
+            background: palette.track,
             transition: "width 0.35s ease",
           }}
         />
@@ -91,7 +104,7 @@ export default function WalkingCat({ progress = 0, confirmedCount = 0, total }) 
           height: "16px",
         }}
       >
-        <CatSvg pose={anim.pose} />
+        <CatSvg pose={anim.pose} palette={palette} />
       </div>
     </div>
   );
@@ -99,17 +112,17 @@ export default function WalkingCat({ progress = 0, confirmedCount = 0, total }) 
 
 // Inline SVG cat. Walking pose = tail level, eyes o o. Happy pose = tail up,
 // eyes ^^. Legs are the four <line>s animated by the .cat--walk keyframes.
-function CatSvg({ pose }) {
+function CatSvg({ pose, palette }) {
   const happy = pose === "happy";
   return (
     <svg viewBox="0 0 22 16" width="22" height="16" aria-hidden="true" style={{ overflow: "visible", transform: "scaleX(-1)" }}>
       {/* body */}
-      <ellipse cx="10" cy="8" rx="7" ry="4.2" fill="#f7a8cf" />
+      <ellipse cx="10" cy="8" rx="7" ry="4.2" fill={palette.body} />
       {/* head */}
-      <circle cx="3.5" cy="6.5" r="3.2" fill="#f7a8cf" />
+      <circle cx="3.5" cy="6.5" r="3.2" fill={palette.body} />
       {/* ears */}
-      <path d="M1.2 4.2 L2 1.5 L3.4 3.8 Z" fill="#f7a8cf" />
-      <path d="M4 3.6 L5.4 1.4 L6 4.2 Z" fill="#f7a8cf" />
+      <path d="M1.2 4.2 L2 1.5 L3.4 3.8 Z" fill={palette.body} />
+      <path d="M4 3.6 L5.4 1.4 L6 4.2 Z" fill={palette.body} />
       {/* eyes */}
       {happy ? (
         <>
@@ -125,13 +138,13 @@ function CatSvg({ pose }) {
       {/* tail */}
       <path
         d={happy ? "M16.5 7 q4 -1 3 -5.5" : "M16.5 8 q4 0 4.5 -2.5"}
-        stroke="#f7a8cf"
+        stroke={palette.body}
         strokeWidth="1.8"
         fill="none"
         strokeLinecap="round"
       />
       {/* legs (alternating a/b pairs) */}
-      <g stroke="#e07bb0" strokeWidth="1.4" strokeLinecap="round">
+      <g stroke={palette.leg} strokeWidth="1.4" strokeLinecap="round">
         <line className="leg leg-a" x1="6" y1="11.5" x2="6" y2="15" />
         <line className="leg leg-b" x1="9" y1="11.5" x2="9" y2="15" />
         <line className="leg leg-a" x1="12" y1="11.5" x2="12" y2="15" />

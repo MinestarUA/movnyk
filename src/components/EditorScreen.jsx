@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { List, useDynamicRowHeight } from "react-window";
-import TranslationRow, { ROW_COLLAPSED } from "./TranslationRow";
+import { List } from "react-window";
+import TranslationRow, { ROW_COLLAPSED, ROW_EXPANDED } from "./TranslationRow";
 import Sidebar from "./Sidebar";
 import SettingsModal from "./SettingsModal";
 import WalkingCat from "./WalkingCat.jsx";
@@ -157,6 +157,27 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     [translations]
   );
   const progress = total ? Math.floor((confirmedCount / total) * 100) : 0;
+
+  // Character-weighted progress: a long confirmed row moves the second cat
+  // further than a short one. Weight is the source string length.
+  const charTotal = useMemo(
+    () => translations.filter(isTranslatable).reduce((sum, t) => sum + t.original.length, 0),
+    [translations]
+  );
+  const confirmedChars = useMemo(
+    () =>
+      translations
+        .filter((t) => t.confirmed && isTranslatable(t))
+        .reduce((sum, t) => sum + t.original.length, 0),
+    [translations]
+  );
+  const charProgress = charTotal ? Math.floor((confirmedChars / charTotal) * 100) : 0;
+  const progressCounterStyle = {
+    fontSize: "12px",
+    color: "var(--color-neutral-400)",
+    whiteSpace: "nowrap",
+    fontVariantNumeric: "tabular-nums",
+  };
 
   // Derive the effective selection so it stays valid when the filtered set
   // changes, without needing an effect to reconcile state.
@@ -619,14 +640,16 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     }
   }, [translations, settings, toast]);
 
-  // Rows are measured (ResizeObserver) so the expanded row can grow with its
-  // translation content instead of scrolling inside a fixed field. Reset the
-  // height cache whenever the visible set changes, since heights are keyed by
-  // index and filtering/searching remaps which row sits at each index.
-  const rowHeightCache = useDynamicRowHeight({
-    defaultRowHeight: ROW_COLLAPSED,
-    key: `${query}|${regexMode}|${caseSensitive}|${wholeWord}|${filterUntranslated}|${filterUnconfirmed}|${referenceDrawerOpen}|${sidebarOpen}`,
-  });
+  // Only the selected row differs from the collapsed height, so row heights are
+  // derived from the selection during render. Offsets then move in the same
+  // render as the selection, instead of a frame later through a measured cache.
+  // The expanded height is measured from the selected row itself.
+  const [expandedRowHeight, setExpandedRowHeight] = useState(ROW_EXPANDED);
+  const getRowHeight = useCallback(
+    (index) => (index === activeIndex ? expandedRowHeight : ROW_COLLAPSED),
+    [activeIndex, expandedRowHeight]
+  );
+
 
   const toggleBtnStyle = (active, isLast = false) => ({
     height: "34px",
@@ -743,17 +766,24 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
           <div style={{ flex: 1 }} />
 
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0, maxWidth: "320px" }}>
-            <WalkingCat progress={progress} confirmedCount={confirmedCount} total={total} />
-            <div
-              style={{
-                fontSize: "12px",
-                color: "var(--color-neutral-400)",
-                whiteSpace: "nowrap",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {confirmedCount} / {total} · {progress}%
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+              <WalkingCat progress={progress} confirmedCount={confirmedCount} total={total} />
+              <span style={progressCounterStyle}>
+                {confirmedCount} / {total} · {progress}%
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+              <WalkingCat
+                tone="teal"
+                label="Прогрес за символами"
+                progress={charProgress}
+                confirmedCount={confirmedChars}
+                total={charTotal}
+              />
+              <span style={progressCounterStyle}>
+                {confirmedChars} / {charTotal} · {charProgress}%
+              </span>
             </div>
           </div>
 
@@ -1053,7 +1083,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                 listRef={listRef}
                 rowComponent={Row}
                 rowCount={filtered.length}
-                rowHeight={rowHeightCache}
+                rowHeight={getRowHeight}
                 style={{ width: "100%", height: "100%" }}
                 rowProps={{
                   filtered,
@@ -1070,6 +1100,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                   handleCopy,
                   handleDefinition,
                   handleSuggest,
+                  setExpandedRowHeight,
                 }}
               />
             </div>
@@ -1138,12 +1169,14 @@ const Row = ({
   handleCopy,
   handleDefinition,
   handleSuggest,
+  setExpandedRowHeight,
 }) => {
   const item = filtered[index];
 
   return (
     <TranslationRow
       rowStyle={style}
+      onHeight={setExpandedRowHeight}
       item={item}
       isSelected={item.key === selectedKey}
       queryRe={queryRe}

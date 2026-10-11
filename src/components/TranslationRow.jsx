@@ -174,9 +174,11 @@ const TranslationRow = ({
   onCopy,
   onDefinition,
   onSuggest,
+  onHeight,
   isSuggesting = false,
 }) => {
   const textareaRef = useRef(null);
+  const rowRef = useRef(null);
   const [copied, setCopied] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
   const copiedTimer = useRef(null);
@@ -266,6 +268,12 @@ const TranslationRow = ({
   const expanded = isSelected;
   const stop = (e) => e.stopPropagation();
 
+  // Report the expanded row's real height before paint, after the textarea has
+  // been sized above, so the list never lays out a stale height for this row.
+  useLayoutEffect(() => {
+    if (expanded && rowRef.current && onHeight) onHeight(rowRef.current.offsetHeight);
+  }, [expanded, item.translated, onHeight]);
+
   // Run QA checks
   const qaIssues = useMemo(() => {
     if (!qaEnabled || !hasDraft) return [];
@@ -289,7 +297,7 @@ const TranslationRow = ({
   };
 
   return (
-    <div style={outerStyle} onClick={onSelect}>
+    <div ref={rowRef} style={outerStyle} onClick={onSelect}>
       {/* 1. Status Dot */}
       <div style={{ display: "flex", alignItems: expanded ? "flex-start" : "center", paddingTop: expanded ? "4px" : 0 }}>
         <span style={statusDotStyle(status)} />
