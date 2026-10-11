@@ -36,7 +36,11 @@ const ProjectReferenceDrawer = ({
   const results = useMemo(() => {
     if (!query.trim()) return [];
     if (!queryRe) return [];
-    return translations.filter((item) => itemMatches(item, queryRe)).slice(0, 100);
+    // A removed row without a translation has nothing to reference.
+    return translations
+      .filter((item) => !(item.removed && !item.translated.trim()))
+      .filter((item) => itemMatches(item, queryRe))
+      .slice(0, 100);
   }, [translations, query, queryRe]);
 
   if (!isOpen) return null;
@@ -132,7 +136,7 @@ const ProjectReferenceDrawer = ({
               className="rounded-lg border border-neutral/60 bg-base-100 p-2.5 space-y-1.5 hover:border-primary/50 transition-colors"
             >
               <div className="flex items-start justify-between gap-2">
-                <div className="font-medium text-xs text-base-content/90 min-w-0">
+                <div className="flex-1 font-medium text-xs text-base-content/90 min-w-0">
                   {item.removed && (
                     <span className="badge badge-warning badge-xs mr-1.5 align-middle">Видалено</span>
                   )}
