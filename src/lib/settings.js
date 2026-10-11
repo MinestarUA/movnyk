@@ -27,11 +27,35 @@ export const AI_PROVIDERS = [
   { id: "deepl", label: "DeepL Translate" },
 ];
 
+// Prompts sent to Google's AI search from the "Google" button in a row.
+// {original} and {translation} are replaced with the row's text.
+export const DEFAULT_SEARCH_PROMPTS = {
+  correct: 'Чи правильно перекладати "{original}" як "{translation}"?',
+  translate: "Переклади цей текст:\n{original}",
+};
+
+export const buildSearchPrompt = (template, { original = "", translation = "" }) =>
+  template.split("{original}").join(original).split("{translation}").join(translation);
+
+// Empty or non-string templates fall back to the default, so a cleared field
+// never produces an empty search.
+const normalizeSearchPrompts = (prompts) => ({
+  correct:
+    typeof prompts?.correct === "string" && prompts.correct.trim()
+      ? prompts.correct
+      : DEFAULT_SEARCH_PROMPTS.correct,
+  translate:
+    typeof prompts?.translate === "string" && prompts.translate.trim()
+      ? prompts.translate
+      : DEFAULT_SEARCH_PROMPTS.translate,
+});
+
 const DEFAULTS = {
   apiKey: "", // Gemini API key
   model: DEFAULT_MODEL,
   aiProvider: "gemini", // "gemini" | "deepl"
   deeplApiKey: "",
+  searchPrompts: { ...DEFAULT_SEARCH_PROMPTS },
   syncIdenticalTranslations: true,
   qaChecksEnabled: true,
   skipIdenticalImport: true,
@@ -56,6 +80,7 @@ export const loadSettings = () => {
       model: normalizeModel(typeof parsed.model === "string" && parsed.model ? parsed.model : DEFAULT_MODEL),
       aiProvider: parsed.aiProvider === "deepl" ? "deepl" : "gemini",
       deeplApiKey: typeof parsed.deeplApiKey === "string" ? parsed.deeplApiKey : "",
+      searchPrompts: normalizeSearchPrompts(parsed.searchPrompts),
       syncIdenticalTranslations:
         typeof parsed.syncIdenticalTranslations === "boolean" ? parsed.syncIdenticalTranslations : true,
       qaChecksEnabled:
@@ -85,6 +110,7 @@ export const saveSettings = (settings) => {
         model: normalizeModel(settings.model || DEFAULT_MODEL),
         aiProvider: settings.aiProvider || "gemini",
         deeplApiKey: settings.deeplApiKey ?? "",
+        searchPrompts: normalizeSearchPrompts(settings.searchPrompts),
         syncIdenticalTranslations: settings.syncIdenticalTranslations !== false,
         qaChecksEnabled: settings.qaChecksEnabled !== false,
         skipIdenticalImport: settings.skipIdenticalImport !== false,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { loadSettings, saveSettings } from "./settings";
+import { DEFAULT_SEARCH_PROMPTS, buildSearchPrompt, loadSettings, saveSettings } from "./settings";
 
 const store = new Map();
 
@@ -60,5 +60,32 @@ describe("settings", () => {
     const loaded = loadSettings();
     expect(loaded.aiProvider).toBe("deepl");
     expect(loaded.deeplApiKey).toBe("key:fx");
+  });
+
+  it("defaults searchPrompts and round-trips custom templates", () => {
+    expect(loadSettings().searchPrompts).toEqual(DEFAULT_SEARCH_PROMPTS);
+    saveSettings({
+      apiKey: "",
+      model: "gemini-2.5-flash",
+      searchPrompts: { correct: "Custom {original} / {translation}", translate: "Translate {original}" },
+    });
+    expect(loadSettings().searchPrompts).toEqual({
+      correct: "Custom {original} / {translation}",
+      translate: "Translate {original}",
+    });
+  });
+
+  it("falls back to the default when a saved template is blank", () => {
+    saveSettings({ apiKey: "", model: "gemini-2.5-flash", searchPrompts: { correct: "   ", translate: "" } });
+    expect(loadSettings().searchPrompts).toEqual(DEFAULT_SEARCH_PROMPTS);
+  });
+});
+
+describe("buildSearchPrompt", () => {
+  it("replaces every placeholder occurrence literally", () => {
+    expect(buildSearchPrompt("{original} -> {translation} ({original}) $& {translation}", {
+      original: "Ice $1",
+      translation: "Лід",
+    })).toBe("Ice $1 -> Лід (Ice $1) $& Лід");
   });
 });

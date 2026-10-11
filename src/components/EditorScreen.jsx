@@ -5,7 +5,7 @@ import Sidebar from "./Sidebar";
 import SettingsModal from "./SettingsModal";
 import WalkingCat from "./WalkingCat.jsx";
 import { useToast } from "./Toast";
-import { loadSettings, saveSettings, hasApiKey } from "../lib/settings";
+import { loadSettings, saveSettings, hasApiKey, buildSearchPrompt } from "../lib/settings";
 import { translateAll, translateSingle } from "../lib/ai";
 import { mergeLangFile } from "../lib/importing";
 import { saveAutosave } from "../lib/autosave";
@@ -519,8 +519,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const handleDefinition = (item) => {
     const draft = item.translated.trim();
     const input = draft
-      ? `Чи правильно перекладати "${item.original}" як "${draft}"?`
-      : "Переклади цей текст:\n" + item.original;
+      ? buildSearchPrompt(settings.searchPrompts.correct, { original: item.original, translation: draft })
+      : buildSearchPrompt(settings.searchPrompts.translate, { original: item.original });
     window.open(`https://www.google.com/search?q=${encodeURIComponent(input)}&udm=50`, "_blank");
   };
 

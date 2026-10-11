@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GEMINI_MODELS, DEFAULT_MODEL, AI_PROVIDERS } from "../lib/settings";
+import { GEMINI_MODELS, DEFAULT_MODEL, AI_PROVIDERS, DEFAULT_SEARCH_PROMPTS } from "../lib/settings";
 import { testGeminiConnection, fetchAvailableGeminiModels } from "../lib/gemini";
 import { testDeeplConnection, CORS_EXTENSION_URL } from "../lib/deepl";
 
@@ -20,6 +20,9 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
   const [qaChecksEnabled, setQaChecksEnabled] = useState(settings.qaChecksEnabled !== false);
   const [unconfirmOnEdit, setUnconfirmOnEdit] = useState(settings.unconfirmOnEdit !== false);
   const [focusSearchOnFind, setFocusSearchOnFind] = useState(settings.focusSearchOnFind === true);
+  const [searchPrompts, setSearchPrompts] = useState(
+    settings.searchPrompts ?? DEFAULT_SEARCH_PROMPTS
+  );
   const [showKey, setShowKey] = useState(false);
 
   // Testing connection state
@@ -86,6 +89,7 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
       qaChecksEnabled,
       unconfirmOnEdit,
       focusSearchOnFind,
+      searchPrompts,
     });
     onClose();
   };
@@ -382,6 +386,43 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
             <span className="label-text text-sm font-medium">
               Переходити фокусом на пошук при використанні Ctrl+F
             </span>
+          </label>
+        </div>
+
+        {/* Google AI search prompts */}
+        <div className="mt-6 space-y-3 border-t border-neutral pt-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold">Промпт для пошуку в Google AI</span>
+            <button
+              type="button"
+              className="btn btn-xs btn-ghost"
+              onClick={() => setSearchPrompts(DEFAULT_SEARCH_PROMPTS)}
+            >
+              Скинути
+            </button>
+          </div>
+          <p className="text-xs text-base-content/50">
+            Використовуйте <code>{"{original}"}</code> для вихідного тексту та <code>{"{translation}"}</code> для перекладу.
+          </p>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Якщо переклад є</span>
+            <textarea
+              className="textarea textarea-bordered textarea-sm text-xs"
+              rows={2}
+              value={searchPrompts.correct}
+              onChange={(e) => setSearchPrompts({ ...searchPrompts, correct: e.target.value })}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Якщо перекладу немає</span>
+            <textarea
+              className="textarea textarea-bordered textarea-sm text-xs"
+              rows={2}
+              value={searchPrompts.translate}
+              onChange={(e) => setSearchPrompts({ ...searchPrompts, translate: e.target.value })}
+            />
           </label>
         </div>
 
