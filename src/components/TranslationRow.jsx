@@ -285,7 +285,7 @@ const TranslationRow = ({
     display: "grid",
     gridTemplateColumns: GRID_COLUMNS,
     gap: "var(--space-6)",
-    padding: expanded ? "var(--space-4) var(--space-2)" : "0 var(--space-2)",
+    padding: expanded ? "9px var(--space-2)" : "0 var(--space-2)",
     alignItems: expanded ? "start" : "center",
     minHeight: expanded ? ROW_EXPANDED : ROW_COLLAPSED,
     background: expanded ? "var(--color-surface)" : ROW_RULE,
@@ -473,46 +473,45 @@ const TranslationRow = ({
                   boxSizing: "border-box",
                 }}
               />
+
+              {/* QA Warnings with Quick Fix buttons */}
+              {qaIssues.length > 0 && (
+                <div className="absolute left-2 z-10 flex gap-1.5" style={{ bottom: "6px" }}>
+                  {qaIssues.map((issue, idx) => {
+                    const isInfo = issue.severity === "info";
+                    const badgeClass = isInfo
+                      ? "bg-info/15 text-info border-info/30"
+                      : "bg-warning/15 text-warning border-warning/30";
+                    const icon = isInfo ? "ℹ️" : "⚠️";
+  
+                    return (
+                      <span
+                        key={idx}
+                        className={`qa-tip inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] pl-2 pr-1.5 py-0.5 rounded border font-medium bg-base-200 ${badgeClass}`}
+                        data-tip={issue.message}
+                      >
+                        <span>{icon}</span>
+                        {typeof issue.fix === "function" && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const fixed = issue.fix(item.translated);
+                              if (fixed !== item.translated) {
+                                onTranslate(fixed);
+                              }
+                            }}
+                            className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-base-100/70 hover:bg-base-100 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-current/20 shadow-xs"
+                          >
+                            Виправити ⚡
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-
-            {/* QA Warnings with Quick Fix buttons */}
-            {qaIssues.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {qaIssues.map((issue, idx) => {
-                  const isInfo = issue.severity === "info";
-                  const badgeClass = isInfo
-                    ? "bg-info/15 text-info border-info/30"
-                    : "bg-warning/15 text-warning border-warning/30";
-                  const icon = isInfo ? "ℹ️" : "⚠️";
-
-                  return (
-                    <span
-                      key={idx}
-                      className={`inline-flex items-center gap-1.5 text-[11px] pl-2 pr-1.5 py-0.5 rounded border font-medium ${badgeClass}`}
-                      title={issue.message}
-                    >
-                      <span>{icon} {issue.message}</span>
-                      {typeof issue.fix === "function" && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const fixed = issue.fix(item.translated);
-                            if (fixed !== item.translated) {
-                              onTranslate(fixed);
-                            }
-                          }}
-                          className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-base-100/70 hover:bg-base-100 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-current/20 shadow-xs"
-                          title="Швидке виправлення в 1 клік"
-                        >
-                          Виправити ⚡
-                        </button>
-                      )}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
           </div>
         ) : (
           <div className="flex items-center gap-1.5 min-w-0">
@@ -637,8 +636,9 @@ const TranslationRow = ({
   );
 };
 
-const ACTION_STACK_HEIGHT = 120;
+// Four btn-sm buttons (32px) plus three 6px gaps.
+const ACTION_STACK_HEIGHT = 146;
 export const ROW_COLLAPSED = 52;
-export const ROW_EXPANDED = 150;
+export const ROW_EXPANDED = 165;
 
 export default TranslationRow;
