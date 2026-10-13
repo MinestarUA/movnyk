@@ -201,6 +201,16 @@ const TranslationRow = ({
 
   useEffect(() => {
     if (isSelected && focusRequestRef?.current) {
+      // A stale request (left by a row that unmounted while focused) must not
+      // steal focus from a field the user has since moved to, e.g. search.
+      const active = document.activeElement;
+      const isOtherField =
+        active?.matches?.("input, textarea, select, [contenteditable]") &&
+        active.dataset.role !== "translation";
+      if (isOtherField) {
+        focusRequestRef.current = false;
+        return;
+      }
       const el = textareaRef.current;
       if (el) {
         el.focus();
