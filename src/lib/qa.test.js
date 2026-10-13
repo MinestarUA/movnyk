@@ -58,6 +58,13 @@ describe("qa linter", () => {
       .find((i) => i.id === id)
       .fix(translated);
 
+  it("does not flag Latin joined to Cyrillic by a hyphen or symbol", () => {
+    for (const value of ["RF-енергія", "FE/тік", "x2_швидкість"]) {
+      const issues = checkTranslationQA("RF energy", value);
+      expect(issues.some((i) => i.id.startsWith("mixed-scripts"))).toBe(false);
+    }
+  });
+
   it("does not flag tokens glued to Cyrillic words as mixed scripts", () => {
     expect(ids("%s blocks", "%sблоків")).toEqual([]);
     expect(ids("§aGreen text", "§aЗелений текст")).toEqual([]);

@@ -211,8 +211,9 @@ export const checkTranslationQA = (original, translated) => {
     });
   }
 
-  // 8. Mixed Latin / Cyrillic script typos in words
-  const words = transText.split(/[\s,.;:!?()[\]{}"'«»—/\\<>]+/);
+  // 8. Mixed Latin / Cyrillic script typos in words. Any non-letter (hyphen,
+  // digit, symbol) ends a word, so deliberate compounds like "RF-енергія" pass.
+  const words = transText.split(/[^\p{L}]+/u);
   for (const word of words) {
     if (word.length >= 2) {
       const hasCyrillic = /[\u0400-\u04FF]/.test(word);
