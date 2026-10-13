@@ -282,6 +282,9 @@ const TranslationRow = ({
 
   const outerStyle = {
     ...rowStyle,
+    // The list assigns the expanded row the height it last reported; sizing to
+    // content instead lets offsetHeight measure the real height so it can grow.
+    ...(expanded && { height: "auto" }),
     display: "grid",
     gridTemplateColumns: GRID_COLUMNS,
     gap: "var(--space-6)",
