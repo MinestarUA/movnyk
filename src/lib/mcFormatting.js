@@ -2,7 +2,7 @@
 // string will look in game. A colour code sets the colour and resets every
 // decoration; k–o add a decoration; r resets everything. Only "§" is
 // interpreted by the game, so "&x" (common in plain text like "R&D") never
-// restyles the text that follows.
+// restyles the text that follows. Patchouli's "$(...)" codes are styled too.
 
 import { tokenizeString } from "./tokens";
 
@@ -77,6 +77,42 @@ const applyCode = (style, code) => {
   return PLAIN_STYLE;
 };
 
+// Patchouli ($(...)) codes that restyle text. Unlike "§" codes, a colour does
+// not clear decorations. Aliases are Patchouli's default macros.
+const PATCHOULI_COLOR_ALIASES = {
+  nocolor: MC_COLORS[0],
+  item: "#bb00bb",
+  thing: "#449900",
+};
+
+const PATCHOULI_DECORATION_ALIASES = {
+  obf: "k",
+  bold: "l",
+  strike: "m",
+  italic: "o",
+  italics: "o",
+};
+
+const PATCHOULI_RESETS = new Set(["", "reset", "clear"]);
+
+const expandShortHex = (hex) =>
+  hex.length === 3 ? [...hex].map((digit) => digit + digit).join("") : hex;
+
+const applyPatchouliCode = (style, code) => {
+  const body = code.slice(2, -1).toLowerCase();
+  if (PATCHOULI_RESETS.has(body)) return PLAIN_STYLE;
+  if (body in PATCHOULI_COLOR_ALIASES) {
+    return { ...style, color: PATCHOULI_COLOR_ALIASES[body] };
+  }
+  const hex = body.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/);
+  if (hex) return { ...style, color: `#${expandShortHex(hex[1])}` };
+  const codeChar = PATCHOULI_DECORATION_ALIASES[body] ?? body;
+  if (codeChar in DECORATIONS) return { ...style, [DECORATIONS[codeChar]]: true };
+  if (codeChar in MC_COLORS) return { ...style, color: MC_COLORS[codeChar] };
+  // Structural or interactive codes ($(br), $(li), $(l:url), ...) keep the style.
+  return style;
+};
+
 // Splits text into contiguous runs covering the whole string.
 // Returns Array<{ start, end, token: null | { type, value }, style }>, where
 // style is the formatting in effect for that run (a "§" code run already
@@ -91,6 +127,8 @@ export const formatRuns = (text) => {
     offset = end;
     if (part.type === "mc-code" && part.value[0] === "§") {
       style = applyCode(style, part.value);
+    } else if (part.type === "patchouli-code") {
+      style = applyPatchouliCode(style, part.value);
     }
     runs.push({
       start,

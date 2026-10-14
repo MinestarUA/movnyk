@@ -1,6 +1,7 @@
 // Tokenizer for Minecraft localization strings.
 // Identifies Minecraft formatting codes (§a, &c), escape sequences (\n, \t),
-// and format specifiers/placeholders (%s, %1$s, {0}, {name}, etc.) so they can
+// Patchouli codes ($(l), $(#ff0000), $(l:url)), and format specifiers/placeholders
+// (%s, %1$s, {0}, {name}, etc.) so they can
 // be visually distinguished, guarded, and inserted into translations with 1 click.
 
 // Regex matching known formatting codes and placeholder patterns:
@@ -11,8 +12,10 @@
 // 5. Named/indexed braces: {0}, {1}, {name}, {{name}}
 // 6. Percent variables: %variable%, %(key)s
 // 7. Bracketed placeholders: <player>, [count]
+// 8. Patchouli codes: $(...) up to the first ")" on the same line. Arguments such
+//    as tooltips or commands may contain spaces, so the body is not restricted.
 const TOKEN_PATTERN =
-  /(?:(?:§|&)[0-9a-fk-orA-FK-OR])|(?:\\[nrt\\"])|(?:%[0-9]+\$[a-zA-Z])|(?:%[-+0 #]*\d*(?:\.\d+)?[a-zA-Z%])|(?:\{\{\s*[\w.-]+\s*\}\})|(?:\{[\w.-]+\})|(?:%\([\w.-]+\)[a-zA-Z])|(?:%[\w.-]+%)|(?:<[\w.-]+>)|(?:\[[\w.-]+\])/g;
+  /(?:(?:§|&)[0-9a-fk-orA-FK-OR])|(?:\\[nrt\\"])|(?:%[0-9]+\$[a-zA-Z])|(?:%[-+0 #]*\d*(?:\.\d+)?[a-zA-Z%])|(?:\{\{\s*[\w.-]+\s*\}\})|(?:\{[\w.-]+\})|(?:%\([\w.-]+\)[a-zA-Z])|(?:%[\w.-]+%)|(?:<[\w.-]+>)|(?:\[[\w.-]+\])|(?:\$\([^)\n]*\))/g;
 
 export const classifyToken = (token) => {
   if (/^(?:§|&)[0-9a-fk-orA-FK-OR]$/.test(token)) {
@@ -21,11 +24,14 @@ export const classifyToken = (token) => {
   if (/^\\[nrt\\"]$/.test(token)) {
     return "escape";
   }
+  if (token.startsWith("$(")) {
+    return "patchouli-code";
+  }
   return "placeholder";
 };
 
 // Splits a string into text chunks and token objects.
-// Returns: Array<{ type: 'text' | 'mc-code' | 'escape' | 'placeholder', value: string }>
+// Returns: Array<{ type: 'text' | 'mc-code' | 'patchouli-code' | 'escape' | 'placeholder', value: string }>
 export const tokenizeString = (text) => {
   if (!text) return [];
   const str = String(text);

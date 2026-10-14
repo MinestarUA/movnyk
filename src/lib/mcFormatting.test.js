@@ -61,4 +61,46 @@ describe("formatRuns", () => {
     expect(placeholder.token.type).toBe("placeholder");
     expect(placeholder.style.color).toBe(MC_COLORS.e);
   });
+
+  describe("Patchouli codes", () => {
+    const styleAfter = (text, marker) => {
+      const runs = formatRuns(text);
+      return runs.find((r) => textOf(text, r) === marker).style;
+    };
+
+    it("applies colours without clearing decorations", () => {
+      expect(styleAfter("$(l)$(c)X", "X")).toMatchObject({ bold: true, color: MC_COLORS.c });
+      expect(styleAfter("$(#f80)X", "X").color).toBe("#ff8800");
+      expect(styleAfter("$(#1A2b3C)X", "X").color).toBe("#1a2b3c");
+    });
+
+    it("distinguishes $(l)/$(k) styles from $(l:...)/$(k:...) codes", () => {
+      expect(styleAfter("$(l)X", "X").bold).toBe(true);
+      expect(styleAfter("$(k)X", "X").obfuscated).toBe(true);
+      expect(styleAfter("$(l:https://a.b)X", "X").bold).toBe(false);
+      expect(styleAfter("$(k:jump)X", "X").obfuscated).toBe(false);
+    });
+
+    it("resolves default macros", () => {
+      expect(styleAfter("$(bold)X", "X").bold).toBe(true);
+      expect(styleAfter("$(italics)X", "X").italic).toBe(true);
+      expect(styleAfter("$(item)X", "X").color).toBe("#bb00bb");
+      expect(styleAfter("$(thing)X", "X").color).toBe("#449900");
+    });
+
+    it("resets on $() and its aliases", () => {
+      for (const reset of ["$()", "$(reset)", "$(clear)"]) {
+        expect(styleAfter(`$(l)$(c)${reset}X`, "X")).toMatchObject({ bold: false, color: null });
+      }
+    });
+
+    it("keeps the style on structural codes", () => {
+      const style = styleAfter("$(c)$(br)$(li)$(/l)X", "X");
+      expect(style.color).toBe(MC_COLORS.c);
+    });
+
+    it("does not treat unknown codes as styles", () => {
+      expect(styleAfter("$(playername)X", "X").color).toBeNull();
+    });
+  });
 });
