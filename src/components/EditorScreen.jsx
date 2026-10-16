@@ -832,7 +832,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", maxWidth: replaceMode ? "840px" : "560px" }}>
+          <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", maxWidth: "560px" }}>
             <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", minWidth: "260px" }}>
               <svg
                 width="14"
