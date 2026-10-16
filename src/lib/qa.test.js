@@ -121,3 +121,18 @@ describe("qa linter", () => {
   });
 });
 
+
+describe("extra Patchouli codes", () => {
+  it("flags codes the original does not have, and removes them", () => {
+    const issues = checkTranslationQA("Hi$(p)there", "Привіт$(p)усім$(p)$(p)");
+    const extra = issues.find((i) => i.id === "extra-token-$(p)");
+    expect(extra.message).toContain("×2");
+    expect(extra.fix("Привіт$(p)усім$(p)$(p)")).toBe("Привіт$(p)усім");
+  });
+
+  it("accepts matching counts", () => {
+    expect(
+      checkTranslationQA("Hi$(p)there", "Привіт$(p)усім").some((i) => i.id.startsWith("extra-token"))
+    ).toBe(false);
+  });
+});

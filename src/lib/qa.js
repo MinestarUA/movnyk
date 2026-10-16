@@ -67,6 +67,28 @@ const containsSpecialChar = (text, ch) => {
   return text.includes(ch);
 };
 
+const countPatchouliCodes = (text) => {
+  const counts = new Map();
+  for (const part of tokenizeString(text)) {
+    if (part.type === "patchouli-code") {
+      counts.set(part.value, (counts.get(part.value) ?? 0) + 1);
+    }
+  }
+  return counts;
+};
+
+// Drops the last `count` occurrences, so the leading ones (which usually
+// mirror the original's order) are kept.
+const removeLastOccurrences = (value, code, count) => {
+  let result = value;
+  for (let i = 0; i < count; i += 1) {
+    const at = result.lastIndexOf(code);
+    if (at === -1) break;
+    result = result.slice(0, at) + result.slice(at + code.length);
+  }
+  return result;
+};
+
 export const checkTranslationQA = (original, translated) => {
   if (!original || !translated || !translated.trim()) {
     return [];
@@ -186,6 +208,23 @@ export const checkTranslationQA = (original, translated) => {
         message: `Пропущено елемент форматування: ${token.value}`,
         severity: "warning",
         token: token.value,
+      });
+    }
+  }
+
+  // 5b. Patchouli codes the translation has more often than the original
+  const origCounts = countPatchouliCodes(origStr);
+  for (const [code, count] of countPatchouliCodes(transStr)) {
+    const extra = count - (origCounts.get(code) ?? 0);
+    if (extra > 0) {
+      issues.push({
+        id: `extra-token-${code}`,
+        message:
+          extra === 1
+            ? `Зайвий код Patchouli: ${code}`
+            : `Зайвий код Patchouli: ${code} (×${extra})`,
+        severity: "warning",
+        fix: (value) => removeLastOccurrences(value, code, extra),
       });
     }
   }
