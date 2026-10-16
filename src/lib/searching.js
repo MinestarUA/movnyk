@@ -110,6 +110,63 @@ export const applyCase = (match, replacement) => {
   return replacement;
 };
 
+// Case operators in a regex replacement, as in sed/Perl: \\U, \\L switch the
+// following text to upper/lower case until \\E; \\u, \\l change one letter.
+// A doubled backslash stays a literal backslash.
+const CASE_OPERATOR = /\\([ULEul\\])/g;
+
+const applyCaseOperators = (text) => {
+  let mode = null;
+  let nextLetter = null;
+  let out = "";
+  let last = 0;
+  const emit = (chunk) => {
+    if (!chunk) return;
+    let cased = mode === "U" ? chunk.toUpperCase() : mode === "L" ? chunk.toLowerCase() : chunk;
+    if (nextLetter) {
+      const first = [...cased][0];
+      cased =
+        (nextLetter === "u" ? first.toUpperCase() : first.toLowerCase()) +
+        cased.slice(first.length);
+      nextLetter = null;
+    }
+    out += cased;
+  };
+  for (const m of text.matchAll(CASE_OPERATOR)) {
+    emit(text.slice(last, m.index));
+    last = m.index + m[0].length;
+    const op = m[1];
+    if (op === "\\") emit("\\");
+    else if (op === "U" || op === "L") mode = op;
+    else if (op === "E") mode = null;
+    else nextLetter = op;
+  }
+  emit(text.slice(last));
+  return out;
+};
+
+const HAS_CASE_OPERATOR = /\\[ULEul]/;
+
+const expandReplacement = (args, replacement) => {
+  const match = args[0];
+  const hasNamed = typeof args[args.length - 1] === "object" && args[args.length - 1] !== null;
+  const groupsObj = hasNamed ? args[args.length - 1] : undefined;
+  const fullStr = hasNamed ? args[args.length - 2] : args[args.length - 1];
+  const offset = hasNamed ? args[args.length - 3] : args[args.length - 2];
+  const numGroups = hasNamed ? args.length - 4 : args.length - 3;
+  const expanded = replacement.replace(/\$([$&`']|\d+|<([^>]+)>)/g, (m, token, groupName) => {
+    if (token === "$") return "$";
+    if (token === "&") return match;
+    if (token === "`") return fullStr.slice(0, offset);
+    if (token === "'") return fullStr.slice(offset + match.length);
+    if (groupName) {
+      return groupsObj && groupName in groupsObj ? groupsObj[groupName] ?? "" : m;
+    }
+    return expandGroupNumber(token, args, numGroups) ?? m;
+  });
+  return HAS_CASE_OPERATOR.test(replacement) ? applyCaseOperators(expanded) : expanded;
+};
+
 // Replace occurrences of the query inside a translation.
 // Supports caseSensitive, wholeWord, preserveCase, and regex.
 export const replaceInTranslation = (
@@ -129,34 +186,17 @@ export const replaceInTranslation = (
   if (preserveCase) {
     if (regex) {
       return text.replace(re, (...args) => {
-        const match = args[0];
-        const hasNamed =
-          typeof args[args.length - 1] === "object" && args[args.length - 1] !== null;
-        const groupsObj = hasNamed ? args[args.length - 1] : undefined;
-        const fullStr = hasNamed ? args[args.length - 2] : args[args.length - 1];
-        const offset = hasNamed ? args[args.length - 3] : args[args.length - 2];
-        const numGroups = hasNamed ? args.length - 4 : args.length - 3;
-
-        const substituted = replacement.replace(
-          /\$([$&`']|\d+|<([^>]+)>)/g,
-          (m, token, groupName) => {
-            if (token === "$") return "$";
-            if (token === "&") return match;
-            if (token === "`") return fullStr.slice(0, offset);
-            if (token === "'") return fullStr.slice(offset + match.length);
-            if (groupName) {
-              return groupsObj && groupName in groupsObj ? groupsObj[groupName] ?? "" : m;
-            }
-            return expandGroupNumber(token, args, numGroups) ?? m;
-          }
-        );
-        return applyCase(match, substituted);
+        const substituted = expandReplacement(args, replacement);
+        return applyCase(args[0], substituted);
       });
     }
     return text.replace(re, (match) => applyCase(match, replacement));
   }
 
-  return regex ? text.replace(re, replacement) : text.replace(re, () => replacement);
+  if (!regex) return text.replace(re, () => replacement);
+  return HAS_CASE_OPERATOR.test(replacement)
+    ? text.replace(re, (...args) => expandReplacement(args, replacement))
+    : text.replace(re, replacement);
 };
 
 // Splits text into chunks with `isMatch: boolean` flags for UI search highlighting.

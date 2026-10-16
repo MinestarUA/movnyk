@@ -290,3 +290,19 @@ describe("splitMatches", () => {
   });
 });
 
+
+describe("replaceInTranslation case operators", () => {
+  it("lower-cases a group with \\L", () => {
+    expect(replaceInTranslation("Блок Білих пелюсток", "Блок (Білих)", "Блок \\L$1", { regex: true })).toBe(
+      "Блок білих пелюсток"
+    );
+  });
+
+  it("supports \\U, \\E and \\u", () => {
+    expect(replaceInTranslation("ab cd", "(ab) (cd)", "\\U$1\\E-\\u$2", { regex: true })).toBe("AB-Cd");
+  });
+
+  it("works together with preserve case", () => {
+    expect(replaceInTranslation("Foo", "(foo)", "\\U$1", { regex: true, preserveCase: true })).toBe("FOO");
+  });
+});
