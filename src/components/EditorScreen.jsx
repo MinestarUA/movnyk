@@ -910,6 +910,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                 Заміна
               </button>
             </div>
+          </div>
 
             {replaceMode && (
               <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "8px", flexShrink: 0 }}>
@@ -947,7 +948,6 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                 📌 До рядка ({activeKey.length > 20 ? activeKey.slice(0, 20) + "…" : activeKey})
               </button>
             )}
-          </div>
 
           <div style={{ flex: 1 }} />
 
