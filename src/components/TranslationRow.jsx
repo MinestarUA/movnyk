@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useLayoutEffect, useMemo } from "react";
 import { checkTranslationQA } from "../lib/qa";
 import { splitMatches } from "../lib/searching";
 import { tokenizeString } from "../lib/tokens";
-import { colorOfCode } from "../lib/mcFormatting";
+import { colorOfCode, displayColor, patchouliColorOf } from "../lib/mcFormatting";
 import FormattedText from "./FormattedText";
 
 const ROW_RULE =
@@ -31,6 +31,9 @@ const HighlightedText = ({ text, queryRe }) => {
   );
 };
 
+// Patchouli line/paragraph breaks look like "\n" escapes in the original.
+const LINE_BREAK_CODE = /^\$\((?:br|br2|2br|p)\)$/i;
+
 // Renders interactive tokens (formatting codes, escapes, placeholders) as clickable chips,
 // with Minecraft formatting and colors previewed live.
 const InteractiveOriginal = ({ text, onInsertToken, queryRe }) => {
@@ -41,11 +44,17 @@ const InteractiveOriginal = ({ text, onInsertToken, queryRe }) => {
       showWhitespace={true}
       renderToken={(run, css, idx) => {
         const token = run.token;
-        const codeColor = token.type === "mc-code" ? colorOfCode(token.value) : null;
+        const rawColor =
+          token.type === "mc-code"
+            ? colorOfCode(token.value)
+            : token.type === "patchouli-code"
+              ? patchouliColorOf(token.value)
+              : null;
+        const codeColor = rawColor && displayColor(rawColor);
         let badgeStyle = "bg-primary/20 text-primary border-primary/30";
         let customStyle = {};
 
-        if (token.type === "mc-code") {
+        if (token.type === "mc-code" || codeColor) {
           if (codeColor) {
             badgeStyle = "";
             customStyle = {
@@ -62,7 +71,7 @@ const InteractiveOriginal = ({ text, onInsertToken, queryRe }) => {
               textDecoration: char === "n" ? "underline" : char === "m" ? "line-through" : undefined,
             };
           }
-        } else if (token.type === "escape") {
+        } else if (token.type === "escape" || LINE_BREAK_CODE.test(token.value)) {
           badgeStyle = "bg-accent/20 text-accent border-accent/40";
         }
 

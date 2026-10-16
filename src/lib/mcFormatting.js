@@ -25,12 +25,19 @@ export const MC_COLORS = {
   f: "#FFFFFF",
 };
 
+// Black is invisible on the dark editor, so it is drawn in the theme's text
+// colour instead (it is the same as an unstyled run, which is how the game's
+// black-on-parchment text reads there).
+const BLACK = MC_COLORS[0];
+const VISIBLE_BLACK = "var(--color-text)";
+export const displayColor = (color) => (color === BLACK ? VISIBLE_BLACK : color);
+
 // Converts a formatting state (or a partial one like { color }) to CSS. In the
 // edit field only width-neutral styles are allowed, otherwise the preview
 // drifts away from the textarea caret laid over it.
 export const mcStyleToCss = (style, { widthNeutral = false } = {}) => {
   const css = {};
-  if (style.color) css.color = style.color;
+  if (style.color) css.color = displayColor(style.color);
   const lines = [];
   if (style.underline) lines.push("underline");
   if (style.strikethrough) lines.push("line-through");
@@ -98,17 +105,25 @@ const PATCHOULI_RESETS = new Set(["", "reset", "clear"]);
 const expandShortHex = (hex) =>
   hex.length === 3 ? [...hex].map((digit) => digit + digit).join("") : hex;
 
-const applyPatchouliCode = (style, code) => {
-  const body = code.slice(2, -1).toLowerCase();
-  if (PATCHOULI_RESETS.has(body)) return PLAIN_STYLE;
-  if (body in PATCHOULI_COLOR_ALIASES) {
-    return { ...style, color: PATCHOULI_COLOR_ALIASES[body] };
-  }
+const patchouliBody = (code) => code.slice(2, -1).toLowerCase();
+
+// Colour set by a Patchouli code such as "$(thing)" or "$(#f00)"; null for
+// decoration, reset and structural codes.
+export const patchouliColorOf = (code) => {
+  const body = patchouliBody(code);
+  if (body in PATCHOULI_COLOR_ALIASES) return PATCHOULI_COLOR_ALIASES[body];
   const hex = body.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/);
-  if (hex) return { ...style, color: `#${expandShortHex(hex[1])}` };
+  if (hex) return `#${expandShortHex(hex[1])}`;
+  return MC_COLORS[body] ?? null;
+};
+
+const applyPatchouliCode = (style, code) => {
+  const body = patchouliBody(code);
+  if (PATCHOULI_RESETS.has(body)) return PLAIN_STYLE;
+  const color = patchouliColorOf(code);
+  if (color) return { ...style, color };
   const codeChar = PATCHOULI_DECORATION_ALIASES[body] ?? body;
   if (codeChar in DECORATIONS) return { ...style, [DECORATIONS[codeChar]]: true };
-  if (codeChar in MC_COLORS) return { ...style, color: MC_COLORS[codeChar] };
   // Structural or interactive codes ($(br), $(li), $(l:url), ...) keep the style.
   return style;
 };

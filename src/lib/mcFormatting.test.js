@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRuns, MC_COLORS } from "./mcFormatting";
+import { formatRuns, MC_COLORS, mcStyleToCss, patchouliColorOf } from "./mcFormatting";
 
 const textOf = (text, run) => text.slice(run.start, run.end);
 
@@ -102,5 +102,18 @@ describe("formatRuns", () => {
     it("does not treat unknown codes as styles", () => {
       expect(styleAfter("$(playername)X", "X").color).toBeNull();
     });
+  });
+});
+
+describe("black visibility and Patchouli colours", () => {
+  it("draws black in the theme text colour", () => {
+    expect(mcStyleToCss({ color: "#000000" }).color).toBe("var(--color-text)");
+    expect(mcStyleToCss({ color: "#AA0000" }).color).toBe("#AA0000");
+  });
+
+  it("exposes the colour a Patchouli code sets", () => {
+    expect(patchouliColorOf("$(thing)")).toBe("#449900");
+    expect(patchouliColorOf("$(#f00)")).toBe("#ff0000");
+    expect(patchouliColorOf("$(br)")).toBeNull();
   });
 });
