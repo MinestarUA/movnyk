@@ -3,6 +3,7 @@ import { checkTranslationQA } from "../lib/qa";
 import { splitMatches } from "../lib/searching";
 import { tokenizeString } from "../lib/tokens";
 import { colorOfCode, displayColor, patchouliColorOf } from "../lib/mcFormatting";
+import { getCaseShortcutAction, applyCaseShortcut } from "../lib/caseConversion";
 import FormattedText from "./FormattedText";
 
 const ROW_RULE =
@@ -177,9 +178,11 @@ const TranslationRow = ({
   queryRe,
   qaEnabled = true,
   duplicateCount = 1,
+  isSynced = true,
   onSelect,
   onTranslate,
   onConfirmToggle,
+  onToggleSync,
   onCopy,
   onDefinition,
   onSuggest,
@@ -204,6 +207,11 @@ const TranslationRow = ({
     navigator.clipboard?.writeText(item.key);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 1500);
+  };
+
+  const handleToggleSync = (e) => {
+    e.stopPropagation();
+    onToggleSync?.();
   };
 
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
@@ -276,6 +284,34 @@ const TranslationRow = ({
       const newPos = start + tokenValue.length;
       el.setSelectionRange(newPos, newPos);
     }, 0);
+  };
+
+  const handleTextareaKeyDown = (e) => {
+    const action = getCaseShortcutAction(e);
+    if (!action) return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    const { value, selectionStart, selectionEnd, changed } = applyCaseShortcut(
+      el.value,
+      el.selectionStart,
+      el.selectionEnd,
+      action
+    );
+    if (!changed) return;
+    if (cursorPositionRef) {
+      cursorPositionRef.current = {
+        key: item.key,
+        start: selectionStart,
+        end: selectionEnd,
+      };
+    }
+    onTranslate(value);
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(selectionStart, selectionEnd);
+      }
+    });
   };
 
   const hasDraft = Boolean(item.translated.trim());
@@ -368,12 +404,23 @@ const TranslationRow = ({
             </button>
           )}
           {duplicateCount > 1 && (
-            <span
-              className="badge badge-xs badge-info font-sans shrink-0"
-              title={`Цей вихідний текст повторюється у ${duplicateCount} ключах. Зміни синхронізуються автоматично.`}
+            <button
+              type="button"
+              onClick={handleToggleSync}
+              aria-pressed={isSynced}
+              className={
+                isSynced
+                  ? "badge badge-xs badge-info font-sans shrink-0 cursor-pointer hover:opacity-80 transition-opacity border-0"
+                  : "badge badge-xs badge-ghost font-sans shrink-0 cursor-pointer opacity-55 hover:opacity-100 transition-opacity line-through"
+              }
+              title={
+                isSynced
+                  ? `Цей вихідний текст повторюється у ${duplicateCount} ключах. Зміни синхронізуються автоматично. Натисніть, щоб вимкнути синхронізацію для цієї групи.`
+                  : `Цей вихідний текст повторюється у ${duplicateCount} ключах. Синхронізацію для цієї групи вимкнено. Натисніть, щоб увімкнути.`
+              }
             >
               🔄 {duplicateCount}
-            </span>
+            </button>
           )}
         </div>
       </div>
@@ -426,6 +473,7 @@ const TranslationRow = ({
                 value={item.translated}
                 lang="uk"
                 spellCheck={true}
+                onKeyDown={handleTextareaKeyDown}
                 onChange={(e) => {
                   onTranslate(e.target.value);
                   if (cursorPositionRef) {

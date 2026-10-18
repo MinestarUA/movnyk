@@ -9,7 +9,14 @@ import { loadSettings, saveSettings, hasApiKey, buildSearchPrompt } from "../lib
 import { translateAll, translateSingle } from "../lib/ai";
 import { mergeLangFile } from "../lib/importing";
 import { saveAutosave } from "../lib/autosave";
-import { isTranslatable } from "../lib/translations";
+import {
+  isTranslatable,
+  isGroupSynced,
+  toggleGroupSync,
+  updateTranslation,
+  confirmTranslation,
+  applyAutoTranslations,
+} from "../lib/translations";
 import ProjectReferenceDrawer from "./ProjectReferenceDrawer";
 import { applyNewOriginal } from "../lib/originalUpdate";
 import {
@@ -59,12 +66,14 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           original: t.original,
           translated: typeof t.translated === "string" ? t.translated : "",
           confirmed: Boolean(t.confirmed),
+          unsynced: Boolean(t.unsynced),
         }))
       : Object.entries(template).map(([key, value]) => ({
           key,
           original: value,
           translated: "",
           confirmed: false,
+          unsynced: false,
         }))
   );
 
@@ -321,9 +330,10 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         e.preventDefault();
         if (activeKey) {
           setTranslations((prev) =>
-            prev.map((t) =>
-              t.key === activeKey && t.translated.trim() ? { ...t, confirmed: true } : t
-            )
+            confirmTranslation(prev, activeKey, {
+              syncIdenticalTranslations: settings.syncIdenticalTranslations,
+              toggle: false,
+            })
           );
         }
         move(1);
@@ -382,32 +392,20 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move, activeKey, activeIndex, settings.focusSearchOnFind, referenceDrawerOpen]);
+  }, [move, activeKey, activeIndex, settings.focusSearchOnFind, settings.syncIdenticalTranslations, referenceDrawerOpen]);
 
   // Manual edits optionally drop the confirmed mark.
-  // If syncIdenticalTranslations is enabled, updates all rows with identical original text.
+  // If syncIdenticalTranslations is enabled and the group is synced, updates all synced rows with identical original text.
   const handleTranslationChange = useCallback(
     (index, newValue) => {
-      const unconfirm = settings.unconfirmOnEdit;
-      const targetOriginal = translations[index]?.original;
-      const syncIdentical = settings.syncIdenticalTranslations && targetOriginal !== undefined;
-
       setTranslations((prev) =>
-        prev.map((item, i) => {
-          const isTarget = i === index;
-          const isIdentical = syncIdentical && item.original === targetOriginal;
-          if (isTarget || isIdentical) {
-            return {
-              ...item,
-              translated: newValue,
-              confirmed: unconfirm ? false : item.confirmed,
-            };
-          }
-          return item;
+        updateTranslation(prev, index, newValue, {
+          syncIdenticalTranslations: settings.syncIdenticalTranslations,
+          unconfirmOnEdit: settings.unconfirmOnEdit,
         })
       );
     },
-    [settings.unconfirmOnEdit, settings.syncIdenticalTranslations, translations]
+    [settings.unconfirmOnEdit, settings.syncIdenticalTranslations]
   );
 
   const handleSelect = useCallback((key) => {
@@ -416,18 +414,21 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     cursorPositionRef.current = { key, start: null, end: null };
   }, []);
 
-  const handleConfirmToggle = useCallback((key) => {
-    const target = translations.find((t) => t.key === key);
-    const syncIdentical = settings.syncIdenticalTranslations && target?.original !== undefined;
-    const newConfirmed = target ? !target.confirmed : false;
+  const handleConfirmToggle = useCallback(
+    (key) => {
+      setTranslations((prev) =>
+        confirmTranslation(prev, key, {
+          syncIdenticalTranslations: settings.syncIdenticalTranslations,
+          toggle: true,
+        })
+      );
+    },
+    [settings.syncIdenticalTranslations]
+  );
 
-    setTranslations((prev) =>
-      prev.map((t) => {
-        const isMatch = syncIdentical ? t.original === target.original : t.key === key;
-        return isMatch && t.translated.trim() ? { ...t, confirmed: newConfirmed } : t;
-      })
-    );
-  }, [settings.syncIdenticalTranslations, translations]);
+  const handleToggleSync = useCallback((original) => {
+    setTranslations((prev) => toggleGroupSync(prev, original));
+  }, []);
 
   const handleSuggest = useCallback(
     async (item) => {
@@ -611,13 +612,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         onBatch: (result, batch) => {
           // Fill only rows that are still empty, so manual edits made while the
           // run is in flight are never overwritten.
-          setTranslations((prev) =>
-            prev.map((t) =>
-              typeof result[t.key] === "string" && !t.translated.trim()
-                ? { ...t, translated: result[t.key], confirmed: true }
-                : t
-            )
-          );
+          setTranslations((prev) => applyAutoTranslations(prev, result));
           setAiState((s) => ({ ...s, done: Math.min(s.done + batch.length, s.total) }));
         },
       });
@@ -1090,6 +1085,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                   selectedKey: activeKey,
                   queryRe,
                   qaEnabled: settings.qaChecksEnabled !== false,
+                  syncIdenticalTranslations: settings.syncIdenticalTranslations !== false,
                   duplicateCounts,
                   suggestingKey,
                   focusRequestRef,
@@ -1097,6 +1093,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                   handleTranslationChange,
                   handleSelect,
                   handleConfirmToggle,
+                  handleToggleSync,
                   handleCopy,
                   handleDefinition,
                   handleSuggest,
@@ -1159,6 +1156,7 @@ const Row = ({
   selectedKey,
   queryRe,
   qaEnabled,
+  syncIdenticalTranslations,
   duplicateCounts,
   suggestingKey,
   focusRequestRef,
@@ -1166,6 +1164,7 @@ const Row = ({
   handleTranslationChange,
   handleSelect,
   handleConfirmToggle,
+  handleToggleSync,
   handleCopy,
   handleDefinition,
   handleSuggest,
@@ -1182,12 +1181,14 @@ const Row = ({
       queryRe={queryRe}
       qaEnabled={qaEnabled}
       duplicateCount={duplicateCounts?.get(item.original) || 1}
+      isSynced={isGroupSynced(item, syncIdenticalTranslations)}
       isSuggesting={suggestingKey === item.key}
       focusRequestRef={focusRequestRef}
       cursorPositionRef={cursorPositionRef}
       onSelect={() => handleSelect(item.key)}
       onTranslate={(newValue) => handleTranslationChange(item.originalIndex, newValue)}
       onConfirmToggle={() => handleConfirmToggle(item.key)}
+      onToggleSync={() => handleToggleSync(item.original)}
       onCopy={() => handleCopy(item.original)}
       onDefinition={() => handleDefinition(item)}
       onSuggest={handleSuggest}
