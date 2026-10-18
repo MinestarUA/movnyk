@@ -287,6 +287,7 @@ const TranslationRow = ({
   };
 
   const handleTextareaKeyDown = (e) => {
+    if (e.defaultPrevented) return;
     const action = getCaseShortcutAction(e);
     if (!action) return;
     e.preventDefault();

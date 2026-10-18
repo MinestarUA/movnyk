@@ -27,6 +27,7 @@ import {
   translationMatches,
   replaceInTranslation,
 } from "../lib/searching";
+import { getCaseShortcutAction, applyCaseShortcut } from "../lib/caseConversion";
 
 // Text the user has selected: inside a text field it is the field's selection,
 // elsewhere the page selection. Trimmed, empty string when nothing is selected.
@@ -234,6 +235,59 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       const active = document.activeElement;
       const isTranslationField = active?.dataset?.role === "translation";
 
+      const caseAction = getCaseShortcutAction(e);
+      if (caseAction) {
+        e.preventDefault();
+        e.stopPropagation();
+        const isOtherEditable =
+          (active?.tagName === "INPUT" || active?.tagName === "TEXTAREA") && !isTranslationField;
+        if (isOtherEditable) return;
+
+        const activeItem = activeIndex >= 0 ? filtered[activeIndex] : null;
+        if (!activeItem) return;
+
+        const el = isTranslationField
+          ? active
+          : document.querySelector(
+              `textarea[data-role="translation"][data-key="${CSS.escape(activeItem.key)}"]`
+            );
+        const currentText = el ? el.value : activeItem.translated;
+        const savedPos =
+          cursorPositionRef.current?.key === activeItem.key ? cursorPositionRef.current : null;
+        const selStart = el ? el.selectionStart : (savedPos?.start ?? currentText.length);
+        const selEnd = el ? el.selectionEnd : (savedPos?.end ?? selStart);
+
+        const { value, selectionStart, selectionEnd, changed } = applyCaseShortcut(
+          currentText,
+          selStart,
+          selEnd,
+          caseAction
+        );
+        cursorPositionRef.current = {
+          key: activeItem.key,
+          start: selectionStart,
+          end: selectionEnd,
+        };
+        if (changed) {
+          setTranslations((prev) =>
+            updateTranslation(prev, activeItem.originalIndex, value, {
+              syncIdenticalTranslations: settings.syncIdenticalTranslations,
+              unconfirmOnEdit: settings.unconfirmOnEdit,
+            })
+          );
+        }
+        requestAnimationFrame(() => {
+          const targetEl = document.querySelector(
+            `textarea[data-role="translation"][data-key="${CSS.escape(activeItem.key)}"]`
+          );
+          if (targetEl) {
+            targetEl.focus();
+            targetEl.setSelectionRange(selectionStart, selectionEnd);
+          }
+        });
+        return;
+      }
+
       // Ctrl/Cmd + Shift + F toggles or focuses the independent project reference panel
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "F" || e.code === "KeyF" || e.key === "f")) {
         e.preventDefault();
@@ -390,9 +444,18 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move, activeKey, activeIndex, settings.focusSearchOnFind, settings.syncIdenticalTranslations, referenceDrawerOpen]);
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [
+    move,
+    activeKey,
+    activeIndex,
+    filtered,
+    settings.focusSearchOnFind,
+    settings.syncIdenticalTranslations,
+    settings.unconfirmOnEdit,
+    referenceDrawerOpen,
+  ]);
 
   // Manual edits optionally drop the confirmed mark.
   // If syncIdenticalTranslations is enabled and the group is synced, updates all synced rows with identical original text.
@@ -412,6 +475,12 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     setSelectedKey(key);
     focusRequestRef.current = true;
     cursorPositionRef.current = { key, start: null, end: null };
+    if (!window.getSelection()?.toString()) {
+      const el = document.querySelector(
+        `textarea[data-role="translation"][data-key="${CSS.escape(key)}"]`
+      );
+      el?.focus();
+    }
   }, []);
 
   const handleConfirmToggle = useCallback(
@@ -755,7 +824,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
               Мовник
             </div>
             <div style={{ fontSize: "10.5px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
-              Enter — наступний · Ctrl+↑/↓ — навігація · Ctrl+F — пошук
+              Enter — наступний · Ctrl+↑/↓ — навігація · Ctrl+F — пошук · Alt+Z/X/C — регістр
             </div>
           </div>
 

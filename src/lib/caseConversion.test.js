@@ -7,12 +7,47 @@ import {
 } from "./caseConversion";
 
 describe("getCaseShortcutAction", () => {
-  it("recognizes Ctrl+U and Cmd+U as lower on Latin and Ukrainian layouts", () => {
+  it("recognizes conflict-free Alt+Z / Alt+L (lower), Alt+X / Alt+U (upper), and Alt+C (sentence) on Latin and Ukrainian layouts", () => {
+    expect(
+      getCaseShortcutAction({ key: "z", code: "KeyZ", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("lower");
+    expect(
+      getCaseShortcutAction({ key: "я", code: "", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("lower");
+    expect(
+      getCaseShortcutAction({ key: "l", code: "KeyL", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("lower");
+    expect(
+      getCaseShortcutAction({ key: "д", code: "", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("lower");
+
+    expect(
+      getCaseShortcutAction({ key: "x", code: "KeyX", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("upper");
+    expect(
+      getCaseShortcutAction({ key: "ч", code: "", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("upper");
+    expect(
+      getCaseShortcutAction({ key: "u", code: "KeyU", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("upper");
+    expect(
+      getCaseShortcutAction({ key: "г", code: "", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("upper");
+
+    expect(
+      getCaseShortcutAction({ key: "c", code: "KeyC", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("sentence");
+    expect(
+      getCaseShortcutAction({ key: "с", code: "", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
+    ).toBe("sentence");
+  });
+
+  it("recognizes Ctrl+U and Cmd+U as lower on Latin and Ukrainian layouts (even when e.code is empty)", () => {
     expect(
       getCaseShortcutAction({ key: "u", code: "KeyU", ctrlKey: true, metaKey: false, shiftKey: false, altKey: false })
     ).toBe("lower");
     expect(
-      getCaseShortcutAction({ key: "г", code: "KeyU", ctrlKey: true, metaKey: false, shiftKey: false, altKey: false })
+      getCaseShortcutAction({ key: "г", code: "", ctrlKey: true, metaKey: false, shiftKey: false, altKey: false })
     ).toBe("lower");
     expect(
       getCaseShortcutAction({ key: "u", code: "KeyU", ctrlKey: false, metaKey: true, shiftKey: false, altKey: false })
@@ -24,7 +59,7 @@ describe("getCaseShortcutAction", () => {
       getCaseShortcutAction({ key: "U", code: "KeyU", ctrlKey: true, metaKey: false, shiftKey: true, altKey: false })
     ).toBe("upper");
     expect(
-      getCaseShortcutAction({ key: "Г", code: "KeyU", ctrlKey: true, metaKey: false, shiftKey: true, altKey: false })
+      getCaseShortcutAction({ key: "Г", code: "", ctrlKey: true, metaKey: false, shiftKey: true, altKey: false })
     ).toBe("upper");
     expect(
       getCaseShortcutAction({ key: "U", code: "KeyU", ctrlKey: false, metaKey: true, shiftKey: true, altKey: false })
@@ -36,16 +71,13 @@ describe("getCaseShortcutAction", () => {
       getCaseShortcutAction({ key: "U", code: "KeyU", ctrlKey: false, metaKey: false, shiftKey: true, altKey: true })
     ).toBe("sentence");
     expect(
-      getCaseShortcutAction({ key: "Г", code: "KeyU", ctrlKey: false, metaKey: false, shiftKey: true, altKey: true })
+      getCaseShortcutAction({ key: "Г", code: "", ctrlKey: false, metaKey: false, shiftKey: true, altKey: true })
     ).toBe("sentence");
   });
 
   it("returns null for unrelated keys or modifier combinations", () => {
     expect(
       getCaseShortcutAction({ key: "u", code: "KeyU", ctrlKey: false, metaKey: false, shiftKey: false, altKey: false })
-    ).toBeNull();
-    expect(
-      getCaseShortcutAction({ key: "u", code: "KeyU", ctrlKey: false, metaKey: false, shiftKey: false, altKey: true })
     ).toBeNull();
     expect(
       getCaseShortcutAction({ key: "u", code: "KeyU", ctrlKey: true, metaKey: false, shiftKey: true, altKey: true })

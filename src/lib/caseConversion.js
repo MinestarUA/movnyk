@@ -7,19 +7,46 @@ const isInternalApostrophe = (str, i) =>
 
 const isWordIndex = (str, i) => isWordChar(str[i]) || isInternalApostrophe(str, i);
 
+const matchesKey = (e, code, latinChar, ukChar, keyCode) => {
+  if (e.code === code) return true;
+  if (typeof e.key === "string") {
+    const lower = e.key.toLowerCase();
+    if (lower === latinChar || lower === ukChar) return true;
+  }
+  return e.keyCode === keyCode;
+};
+
 // Detects case conversion keyboard shortcuts in a layout-independent way:
+// Conflict-free Alt shortcuts (no browser View Source, Linux IBus, or OS Alt+Shift conflicts):
+// - Alt + Z or Alt + L  → "lower"
+// - Alt + X or Alt + U  → "upper"
+// - Alt + C             → "sentence" (first letter uppercase, rest lowercase)
+// Also intercepts U-based combinations:
 // - Ctrl/Cmd + U        → "lower"
 // - Ctrl/Cmd + Shift + U → "upper"
-// - Shift + Alt + U     → "sentence" (first letter uppercase, rest lowercase)
+// - Shift + Alt + U     → "sentence"
 export const getCaseShortcutAction = (e) => {
-  const isUKey =
-    e.code === "KeyU" || (typeof e.key === "string" && e.key.toLowerCase() === "u");
-  if (!isUKey) return null;
-
   const hasPrimary = Boolean(e.ctrlKey || e.metaKey);
-  if (hasPrimary && !e.shiftKey && !e.altKey) return "lower";
-  if (hasPrimary && e.shiftKey && !e.altKey) return "upper";
-  if (!hasPrimary && e.shiftKey && e.altKey) return "sentence";
+
+  // Conflict-free single-Alt shortcuts:
+  if (!hasPrimary && !e.shiftKey && e.altKey) {
+    if (matchesKey(e, "KeyZ", "z", "я", 90) || matchesKey(e, "KeyL", "l", "д", 76)) {
+      return "lower";
+    }
+    if (matchesKey(e, "KeyX", "x", "ч", 88) || matchesKey(e, "KeyU", "u", "г", 85)) {
+      return "upper";
+    }
+    if (matchesKey(e, "KeyC", "c", "с", 67)) {
+      return "sentence";
+    }
+  }
+
+  if (matchesKey(e, "KeyU", "u", "г", 85)) {
+    if (hasPrimary && !e.shiftKey && !e.altKey) return "lower";
+    if (hasPrimary && e.shiftKey && !e.altKey) return "upper";
+    if (!hasPrimary && e.shiftKey && e.altKey) return "sentence";
+  }
+
   return null;
 };
 
