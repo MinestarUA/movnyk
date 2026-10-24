@@ -441,3 +441,68 @@ body {
   }
   .lvl-particles { display: none; }
 }
+
+/* ---------- Goose event ---------- */
+.goose-run {
+  position: fixed;
+  z-index: 60;
+  bottom: 34px;
+  left: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 44px;
+  line-height: 1;
+  cursor: pointer;
+  animation: goose-dash 7s linear forwards;
+}
+.goose-honk {
+  position: absolute;
+  top: -22px;
+  left: 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #1a1a1a;
+  background: #fff;
+}
+.goose-banner {
+  position: fixed;
+  z-index: 60;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 8px 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-divider);
+  box-shadow: var(--shadow-md);
+  animation: lvl-fade 0.3s ease-out;
+}
+.goose-banner-button {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: var(--accent-gradient);
+}
+/* The goose faces right; the honk bubble must stay unmirrored. */
+.goose-body {
+  display: inline-block;
+  transform: scaleX(-1);
+}
+@keyframes goose-dash {
+  from { transform: translateX(-8vw); }
+  to { transform: translateX(108vw); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .goose-run { animation: none; left: 20px; }
+}

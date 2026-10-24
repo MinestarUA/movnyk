@@ -13,6 +13,8 @@ import { mergeLangFile } from "../lib/importing";
 import { saveAutosave } from "../lib/autosave";
 import { levelForProgress } from "../lib/rewards";
 import { useLevelUps } from "../lib/useLevelUps";
+import { GOOSE_MIN_LEVEL, useGooseEvent } from "../lib/useGooseEvent";
+import GooseEvent from "./GooseEvent";
 import {
   isTranslatable,
   isGroupSynced,
@@ -122,48 +124,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     [query, regexMode, caseSensitive, wholeWord]
   );
 
-  const filtered = useMemo(() => {
-    const statusActive = filterUntranslated || filterUnconfirmed;
-    const result = [];
-    translations.forEach((item, originalIndex) => {
-      const matchesQuery = queryError ? false : !queryRe || itemMatches(item, queryRe);
-      const empty = !item.translated.trim();
-      const translatable = isTranslatable(item);
-      const matchesStatus =
-        !statusActive ||
-        (filterUntranslated && empty && translatable) ||
-        (filterUnconfirmed && !empty && !item.confirmed && translatable);
-      const passes = matchesQuery && matchesStatus;
-      // The selected row is pinned into view even when it fails the query or
-      // status filter, so the row being edited never vanishes mid-work.
-      const pinned = !passes && item.key === selectedKey;
-      if (passes || pinned) result.push({ ...item, originalIndex, pinned });
-    });
-    return result;
-  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, selectedKey]);
-
-  // Rows the status filter hides even though they match the search query —
-  // surfaced as a banner so a filtered-out search is never a dead end.
-  const hiddenMatches = useMemo(() => {
-    if (!queryRe || queryError) return 0;
-    if (!(filterUntranslated || filterUnconfirmed)) return 0;
-    if (filtered.some((item) => !item.pinned)) return 0;
-    return translations.filter((t) => itemMatches(t, queryRe)).length;
-  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, filtered]);
-
   const confirmedCount = useMemo(
     () => translations.filter((t) => t.confirmed && isTranslatable(t)).length,
-    [translations]
-  );
-  const untranslatedCount = useMemo(
-    () =>
-      translations.filter((t) => !t.translated.trim() && isTranslatable(t)).length,
-    [translations]
-  );
-  const unconfirmedCount = useMemo(
-    () =>
-      translations.filter((t) => t.translated.trim() && !t.confirmed && isTranslatable(t))
-        .length,
     [translations]
   );
   const total = useMemo(
@@ -180,6 +142,53 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const rewardClasses = rewardsEnabled
     ? [5, 6, 10, 14, 27].filter((n) => unlockedLevel >= n).map((n) => `rw-p${n}`).join(" ")
     : "";
+  const { stolenKey, returnRow } = useGooseEvent({
+    translations,
+    selectedKey,
+    active: rewardsEnabled && unlockedLevel >= GOOSE_MIN_LEVEL,
+  });
+
+  const filtered = useMemo(() => {
+    const statusActive = filterUntranslated || filterUnconfirmed;
+    const result = [];
+    translations.forEach((item, originalIndex) => {
+      if (item.key === stolenKey) return;
+      const matchesQuery = queryError ? false : !queryRe || itemMatches(item, queryRe);
+      const empty = !item.translated.trim();
+      const translatable = isTranslatable(item);
+      const matchesStatus =
+        !statusActive ||
+        (filterUntranslated && empty && translatable) ||
+        (filterUnconfirmed && !empty && !item.confirmed && translatable);
+      const passes = matchesQuery && matchesStatus;
+      // The selected row is pinned into view even when it fails the query or
+      // status filter, so the row being edited never vanishes mid-work.
+      const pinned = !passes && item.key === selectedKey;
+      if (passes || pinned) result.push({ ...item, originalIndex, pinned });
+    });
+    return result;
+  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, selectedKey, stolenKey]);
+
+  // Rows the status filter hides even though they match the search query —
+  // surfaced as a banner so a filtered-out search is never a dead end.
+  const hiddenMatches = useMemo(() => {
+    if (!queryRe || queryError) return 0;
+    if (!(filterUntranslated || filterUnconfirmed)) return 0;
+    if (filtered.some((item) => !item.pinned)) return 0;
+    return translations.filter((t) => itemMatches(t, queryRe)).length;
+  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, filtered]);
+
+  const untranslatedCount = useMemo(
+    () =>
+      translations.filter((t) => !t.translated.trim() && isTranslatable(t)).length,
+    [translations]
+  );
+  const unconfirmedCount = useMemo(
+    () =>
+      translations.filter((t) => t.translated.trim() && !t.confirmed && isTranslatable(t))
+        .length,
+    [translations]
+  );
 
   // Character-weighted progress: a long confirmed row moves the second cat
   // further than a short one. Weight is the source string length.
@@ -1230,6 +1239,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       )}
 
       {rewardsEnabled && <RewardsLayer level={unlockedLevel} />}
+      {stolenKey && <GooseEvent stolenKey={stolenKey} onReturn={returnRow} />}
       {celebratingLevel && (
         <LevelUpScreen
           level={celebratingLevel}

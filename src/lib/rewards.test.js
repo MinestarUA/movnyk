@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LEVEL_COUNT, getReward, levelForProgress, percentLeft } from "./rewards";
+import { LEVEL_COUNT, getReward, levelForProgress, percentLeft, pickRowToSteal } from "./rewards";
 
 describe("rewards", () => {
   it("starts at level 0 and reaches the last level only at 100%", () => {
@@ -33,5 +33,18 @@ describe("rewards", () => {
     expect(new Set(rewards.map((r) => r.title)).size).toBe(LEVEL_COUNT);
     expect(new Set(rewards.map((r) => r.emoji)).size).toBe(LEVEL_COUNT);
     expect(new Set(rewards.map((r) => r.colors.join())).size).toBe(LEVEL_COUNT);
+  });
+
+  describe("pickRowToSteal", () => {
+    const row = (key, translated = "") => ({ key, original: `Text ${key}`, translated, confirmed: false });
+
+    it("only picks untranslated rows other than the selected one", () => {
+      const rows = [row("a", "done"), row("b"), row("c")];
+      expect(pickRowToSteal(rows, "b", () => 0)).toBe("c");
+    });
+
+    it("returns null when nothing is safe to steal", () => {
+      expect(pickRowToSteal([row("a", "done"), row("b")], "b")).toBeNull();
+    });
   });
 });

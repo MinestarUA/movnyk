@@ -1,3 +1,5 @@
+import { isTranslatable } from "./translations";
+
 // Rewards mode: 30 levels spread evenly over translation progress. Perks are cumulative
 // and purely decorative; each level also has its own level-up screen.
 
@@ -59,4 +61,14 @@ const REWARDS = [
 export const getReward = (level) => {
   const index = Math.min(Math.max(level, 1), LEVEL_COUNT) - 1;
   return { level: index + 1, burst: BURSTS[index % BURSTS.length], ...REWARDS[index] };
+};
+
+// The goose only takes an untranslated row the user is not looking at, so a theft hides
+// nothing that has work in it. Returns null when there is nothing safe to steal.
+export const pickRowToSteal = (translations, selectedKey, random = Math.random) => {
+  const candidates = translations.filter(
+    (t) => isTranslatable(t) && !t.translated.trim() && t.key !== selectedKey
+  );
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(random() * candidates.length)].key;
 };
