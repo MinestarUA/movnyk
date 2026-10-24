@@ -34,6 +34,12 @@ describe("settings", () => {
     expect(loadSettings().skipApprovedImport).toBe(false);
   });
 
+  it("defaults rewardsEnabled to true and round-trips it", () => {
+    expect(loadSettings().rewardsEnabled).toBe(true);
+    saveSettings({ apiKey: "", model: "gemini-2.0-flash", rewardsEnabled: false });
+    expect(loadSettings().rewardsEnabled).toBe(false);
+  });
+
   it("defaults focusSearchOnFind to true and round-trips it", () => {
     expect(loadSettings().focusSearchOnFind).toBe(true);
     saveSettings({ apiKey: "", model: "gemini-2.0-flash", focusSearchOnFind: false });

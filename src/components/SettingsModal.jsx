@@ -20,6 +20,7 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
   const [qaChecksEnabled, setQaChecksEnabled] = useState(settings.qaChecksEnabled !== false);
   const [unconfirmOnEdit, setUnconfirmOnEdit] = useState(settings.unconfirmOnEdit !== false);
   const [focusSearchOnFind, setFocusSearchOnFind] = useState(settings.focusSearchOnFind === true);
+  const [rewardsEnabled, setRewardsEnabled] = useState(settings.rewardsEnabled !== false);
   const [searchPrompts, setSearchPrompts] = useState(
     settings.searchPrompts ?? DEFAULT_SEARCH_PROMPTS
   );
@@ -89,6 +90,7 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
       qaChecksEnabled,
       unconfirmOnEdit,
       focusSearchOnFind,
+      rewardsEnabled,
       searchPrompts,
     });
     onClose();
@@ -385,6 +387,18 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
             />
             <span className="label-text text-sm font-medium">
               Переходити фокусом на пошук при використанні Ctrl+F
+            </span>
+          </label>
+
+          <label className="label cursor-pointer justify-start gap-3 py-0">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm checkbox-primary"
+              checked={rewardsEnabled}
+              onChange={(e) => setRewardsEnabled(e.target.checked)}
+            />
+            <span className="label-text text-sm font-medium">
+              Режим нагород (30 рівнів із новими прикрасами інтерфейсу)
             </span>
           </label>
         </div>

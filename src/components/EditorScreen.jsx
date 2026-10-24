@@ -4,11 +4,15 @@ import TranslationRow, { ROW_COLLAPSED, ROW_EXPANDED } from "./TranslationRow";
 import Sidebar from "./Sidebar";
 import SettingsModal from "./SettingsModal";
 import WalkingCat from "./WalkingCat.jsx";
+import RewardsLayer from "./RewardsLayer";
+import LevelUpScreen from "./LevelUpScreen";
 import { useToast } from "./Toast";
 import { loadSettings, saveSettings, hasApiKey, buildSearchPrompt } from "../lib/settings";
 import { translateAll, translateSingle } from "../lib/ai";
 import { mergeLangFile } from "../lib/importing";
 import { saveAutosave } from "../lib/autosave";
+import { levelForProgress } from "../lib/rewards";
+import { useLevelUps } from "../lib/useLevelUps";
 import {
   isTranslatable,
   isGroupSynced,
@@ -167,6 +171,15 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     [translations]
   );
   const progress = total ? Math.floor((confirmedCount / total) * 100) : 0;
+
+  const rewardsEnabled = settings.rewardsEnabled !== false;
+  const { unlockedLevel, celebratingLevel, queuedCount, dismiss, dismissAll } = useLevelUps(
+    levelForProgress(confirmedCount, total),
+    rewardsEnabled
+  );
+  const rewardClasses = rewardsEnabled
+    ? [5, 6, 10, 14, 27].filter((n) => unlockedLevel >= n).map((n) => `rw-p${n}`).join(" ")
+    : "";
 
   // Character-weighted progress: a long confirmed row moves the second cat
   // further than a short one. Weight is the source string length.
@@ -767,7 +780,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
   return (
     <div
-      className="animate-fade-in"
+      className={`animate-fade-in ${rewardClasses}`}
       style={{
         height: "100vh",
         width: "100%",
@@ -814,6 +827,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           </button>
           <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexShrink: 0 }}>
             <div
+              className="rw-title"
               style={{
                 fontFamily: "var(--font-heading)",
                 fontWeight: 500,
@@ -1212,6 +1226,18 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           settings={settings}
           onSave={handleSaveSettings}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {rewardsEnabled && <RewardsLayer level={unlockedLevel} />}
+      {celebratingLevel && (
+        <LevelUpScreen
+          level={celebratingLevel}
+          queuedCount={queuedCount}
+          confirmed={confirmedCount}
+          total={total}
+          onDismiss={dismiss}
+          onDismissAll={dismissAll}
         />
       )}
     </div>

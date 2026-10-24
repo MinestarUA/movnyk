@@ -114,3 +114,330 @@ body {
 .qa-tip:hover::after {
   opacity: 1;
 }
+
+/* ---------- Rewards mode ---------- */
+.rw-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  overflow: hidden;
+}
+.rw-canvas {
+  position: absolute;
+  inset: 0;
+}
+.rw-pet,
+.rw-follow {
+  position: absolute;
+  font-size: 22px;
+  line-height: 1;
+}
+.rw-pet {
+  bottom: 4px;
+  left: 0;
+  animation: rw-walk 40s linear infinite;
+}
+.rw-duck { animation-duration: 38s; }
+.rw-duckling { font-size: 14px; animation-duration: 38s; animation-delay: 0.9s; }
+.rw-pig { animation-duration: 52s; animation-direction: reverse; }
+.rw-crown {
+  position: absolute;
+  top: -11px;
+  left: 2px;
+  font-size: 13px;
+}
+.rw-follow { top: 0; left: 0; font-size: 18px; }
+.rw-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid color-mix(in srgb, var(--accent-purple) 55%, transparent);
+  border-radius: 50%;
+}
+.rw-moon {
+  position: absolute;
+  bottom: 34px;
+  right: 12px;
+  font-size: 22px;
+  filter: drop-shadow(0 0 8px rgba(201, 214, 255, 0.6));
+  opacity: 0.8;
+}
+.rw-aurora {
+  position: absolute;
+  inset: 0;
+  opacity: 0.07;
+  background: linear-gradient(120deg, #38f9d7, #7b5cff, #ff5fa2, #38f9d7);
+  background-size: 300% 300%;
+  animation: rw-aurora 28s ease-in-out infinite;
+}
+.rw-aurora-gold {
+  opacity: 0.1;
+  background: linear-gradient(120deg, #f9d423, #ff4e50, #ffe259, #f9d423);
+  background-size: 300% 300%;
+}
+.rw-daynight {
+  position: absolute;
+  inset: 0;
+  background: #4b3a8f;
+  mix-blend-mode: soft-light;
+  animation: rw-daynight 90s ease-in-out infinite;
+}
+.rw-vignette {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 90px rgba(127, 90, 240, 0.22);
+}
+.rw-rays {
+  position: absolute;
+  top: -160px;
+  left: -160px;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  opacity: 0.12;
+  background: repeating-conic-gradient(from 0deg, #ffe259 0deg 8deg, transparent 8deg 24deg);
+  animation: rw-spin 80s linear infinite;
+}
+.rw-topline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-pink), var(--accent-purple), var(--accent-pink));
+  background-size: 200% 100%;
+  animation: rw-slide 6s linear infinite;
+}
+.rw-topline-rainbow {
+  background: linear-gradient(90deg, #ff5f6d, #ffc371, #63d68a, #4fd1ff, #b25ef0, #ff5f6d);
+  background-size: 200% 100%;
+}
+
+/* Static perks, switched on by classes the editor root receives. */
+.rw-p5 ::selection {
+  background: color-mix(in srgb, var(--accent-purple) 45%, transparent);
+}
+.rw-p5 ::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--accent-pink), var(--accent-purple));
+}
+.rw-p6 textarea:focus {
+  box-shadow: 0 0 0 1px var(--accent-pink), 0 0 14px rgba(255, 95, 162, 0.3);
+}
+.rw-p10 {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><path d='M3 5 Q12 -1 21 5 Q12 3 3 5Z' fill='%23b0b7c3'/><path d='M11 4 L13 4 L14 22 L10 22Z' fill='%238b5a2b'/></svg>") 3 4, auto;
+}
+.rw-p14 .rw-title {
+  background: linear-gradient(90deg, #f6d365, #ff5fa2);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.rw-p27 .rw-title {
+  background: linear-gradient(110deg, #fddb92 30%, #fff 50%, #fddb92 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rw-shine 4s linear infinite;
+}
+
+@keyframes rw-walk {
+  0% { transform: translateX(2vw) scaleX(1); }
+  49% { transform: translateX(94vw) scaleX(1); }
+  50% { transform: translateX(94vw) scaleX(-1); }
+  99% { transform: translateX(2vw) scaleX(-1); }
+  100% { transform: translateX(2vw) scaleX(1); }
+}
+@keyframes rw-aurora { 50% { background-position: 100% 50%; } }
+@keyframes rw-daynight { 0%, 100% { opacity: 0; } 50% { opacity: 0.22; } }
+@keyframes rw-spin { to { transform: rotate(360deg); } }
+@keyframes rw-slide { to { background-position: 200% 0; } }
+@keyframes rw-shine { to { background-position: -200% 0; } }
+
+/* ---------- Level-up screen ---------- */
+.lvl-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--lvl-from) 28%, #0b0c16), rgba(8, 9, 18, 0.92));
+  backdrop-filter: blur(4px);
+  animation: lvl-fade 0.25s ease-out;
+}
+.lvl-card {
+  position: relative;
+  width: min(92vw, 400px);
+  padding: 28px 28px 22px;
+  text-align: center;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lvl-from) 60%, transparent);
+  box-shadow: 0 0 60px color-mix(in srgb, var(--lvl-to) 40%, transparent), var(--shadow-md);
+  animation: lvl-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.lvl-emoji {
+  font-size: 68px;
+  line-height: 1.1;
+  animation: lvl-bounce 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--lvl-from) 60%, transparent));
+}
+.lvl-level {
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-neutral-400);
+}
+.lvl-title {
+  margin: 4px 0 6px;
+  font-size: 26px;
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--lvl-from), var(--lvl-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lvl-message {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--color-neutral-300);
+}
+.lvl-perk {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  background: color-mix(in srgb, var(--lvl-from) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lvl-from) 45%, transparent);
+}
+.lvl-progress {
+  height: 8px;
+  margin-top: 18px;
+  border-radius: 999px;
+  background: var(--color-neutral-800);
+  overflow: hidden;
+}
+.lvl-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--lvl-from), var(--lvl-to));
+  transition: width 0.8s ease-out;
+}
+.lvl-left {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--color-neutral-300);
+  font-variant-numeric: tabular-nums;
+}
+.lvl-button {
+  margin-top: 18px;
+  padding: 8px 26px;
+  border: 0;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--lvl-from), var(--lvl-to));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--lvl-to) 40%, transparent);
+}
+.lvl-skip {
+  display: block;
+  margin: 10px auto 0;
+  background: none;
+  border: 0;
+  font-size: 12px;
+  color: var(--color-neutral-500);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.lvl-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.lvl-particle {
+  position: absolute;
+  top: -30px;
+  line-height: 1;
+  animation: lvl-fall linear infinite;
+}
+.lvl-burst-confetti .lvl-particle { width: 8px; height: 12px; }
+.lvl-burst-snow .lvl-particle { animation-name: lvl-fall-slow; }
+.lvl-burst-bubbles .lvl-particle { top: auto; bottom: -30px; animation-name: lvl-rise; }
+.lvl-burst-hearts .lvl-particle { top: auto; bottom: -30px; animation-name: lvl-rise; }
+.lvl-burst-fireworks .lvl-particle {
+  top: auto;
+  bottom: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation-name: lvl-launch;
+}
+.lvl-burst-rings .lvl-particle {
+  top: 45%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent !important;
+  border: 2px solid var(--lvl-from);
+  animation-name: lvl-ring;
+}
+.lvl-burst-rays::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 180vmax;
+  height: 180vmax;
+  margin: -90vmax 0 0 -90vmax;
+  opacity: 0.12;
+  background: repeating-conic-gradient(from 0deg, var(--lvl-from) 0deg 10deg, transparent 10deg 30deg);
+  animation: rw-spin 30s linear infinite;
+}
+.lvl-burst-rays .lvl-particle { display: none; }
+
+@keyframes lvl-fade { from { opacity: 0; } }
+@keyframes lvl-pop { from { transform: scale(0.6) translateY(24px); opacity: 0; } }
+@keyframes lvl-bounce { 50% { transform: translateY(-8px) rotate(-4deg); } }
+@keyframes lvl-fall {
+  from { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  to { transform: translate(var(--drift), 110vh) rotate(540deg); opacity: 0.6; }
+}
+@keyframes lvl-fall-slow {
+  from { transform: translate(0, 0); opacity: 1; }
+  to { transform: translate(var(--drift), 110vh); opacity: 0.5; }
+}
+@keyframes lvl-rise {
+  from { transform: translate(0, 0); opacity: 1; }
+  to { transform: translate(var(--drift), -110vh); opacity: 0.3; }
+}
+@keyframes lvl-launch {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  60% { transform: translate(calc(var(--drift) * 0.5), -55vh) scale(1.6); opacity: 1; }
+  100% { transform: translate(var(--drift), -45vh) scale(0); opacity: 0; }
+}
+@keyframes lvl-ring {
+  from { transform: scale(0.5); opacity: 0.9; }
+  to { transform: scale(14); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rw-aurora,
+  .rw-daynight,
+  .rw-rays,
+  .rw-topline,
+  .rw-p27 .rw-title,
+  .lvl-particle,
+  .lvl-emoji,
+  .lvl-backdrop::before {
+    animation: none;
+  }
+  .lvl-particles { display: none; }
+}
