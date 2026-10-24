@@ -17,6 +17,12 @@ export const getDeepLEndpoint = (apiKey) => {
   return "https://api.deepl.com/v2/translate";
 };
 
+const XML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+
+// DeepL parses the input as XML, so bare "&" (e.g. "&o") or "<" would be rejected as malformed.
+const escapeXml = (text) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 // Protect formatting codes and placeholders by wrapping in XML tags
 // e.g. "Level §a%d / %d" -> "Level <x id='0'>§a</x><x id='1'>%d</x> / <x id='2'>%d</x>"
 export const shieldTokens = (text) => {
@@ -26,24 +32,28 @@ export const shieldTokens = (text) => {
 
   for (const part of tokens) {
     if (part.type === "text") {
-      shielded += part.value;
+      shielded += escapeXml(part.value);
     } else {
       const id = tokenMap.length;
       tokenMap.push(part.value);
-      shielded += `<x id="${id}">${part.value}</x>`;
+      shielded += `<x id="${id}">${escapeXml(part.value)}</x>`;
     }
   }
 
   return { shielded, tokenMap };
 };
 
-// Restore shielded tokens from translated XML
+// Restore shielded tokens from translated XML and decode the entities DeepL returns.
+// A single pass keeps restored token values (e.g. a literal "&amp;") from being decoded twice.
 export const unshieldTokens = (text, tokenMap) => {
-  if (!tokenMap || tokenMap.length === 0) return text;
-  return text.replace(/<x id="(\d+)">.*?<\/x>/g, (match, idStr) => {
-    const id = parseInt(idStr, 10);
-    return tokenMap[id] !== undefined ? tokenMap[id] : match;
-  });
+  return text.replace(
+    /<x id="(\d+)">.*?<\/x>|&(amp|lt|gt|quot|apos);/g,
+    (match, idStr, entity) => {
+      if (entity) return XML_ENTITIES[entity];
+      const token = tokenMap?.[parseInt(idStr, 10)];
+      return token !== undefined ? token : match;
+    }
+  );
 };
 
 const parseDeepLError = (status, text) => {
