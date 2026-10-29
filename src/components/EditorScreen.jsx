@@ -254,6 +254,12 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // The editor listens in the capture phase, before the level-up screen dismisses on Enter.
+      if (celebratingLevel && e.key === "Enter") {
+        e.preventDefault();
+        return;
+      }
+
       const active = document.activeElement;
       const isTranslationField = active?.dataset?.role === "translation";
 
@@ -470,6 +476,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [
     move,
+    celebratingLevel,
     activeKey,
     activeIndex,
     filtered,
