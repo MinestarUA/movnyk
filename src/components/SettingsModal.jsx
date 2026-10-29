@@ -100,14 +100,14 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-4 animate-fade-in overflow-y-auto"
+      className="fixed inset-0 z-[3000] flex items-start justify-center bg-black/60 p-4 animate-fade-in overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-label="Налаштування"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl rounded-2xl border-2 border-neutral bg-base-200 p-7 shadow-2xl my-8"
+        className="w-full max-w-xl rounded-2xl border-2 border-neutral bg-base-200 p-7 shadow-2xl my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-6 flex items-center justify-between">
