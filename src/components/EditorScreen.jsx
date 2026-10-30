@@ -34,6 +34,7 @@ import {
   replaceInTranslation,
 } from "../lib/searching";
 import { getCaseShortcutAction, applyCaseShortcut } from "../lib/caseConversion";
+import { buildWordAutocompleteWords } from "../lib/wordAutocomplete";
 
 // Text the user has selected: inside a text field it is the field's selection,
 // elsewhere the page selection. Trimmed, empty string when nothing is selected.
@@ -101,6 +102,11 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   // reference panel still finds their translations.
   const [removedRows, setRemovedRows] = useState([]);
   const [suggestingKey, setSuggestingKey] = useState(null);
+  const wordAutocompleteEnabled = settings.wordAutocompleteEnabled !== false;
+  const wordAutocompleteWords = useMemo(
+    () => (wordAutocompleteEnabled ? buildWordAutocompleteWords(translations) : []),
+    [translations, wordAutocompleteEnabled]
+  );
 
   const duplicateCounts = useMemo(() => {
     const counts = new Map();
@@ -118,6 +124,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const focusRequestRef = useRef(true);
   const cursorPositionRef = useRef({ key: null, start: null, end: null });
   const referenceInputRef = useRef(null);
+  const wordAutocompleteKeyHandlerRef = useRef(null);
 
   const { re: queryRe, error: queryError } = useMemo(
     () => compileQuery(query, { regex: regexMode, caseSensitive, wholeWord }),
@@ -313,6 +320,14 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
             targetEl.setSelectionRange(selectionStart, selectionEnd);
           }
         });
+        return;
+      }
+
+      if (
+        isTranslationField &&
+        wordAutocompleteKeyHandlerRef.current?.key === active.dataset.key &&
+        wordAutocompleteKeyHandlerRef.current.handle(e)
+      ) {
         return;
       }
 
@@ -1184,6 +1199,9 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                   selectedKey: activeKey,
                   queryRe,
                   qaEnabled: settings.qaChecksEnabled !== false,
+                  wordAutocompleteEnabled,
+                  wordAutocompleteWords,
+                  wordAutocompleteKeyHandlerRef,
                   syncIdenticalTranslations: settings.syncIdenticalTranslations !== false,
                   duplicateCounts,
                   suggestingKey,
@@ -1268,6 +1286,9 @@ const Row = ({
   selectedKey,
   queryRe,
   qaEnabled,
+  wordAutocompleteEnabled,
+  wordAutocompleteWords,
+  wordAutocompleteKeyHandlerRef,
   syncIdenticalTranslations,
   duplicateCounts,
   suggestingKey,
@@ -1292,6 +1313,9 @@ const Row = ({
       isSelected={item.key === selectedKey}
       queryRe={queryRe}
       qaEnabled={qaEnabled}
+      wordAutocompleteEnabled={wordAutocompleteEnabled}
+      wordAutocompleteWords={wordAutocompleteWords}
+      wordAutocompleteKeyHandlerRef={wordAutocompleteKeyHandlerRef}
       duplicateCount={duplicateCounts?.get(item.original) || 1}
       isSynced={isGroupSynced(item, syncIdenticalTranslations)}
       isSuggesting={suggestingKey === item.key}

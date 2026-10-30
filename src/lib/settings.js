@@ -63,6 +63,7 @@ const DEFAULTS = {
   skipApprovedImport: true,
   unconfirmOnEdit: true,
   focusSearchOnFind: true,
+  wordAutocompleteEnabled: true,
   rewardsEnabled: true,
 };
 
@@ -96,6 +97,8 @@ export const loadSettings = () => {
         typeof parsed.unconfirmOnEdit === "boolean" ? parsed.unconfirmOnEdit : true,
       focusSearchOnFind:
         typeof parsed.focusSearchOnFind === "boolean" ? parsed.focusSearchOnFind : true,
+      wordAutocompleteEnabled:
+        typeof parsed.wordAutocompleteEnabled === "boolean" ? parsed.wordAutocompleteEnabled : true,
       rewardsEnabled:
         typeof parsed.rewardsEnabled === "boolean" ? parsed.rewardsEnabled : true,
     };
@@ -121,6 +124,7 @@ export const saveSettings = (settings) => {
         skipApprovedImport: settings.skipApprovedImport !== false,
         unconfirmOnEdit: settings.unconfirmOnEdit !== false,
         focusSearchOnFind: settings.focusSearchOnFind !== false,
+        wordAutocompleteEnabled: settings.wordAutocompleteEnabled !== false,
         rewardsEnabled: settings.rewardsEnabled !== false,
       })
     );

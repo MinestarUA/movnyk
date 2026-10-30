@@ -20,6 +20,9 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
   const [qaChecksEnabled, setQaChecksEnabled] = useState(settings.qaChecksEnabled !== false);
   const [unconfirmOnEdit, setUnconfirmOnEdit] = useState(settings.unconfirmOnEdit !== false);
   const [focusSearchOnFind, setFocusSearchOnFind] = useState(settings.focusSearchOnFind === true);
+  const [wordAutocompleteEnabled, setWordAutocompleteEnabled] = useState(
+    settings.wordAutocompleteEnabled !== false
+  );
   const [rewardsEnabled, setRewardsEnabled] = useState(settings.rewardsEnabled !== false);
   const [searchPrompts, setSearchPrompts] = useState(
     settings.searchPrompts ?? DEFAULT_SEARCH_PROMPTS
@@ -90,6 +93,7 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
       qaChecksEnabled,
       unconfirmOnEdit,
       focusSearchOnFind,
+      wordAutocompleteEnabled,
       rewardsEnabled,
       searchPrompts,
     });
@@ -389,6 +393,19 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
               Переходити фокусом на пошук при використанні Ctrl+F
             </span>
           </label>
+
+          <label className="label cursor-pointer justify-start gap-3 py-0">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm checkbox-primary"
+              checked={wordAutocompleteEnabled}
+              onChange={(e) => setWordAutocompleteEnabled(e.target.checked)}
+            />
+            <span className="label-text text-sm font-medium">Автопідказки слів у перекладах</span>
+          </label>
+          <p className="text-xs text-base-content/50 pl-7">
+            Підказувати слова з інших заповнених перекладів проєкту.
+          </p>
 
           <label className="label cursor-pointer justify-start gap-3 py-0">
             <input

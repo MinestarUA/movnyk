@@ -1,7 +1,9 @@
-import { useRef, useState, useEffect, useLayoutEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { checkTranslationQA } from "../lib/qa";
 import { splitMatches } from "../lib/searching";
 import { tokenizeString } from "../lib/tokens";
+import { findWordAutocompleteSuggestions, getWordAutocompleteContext } from "../lib/wordAutocomplete";
 import { colorOfCode, displayColor, patchouliColorOf } from "../lib/mcFormatting";
 import { getCaseShortcutAction, applyCaseShortcut } from "../lib/caseConversion";
 import FormattedText from "./FormattedText";
@@ -177,6 +179,9 @@ const TranslationRow = ({
   cursorPositionRef,
   queryRe,
   qaEnabled = true,
+  wordAutocompleteEnabled = true,
+  wordAutocompleteWords = [],
+  wordAutocompleteKeyHandlerRef,
   duplicateCount = 1,
   isSynced = true,
   onSelect,
@@ -194,6 +199,239 @@ const TranslationRow = ({
   const [copied, setCopied] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
   const copiedTimer = useRef(null);
+  const [wordAutocompleteContext, setWordAutocompleteContext] = useState(null);
+  const [activeWordSuggestionIndex, setActiveWordSuggestionIndex] = useState(0);
+  const [wordAutocompletePosition, setWordAutocompletePosition] = useState(null);
+  const wordAutocompletePopupRef = useRef(null);
+  const composingRef = useRef(false);
+  const wordAutocompleteListId = `word-autocomplete-${encodeURIComponent(item.key)}`;
+  const wordAutocompleteSuggestions = useMemo(
+    () =>
+      wordAutocompleteContext
+        ? findWordAutocompleteSuggestions(wordAutocompleteWords, wordAutocompleteContext.word)
+        : [],
+    [wordAutocompleteContext, wordAutocompleteWords]
+  );
+  const selectedWordSuggestionIndex = Math.min(
+    activeWordSuggestionIndex,
+    Math.max(wordAutocompleteSuggestions.length - 1, 0)
+  );
+  const wordAutocompleteOpen =
+    wordAutocompleteEnabled &&
+    isSelected &&
+    Boolean(wordAutocompleteContext) &&
+    wordAutocompleteSuggestions.length > 0;
+
+  const refreshWordAutocomplete = useCallback(
+    (textarea) => {
+      if (!wordAutocompleteEnabled || !isSelected || composingRef.current) {
+        setWordAutocompleteContext(null);
+        return;
+      }
+
+      const context = getWordAutocompleteContext(
+        textarea.value,
+        textarea.selectionStart,
+        textarea.selectionEnd
+      );
+      if (!context || !findWordAutocompleteSuggestions(wordAutocompleteWords, context.word).length) {
+        setWordAutocompleteContext(null);
+        return;
+      }
+
+      setWordAutocompleteContext(context);
+      setActiveWordSuggestionIndex(0);
+    },
+    [isSelected, wordAutocompleteEnabled, wordAutocompleteWords]
+  );
+
+  const updateWordAutocompletePosition = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const bounds = textarea.getBoundingClientRect();
+    const textareaStyle = window.getComputedStyle(textarea);
+    const mirror = document.createElement("div");
+    const mirroredProperties = [
+      "boxSizing",
+      "fontFamily",
+      "fontSize",
+      "fontWeight",
+      "fontStyle",
+      "letterSpacing",
+      "lineHeight",
+      "textAlign",
+      "textIndent",
+      "textTransform",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      "borderTopWidth",
+      "borderRightWidth",
+      "borderBottomWidth",
+      "borderLeftWidth",
+    ];
+    for (const property of mirroredProperties) {
+      mirror.style[property] = textareaStyle[property];
+    }
+    mirror.style.position = "fixed";
+    mirror.style.left = `${bounds.left}px`;
+    mirror.style.top = `${bounds.top}px`;
+    mirror.style.width = `${bounds.width}px`;
+    mirror.style.minHeight = "0";
+    mirror.style.maxHeight = "none";
+    mirror.style.visibility = "hidden";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.overflowWrap = "break-word";
+    mirror.style.wordBreak = "break-word";
+    mirror.textContent = textarea.value.slice(0, textarea.selectionStart ?? textarea.value.length);
+    const caretMarker = document.createElement("span");
+    caretMarker.textContent = "\u200b";
+    mirror.appendChild(caretMarker);
+    document.body.appendChild(mirror);
+    const caretBounds = caretMarker.getBoundingClientRect();
+    mirror.remove();
+
+    const popupHeight = Math.min(
+      wordAutocompletePopupRef.current?.offsetHeight || 156,
+      Math.max(window.innerHeight - 16, 0)
+    );
+    const popupWidth = Math.min(320, Math.max(window.innerWidth - 16, 0));
+    const left = Math.max(8, Math.min(caretBounds.left, window.innerWidth - popupWidth - 8));
+    const spaceBelow = window.innerHeight - caretBounds.bottom;
+    const openAbove = spaceBelow < popupHeight + 8 && caretBounds.top > popupHeight + 8;
+    const top = openAbove
+      ? Math.max(8, caretBounds.top - popupHeight - 4)
+      : Math.min(caretBounds.bottom + 4, window.innerHeight - popupHeight - 8);
+
+    setWordAutocompletePosition({ left, top });
+  }, []);
+
+  const acceptWordSuggestion = useCallback(
+    (word) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const context = getWordAutocompleteContext(
+        textarea.value,
+        textarea.selectionStart,
+        textarea.selectionEnd
+      );
+      if (!context) {
+        setWordAutocompleteContext(null);
+        return;
+      }
+
+      const nextValue =
+        textarea.value.slice(0, context.start) + word + textarea.value.slice(context.end);
+      const caret = context.start + word.length;
+      onTranslate(nextValue);
+      if (cursorPositionRef) {
+        cursorPositionRef.current = { key: item.key, start: caret, end: caret };
+      }
+      setWordAutocompleteContext(null);
+      requestAnimationFrame(() => {
+        const currentTextarea = textareaRef.current;
+        if (!currentTextarea) return;
+        currentTextarea.focus();
+        currentTextarea.setSelectionRange(caret, caret);
+      });
+    },
+    [cursorPositionRef, item.key, onTranslate]
+  );
+
+  const handleWordAutocompleteKeyDown = useCallback(
+    (event) => {
+      if (
+        !wordAutocompleteOpen ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        composingRef.current
+      ) {
+        return false;
+      }
+
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        setActiveWordSuggestionIndex((current) =>
+          (current + direction + wordAutocompleteSuggestions.length) %
+          wordAutocompleteSuggestions.length
+        );
+        return true;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setWordAutocompleteContext(null);
+        return true;
+      }
+
+      if (
+        (event.key === "Enter" && !event.shiftKey) ||
+        (event.key === "Tab" && !event.shiftKey)
+      ) {
+        const word = wordAutocompleteSuggestions[selectedWordSuggestionIndex];
+        if (!word) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        acceptWordSuggestion(word);
+        return true;
+      }
+
+      return false;
+    },
+    [
+      acceptWordSuggestion,
+      selectedWordSuggestionIndex,
+      wordAutocompleteOpen,
+      wordAutocompleteSuggestions,
+    ]
+  );
+
+  useLayoutEffect(() => {
+    if (wordAutocompleteOpen) updateWordAutocompletePosition();
+  }, [
+    item.translated,
+    wordAutocompleteOpen,
+    wordAutocompleteSuggestions.length,
+    updateWordAutocompletePosition,
+  ]);
+
+  useEffect(() => {
+    if (!wordAutocompleteOpen) return undefined;
+
+    const updatePosition = () => updateWordAutocompletePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [updateWordAutocompletePosition, wordAutocompleteOpen]);
+
+  useLayoutEffect(() => {
+    if (!wordAutocompleteOpen || !wordAutocompleteKeyHandlerRef) return undefined;
+
+    wordAutocompleteKeyHandlerRef.current = {
+      key: item.key,
+      handle: handleWordAutocompleteKeyDown,
+    };
+    return () => {
+      if (wordAutocompleteKeyHandlerRef.current?.key === item.key) {
+        wordAutocompleteKeyHandlerRef.current = null;
+      }
+    };
+  }, [
+    handleWordAutocompleteKeyDown,
+    item.key,
+    wordAutocompleteKeyHandlerRef,
+    wordAutocompleteOpen,
+  ]);
 
   const handleCopyClick = () => {
     onCopy();
@@ -355,6 +593,51 @@ const TranslationRow = ({
     boxSizing: "border-box",
   };
 
+  const wordAutocompleteMenu =
+    wordAutocompleteOpen && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={wordAutocompletePopupRef}
+            id={wordAutocompleteListId}
+            role="listbox"
+            aria-label="Підказки слів"
+            className="rounded-lg border border-base-content/20 bg-base-200 py-1 shadow-xl"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              position: "fixed",
+              left: wordAutocompletePosition?.left ?? 8,
+              top: wordAutocompletePosition?.top ?? 8,
+              zIndex: 2000,
+              minWidth: "144px",
+              maxWidth: "min(320px, calc(100vw - 16px))",
+              maxHeight: "min(160px, calc(100vh - 16px))",
+              overflowY: "auto",
+              visibility: wordAutocompletePosition ? "visible" : "hidden",
+            }}
+          >
+            {wordAutocompleteSuggestions.map((word, index) => (
+              <div
+                key={`${word}-${index}`}
+                id={`${wordAutocompleteListId}-option-${index}`}
+                role="option"
+                aria-selected={index === selectedWordSuggestionIndex}
+                className={`cursor-pointer px-3 py-1 text-sm ${
+                  index === selectedWordSuggestionIndex
+                    ? "bg-primary/20 text-primary"
+                    : "text-base-content hover:bg-base-300"
+                }`}
+                onMouseEnter={() => setActiveWordSuggestionIndex(index)}
+                onClick={() => acceptWordSuggestion(word)}
+              >
+                {word}
+              </div>
+            ))}
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <div ref={rowRef} style={outerStyle} onClick={onSelect}>
       {/* 1. Status Dot */}
@@ -474,6 +757,14 @@ const TranslationRow = ({
                 value={item.translated}
                 lang="uk"
                 spellCheck={true}
+                aria-autocomplete={wordAutocompleteEnabled ? "list" : undefined}
+                aria-controls={wordAutocompleteOpen ? wordAutocompleteListId : undefined}
+                aria-expanded={wordAutocompleteOpen}
+                aria-activedescendant={
+                  wordAutocompleteOpen
+                    ? `${wordAutocompleteListId}-option-${selectedWordSuggestionIndex}`
+                    : undefined
+                }
                 onKeyDown={handleTextareaKeyDown}
                 onChange={(e) => {
                   onTranslate(e.target.value);
@@ -484,6 +775,7 @@ const TranslationRow = ({
                       end: e.target.selectionEnd,
                     };
                   }
+                  refreshWordAutocomplete(e.target);
                 }}
                 onSelect={(e) => {
                   if (cursorPositionRef) {
@@ -493,6 +785,7 @@ const TranslationRow = ({
                       end: e.target.selectionEnd,
                     };
                   }
+                  refreshWordAutocomplete(e.target);
                 }}
                 onKeyUp={(e) => {
                   if (cursorPositionRef) {
@@ -502,6 +795,7 @@ const TranslationRow = ({
                       end: e.target.selectionEnd,
                     };
                   }
+                  refreshWordAutocomplete(e.target);
                 }}
                 onMouseUp={(e) => {
                   if (cursorPositionRef) {
@@ -511,6 +805,7 @@ const TranslationRow = ({
                       end: e.target.selectionEnd,
                     };
                   }
+                  refreshWordAutocomplete(e.target);
                 }}
                 onFocus={(e) => {
                   onSelect();
@@ -521,6 +816,16 @@ const TranslationRow = ({
                       end: e.target.selectionEnd,
                     };
                   }
+                  refreshWordAutocomplete(e.target);
+                }}
+                onBlur={() => setWordAutocompleteContext(null)}
+                onCompositionStart={() => {
+                  composingRef.current = true;
+                  setWordAutocompleteContext(null);
+                }}
+                onCompositionEnd={(e) => {
+                  composingRef.current = false;
+                  refreshWordAutocomplete(e.target);
                 }}
                 onClick={stop}
                 placeholder="Введіть український переклад…"
@@ -703,6 +1008,7 @@ const TranslationRow = ({
           </button>
         </div>
       )}
+      {wordAutocompleteMenu}
     </div>
   );
 };
