@@ -24,6 +24,17 @@ describe("buildWordAutocompleteWords", () => {
     expect(words).toEqual(["Привіт"]);
   });
 
+  it("reflects edited rows, which arrive as new row objects", () => {
+    const rows = [
+      { original: "A", translated: "старий" },
+      { original: "B", translated: "світ" },
+    ];
+    expect(buildWordAutocompleteWords(rows)).toEqual(["світ", "старий"]);
+
+    const edited = [{ ...rows[0], translated: "новий" }, rows[1]];
+    expect(buildWordAutocompleteWords(edited)).toEqual(["новий", "світ"]);
+  });
+
   it("skips Minecraft format codes and placeholders", () => {
     const words = buildWordAutocompleteWords([{ original: "A", translated: "§aЗелений %s текст" }]);
     expect(words).toEqual(["Зелений", "текст"]);

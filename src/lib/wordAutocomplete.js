@@ -8,21 +8,39 @@ const UKRAINIAN_COLLATOR = new Intl.Collator("uk-UA", { sensitivity: "base" });
 
 const normalizeWord = (word) => word.normalize("NFC").toLocaleLowerCase("uk-UA");
 
+// Keyed by row object: edits replace only the changed row, so the rest of the
+// project is not re-tokenized on every keystroke.
+const wordsByRow = new WeakMap();
+
+const extractRowWords = (item) => {
+  if (!isTranslatable(item) || !item.translated?.trim()) return [];
+
+  const words = [];
+  for (const segment of tokenizeString(item.translated)) {
+    if (segment.type !== "text") continue;
+    for (const match of segment.value.matchAll(WORD_PATTERN)) {
+      words.push({ word: match[0], normalizedWord: normalizeWord(match[0]) });
+    }
+  }
+  return words;
+};
+
+const getRowWords = (item) => {
+  let words = wordsByRow.get(item);
+  if (!words) {
+    words = extractRowWords(item);
+    wordsByRow.set(item, words);
+  }
+  return words;
+};
+
 export const buildWordAutocompleteWords = (translations) => {
   const wordsByNormalizedValue = new Map();
 
   for (const item of translations) {
-    if (!isTranslatable(item) || !item.translated?.trim()) continue;
-
-    for (const segment of tokenizeString(item.translated)) {
-      if (segment.type !== "text") continue;
-
-      for (const match of segment.value.matchAll(WORD_PATTERN)) {
-        const word = match[0];
-        const normalizedWord = normalizeWord(word);
-        if (!wordsByNormalizedValue.has(normalizedWord)) {
-          wordsByNormalizedValue.set(normalizedWord, word);
-        }
+    for (const { word, normalizedWord } of getRowWords(item)) {
+      if (!wordsByNormalizedValue.has(normalizedWord)) {
+        wordsByNormalizedValue.set(normalizedWord, word);
       }
     }
   }
