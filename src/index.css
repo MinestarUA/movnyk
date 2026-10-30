@@ -111,7 +111,8 @@ body {
   pointer-events: none;
   opacity: 0;
 }
-.qa-tip:hover::after {
+.qa-tip:hover::after,
+.qa-tip-open::after {
   opacity: 1;
 }
 

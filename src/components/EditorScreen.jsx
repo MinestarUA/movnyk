@@ -34,6 +34,9 @@ import {
   replaceInTranslation,
 } from "../lib/searching";
 import { getCaseShortcutAction, applyCaseShortcut } from "../lib/caseConversion";
+import { getTokenShortcutIndex, isQaShortcut } from "../lib/keyboardShortcuts";
+import { checkTranslationQA } from "../lib/qa";
+import { extractTokens } from "../lib/tokens";
 import { buildWordAutocompleteWords } from "../lib/wordAutocomplete";
 
 // Text the user has selected: inside a text field it is the field's selection,
@@ -86,6 +89,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   );
 
   const [query, setQuery] = useState("");
+  // { key, text }: the row whose QA warning details Alt+Q has opened, and the text they were opened for.
+  const [qaDetails, setQaDetails] = useState(null);
   const [regexMode, setRegexMode] = useState(false);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
@@ -226,6 +231,11 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   );
   const activeIndex = rawIndex >= 0 ? rawIndex : filtered.length > 0 ? 0 : -1;
   const activeKey = activeIndex >= 0 ? filtered[activeIndex].key : null;
+  // Warning details stay open only while the row's text is unchanged, so any edit or fix hides them.
+  const activeItem = activeIndex >= 0 ? filtered[activeIndex] : null;
+  const qaDetailsVisible = Boolean(
+    qaDetails && activeItem && qaDetails.key === activeItem.key && qaDetails.text === activeItem.translated
+  );
 
   // Persist progress to the single autosave slot, debounced so rapid typing
   // does not hammer localStorage.
@@ -319,6 +329,59 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
             targetEl.focus();
             targetEl.setSelectionRange(selectionStart, selectionEnd);
           }
+        });
+        return;
+      }
+
+      // Alt+Q: first press shows the active row's QA details, second press applies its fixes.
+      if (isQaShortcut(e)) {
+        e.preventDefault();
+        const item = activeItem;
+        if (!item || settings.qaChecksEnabled === false) return;
+        const issues = checkTranslationQA(item.original, item.translated);
+        if (issues.length === 0) return;
+        if (!qaDetailsVisible) {
+          setQaDetails({ key: item.key, text: item.translated });
+          return;
+        }
+        const fixed = issues.reduce(
+          (text, issue) => (typeof issue.fix === "function" ? issue.fix(text) : text),
+          item.translated
+        );
+        setQaDetails(null);
+        if (fixed !== item.translated) {
+          setTranslations((prev) =>
+            updateTranslation(prev, item.originalIndex, fixed, {
+              syncIdenticalTranslations: settings.syncIdenticalTranslations,
+              unconfirmOnEdit: settings.unconfirmOnEdit,
+            })
+          );
+        }
+        return;
+      }
+
+      // Alt+1…9 inserts the Nth token of the focused row's original at the caret.
+      const tokenIndex = getTokenShortcutIndex(e);
+      if (tokenIndex !== null && isTranslationField) {
+        e.preventDefault();
+        const item = filtered.find((row) => row.key === active.dataset.key);
+        const token = item && extractTokens(item.original)[tokenIndex - 1];
+        if (!token) return;
+        const next = active.value.slice(0, active.selectionStart) + token.value + active.value.slice(active.selectionEnd);
+        const caret = active.selectionStart + token.value.length;
+        cursorPositionRef.current = { key: item.key, start: caret, end: caret };
+        setTranslations((prev) =>
+          updateTranslation(prev, item.originalIndex, next, {
+            syncIdenticalTranslations: settings.syncIdenticalTranslations,
+            unconfirmOnEdit: settings.unconfirmOnEdit,
+          })
+        );
+        requestAnimationFrame(() => {
+          const el = document.querySelector(
+            `textarea[data-role="translation"][data-key="${CSS.escape(item.key)}"]`
+          );
+          el?.focus();
+          el?.setSelectionRange(caret, caret);
         });
         return;
       }
@@ -421,6 +484,27 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         }
       }
 
+      // Esc outside a field (or with focus on body) returns focus to the last working row.
+      // Dialogs and the reference drawer keep their own Escape handling.
+      if (
+        e.key === "Escape" &&
+        !isTranslationField &&
+        activeKey &&
+        !referenceDrawerOpen &&
+        !celebratingLevel &&
+        !active?.closest?.("dialog, [role='dialog']")
+      ) {
+        e.preventDefault();
+        focusRequestRef.current = true;
+        listRef.current?.scrollToRow({ index: activeIndex, align: "smart" });
+        requestAnimationFrame(() => {
+          document
+            .querySelector(`textarea[data-role="translation"][data-key="${CSS.escape(activeKey)}"]`)
+            ?.focus();
+        });
+        return;
+      }
+
       // Enter (without Shift) inside a translation field confirms the current
       // entry (when non-empty) and advances to the next one.
       if (e.key === "Enter" && !e.shiftKey && isTranslationField) {
@@ -498,7 +582,11 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     settings.focusSearchOnFind,
     settings.syncIdenticalTranslations,
     settings.unconfirmOnEdit,
+    settings.qaChecksEnabled,
     referenceDrawerOpen,
+    activeItem,
+    qaDetailsVisible,
+    qaDetails,
   ]);
 
   // Manual edits optionally drop the confirmed mark.
@@ -869,7 +957,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
               Мовник
             </div>
             <div style={{ fontSize: "10.5px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
-              Enter — наступний · Ctrl+↑/↓ — навігація · Ctrl+F — пошук · Alt+Z/X/C — регістр
+              Enter — наступний · Ctrl+↑/↓ — навігація · Ctrl+F — пошук · Alt+Z/X/C — регістр · Alt+Q — попередження · Alt+1…9 — токен з оригіналу · Esc — до рядка
             </div>
           </div>
 
@@ -1197,6 +1285,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                 rowProps={{
                   filtered,
                   selectedKey: activeKey,
+                  qaDetailsVisible,
                   queryRe,
                   qaEnabled: settings.qaChecksEnabled !== false,
                   wordAutocompleteEnabled,
@@ -1284,6 +1373,7 @@ const Row = ({
   style,
   filtered,
   selectedKey,
+  qaDetailsVisible,
   queryRe,
   qaEnabled,
   wordAutocompleteEnabled,
@@ -1304,13 +1394,15 @@ const Row = ({
   setExpandedRowHeight,
 }) => {
   const item = filtered[index];
+  const isSelected = item.key === selectedKey;
 
   return (
     <TranslationRow
       rowStyle={style}
       onHeight={setExpandedRowHeight}
       item={item}
-      isSelected={item.key === selectedKey}
+      isSelected={isSelected}
+      showQaDetails={isSelected && qaDetailsVisible}
       queryRe={queryRe}
       qaEnabled={qaEnabled}
       wordAutocompleteEnabled={wordAutocompleteEnabled}

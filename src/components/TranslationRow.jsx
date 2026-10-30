@@ -199,6 +199,7 @@ const TranslationRow = ({
   onSuggest,
   onHeight,
   isSuggesting = false,
+  showQaDetails = false,
 }) => {
   const textareaRef = useRef(null);
   const rowRef = useRef(null);
@@ -877,7 +878,7 @@ const TranslationRow = ({
                     return (
                       <span
                         key={idx}
-                        className={`qa-tip inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] pl-2 pr-1.5 py-0.5 rounded border font-medium bg-base-200 ${badgeClass}`}
+                        className={`qa-tip ${showQaDetails ? "qa-tip-open" : ""} inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] pl-2 pr-1.5 py-0.5 rounded border font-medium bg-base-200 ${badgeClass}`}
                         data-tip={issue.message}
                       >
                         <span>{icon}</span>

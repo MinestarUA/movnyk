@@ -1,4 +1,5 @@
 import { tokenizeString } from "./tokens";
+import { matchesKey } from "./keyboardShortcuts";
 
 const isWordChar = (ch) => Boolean(ch && /[\p{L}\p{M}\p{N}]/u.test(ch));
 
@@ -6,15 +7,6 @@ const isInternalApostrophe = (str, i) =>
   Boolean(str[i] && /^['’ʼ]$/u.test(str[i]) && isWordChar(str[i - 1]) && isWordChar(str[i + 1]));
 
 const isWordIndex = (str, i) => isWordChar(str[i]) || isInternalApostrophe(str, i);
-
-const matchesKey = (e, code, latinChar, ukChar, keyCode) => {
-  if (e.code === code) return true;
-  if (typeof e.key === "string") {
-    const lower = e.key.toLowerCase();
-    if (lower === latinChar || lower === ukChar) return true;
-  }
-  return e.keyCode === keyCode;
-};
 
 // Detects case conversion keyboard shortcuts in a layout-independent way:
 // Conflict-free Alt shortcuts (no browser View Source, Linux IBus, or OS Alt+Shift conflicts):
