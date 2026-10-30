@@ -48,6 +48,16 @@ export const getWordAutocompleteContext = (value, selectionStart, selectionEnd) 
   };
 };
 
+// Keeps the typed fragment's capitalization: "Пр" + "привіт" → "Привіт", "ПРИ" → "ПРИВІТ".
+export const matchFragmentCase = (word, fragment) => {
+  if (fragment.length > 1 && fragment === fragment.toLocaleUpperCase("uk-UA")) {
+    return word.toLocaleUpperCase("uk-UA");
+  }
+  const fragmentStartsUpper = fragment.charAt(0) !== fragment.charAt(0).toLocaleLowerCase("uk-UA");
+  if (!fragmentStartsUpper) return word;
+  return word.charAt(0).toLocaleUpperCase("uk-UA") + word.slice(1);
+};
+
 export const findWordAutocompleteSuggestions = (words, fragment, limit = 5) => {
   const normalizedFragment = normalizeWord(fragment);
   if (!normalizedFragment) return [];
