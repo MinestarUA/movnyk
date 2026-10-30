@@ -3,10 +3,16 @@ import { createPortal } from "react-dom";
 import { checkTranslationQA } from "../lib/qa";
 import { splitMatches } from "../lib/searching";
 import { tokenizeString } from "../lib/tokens";
-import { findWordAutocompleteSuggestions, getWordAutocompleteContext } from "../lib/wordAutocomplete";
+import {
+  findWordAutocompleteSuggestions,
+  getWordAutocompleteContext,
+  matchFragmentCase,
+} from "../lib/wordAutocomplete";
 import { colorOfCode, displayColor, patchouliColorOf } from "../lib/mcFormatting";
 import { getCaseShortcutAction, applyCaseShortcut } from "../lib/caseConversion";
 import FormattedText from "./FormattedText";
+
+const WORD_AUTOCOMPLETE_CLOSING_KEYS = new Set(["Enter", "Tab", "Escape"]);
 
 const ROW_RULE =
   "linear-gradient(to right, transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px, color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px";
@@ -239,10 +245,14 @@ const TranslationRow = ({
         return;
       }
 
+      // Keep the highlight when the caret re-reports the same word (e.g. on keyup after ArrowDown).
+      const isSameWord =
+        wordAutocompleteContext?.start === context.start &&
+        wordAutocompleteContext?.word === context.word;
       setWordAutocompleteContext(context);
-      setActiveWordSuggestionIndex(0);
+      if (!isSameWord) setActiveWordSuggestionIndex(0);
     },
-    [isSelected, wordAutocompleteEnabled, wordAutocompleteWords]
+    [isSelected, wordAutocompleteContext, wordAutocompleteEnabled, wordAutocompleteWords]
   );
 
   const updateWordAutocompletePosition = useCallback(() => {
@@ -324,9 +334,10 @@ const TranslationRow = ({
         return;
       }
 
+      const insertedWord = matchFragmentCase(word, context.word);
       const nextValue =
-        textarea.value.slice(0, context.start) + word + textarea.value.slice(context.end);
-      const caret = context.start + word.length;
+        textarea.value.slice(0, context.start) + insertedWord + textarea.value.slice(context.end);
+      const caret = context.start + insertedWord.length;
       onTranslate(nextValue);
       if (cursorPositionRef) {
         cursorPositionRef.current = { key: item.key, start: caret, end: caret };
@@ -795,7 +806,10 @@ const TranslationRow = ({
                       end: e.target.selectionEnd,
                     };
                   }
-                  refreshWordAutocomplete(e.target);
+                  // Enter, Tab and Escape already handled the popup on keydown; refreshing here would reopen it.
+                  if (!WORD_AUTOCOMPLETE_CLOSING_KEYS.has(e.key)) {
+                    refreshWordAutocomplete(e.target);
+                  }
                 }}
                 onMouseUp={(e) => {
                   if (cursorPositionRef) {
