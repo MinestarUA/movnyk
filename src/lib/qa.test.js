@@ -111,6 +111,10 @@ describe("qa linter", () => {
     expect(ids("Wait — go", "Зачекайте-йдіть")).not.toContain("hyphen-as-dash");
   });
 
+  it("keeps a spaced hyphen that the original text also uses", () => {
+    expect(ids("Level 1 - Easy", "Рівень 1 - Легкий")).not.toContain("hyphen-as-dash");
+  });
+
   it("detects special characters missing from the translation", () => {
     expect(ids("Speed → fast", "Швидкість швидко")).toContain("missing-special-char-→");
     expect(ids("Speed → fast", "Швидкість → швидко")).toEqual([]);

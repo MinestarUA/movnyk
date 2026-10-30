@@ -253,8 +253,8 @@ export const checkTranslationQA = (original, translated) => {
     });
   }
 
-  // 7b. Hyphen-minus used as a sentence dash
-  if (hasHyphenAsDash(transText)) {
+  // 7b. Hyphen-minus used as a sentence dash, unless the original uses it too
+  if (hasHyphenAsDash(transText) && !hasHyphenAsDash(origText)) {
     issues.push({
       id: "hyphen-as-dash",
       message: "Замініть дефіс на довге тире «—»",
