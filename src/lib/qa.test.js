@@ -102,6 +102,15 @@ describe("qa linter", () => {
     expect(ids("Loading…", "Завантаження…")).toEqual([]);
   });
 
+  it("suggests an em dash instead of a spaced hyphen", () => {
+    expect(ids("Wait — go", "Зачекайте - йдіть")).toContain("hyphen-as-dash");
+    expect(applyFix("Wait — go", "Зачекайте - йдіть - тепер", "hyphen-as-dash")).toBe(
+      "Зачекайте — йдіть — тепер"
+    );
+    expect(ids("Wait — go", "Зачекайте — йдіть")).not.toContain("hyphen-as-dash");
+    expect(ids("Wait — go", "Зачекайте-йдіть")).not.toContain("hyphen-as-dash");
+  });
+
   it("detects special characters missing from the translation", () => {
     expect(ids("Speed → fast", "Швидкість швидко")).toContain("missing-special-char-→");
     expect(ids("Speed → fast", "Швидкість → швидко")).toEqual([]);

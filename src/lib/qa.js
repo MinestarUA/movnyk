@@ -48,6 +48,9 @@ const hasInnerDoubleSpace = (text) => new RegExp(INNER_DOUBLE_SPACE.source).test
 const THREE_DOTS = /(?<!\.)\.{3}(?!\.)/g;
 const hasThreeDots = (text) => new RegExp(THREE_DOTS.source).test(text);
 
+const HYPHEN_AS_DASH = /(?<=\s)-(?=\s)/g;
+const hasHyphenAsDash = (text) => new RegExp(HYPHEN_AS_DASH.source).test(text);
+
 // Typographic characters outside plain ASCII that translators tend to lose.
 // Quotes and apostrophes are excluded: Ukrainian typography legitimately swaps
 // “” for «» and uses ʼ. Format characters (zero-width etc.) are invisible.
@@ -247,6 +250,16 @@ export const checkTranslationQA = (original, translated) => {
       message: "Три крапки замість «…»",
       severity: "info",
       fix: (value) => value.replace(THREE_DOTS, "…"),
+    });
+  }
+
+  // 7b. Hyphen-minus used as a sentence dash
+  if (hasHyphenAsDash(transText)) {
+    issues.push({
+      id: "hyphen-as-dash",
+      message: "Замініть дефіс на довге тире «—»",
+      severity: "info",
+      fix: (value) => value.replace(HYPHEN_AS_DASH, "—"),
     });
   }
 
