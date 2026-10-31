@@ -42,8 +42,9 @@ export const mcStyleToCss = (style, { widthNeutral = false } = {}) => {
   if (style.underline) lines.push("underline");
   if (style.strikethrough) lines.push("line-through");
   if (lines.length) css.textDecorationLine = lines.join(" ");
-  // Real scrambling is just noise; a blur conveys "obfuscated" without it.
-  if (style.obfuscated) css.filter = "blur(1.5px)";
+  // Real scrambling is just noise; a light blur conveys "obfuscated" without it.
+  // Keep it under half a pixel so the text stays readable at the 13px preview size.
+  if (style.obfuscated) css.filter = "blur(0.5px)";
   if (!widthNeutral) {
     if (style.bold) css.fontWeight = 700;
     if (style.italic) css.fontStyle = "italic";

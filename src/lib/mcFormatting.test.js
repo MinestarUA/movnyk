@@ -105,6 +105,13 @@ describe("formatRuns", () => {
   });
 });
 
+describe("mcStyleToCss", () => {
+  it("keeps obfuscated text readable with a light blur", () => {
+    expect(mcStyleToCss({ obfuscated: true }).filter).toBe("blur(0.5px)");
+    expect(mcStyleToCss({ obfuscated: false }).filter).toBeUndefined();
+  });
+});
+
 describe("black visibility and Patchouli colours", () => {
   it("draws black in the theme text colour", () => {
     expect(mcStyleToCss({ color: "#000000" }).color).toBe("var(--color-text)");
