@@ -383,10 +383,15 @@ const TranslationRow = ({
         return true;
       }
 
-      if (
-        (event.key === "Enter" && !event.shiftKey) ||
-        (event.key === "Tab" && !event.shiftKey)
-      ) {
+      if (event.key === "Enter") {
+        // Enter belongs to the editor: it confirms the row and advances. Dismiss
+        // the popup and let the editor handle the key, so the hint never
+        // swallows it. Tab is the suggestion-accepting key.
+        setWordAutocompleteContext(null);
+        return false;
+      }
+
+      if (event.key === "Tab" && !event.shiftKey) {
         const word = wordAutocompleteSuggestions[selectedWordSuggestionIndex];
         if (!word) return false;
         event.preventDefault();
@@ -807,7 +812,8 @@ const TranslationRow = ({
                       end: e.target.selectionEnd,
                     };
                   }
-                  // Enter, Tab and Escape already handled the popup on keydown; refreshing here would reopen it.
+                  // Enter confirms the row, Tab accepts a hint and Escape closes the
+                  // popup on keydown; refreshing here would reopen it.
                   if (!WORD_AUTOCOMPLETE_CLOSING_KEYS.has(e.key)) {
                     refreshWordAutocomplete(e.target);
                   }
