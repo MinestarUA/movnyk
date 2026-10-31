@@ -49,6 +49,7 @@ const THREE_DOTS = /(?<!\.)\.{3}(?!\.)/g;
 const hasThreeDots = (text) => new RegExp(THREE_DOTS.source).test(text);
 
 const HYPHEN_AS_DASH = /(?<=\s)-(?=\s)/g;
+
 const hasHyphenAsDash = (text) => new RegExp(HYPHEN_AS_DASH.source).test(text);
 
 // Typographic characters outside plain ASCII that translators tend to lose.
@@ -235,11 +236,16 @@ export const checkTranslationQA = (original, translated) => {
   // 6. Special characters from the original missing in the translation
   for (const ch of specialCharsOf(origText)) {
     if (!containsSpecialChar(transText, ch)) {
-      issues.push({
+      const issue = {
         id: `missing-special-char-${ch}`,
         message: `Відсутній спецсимвол з оригіналу: «${ch}»`,
         severity: "info",
-      });
+      };
+      // The translator most likely typed a hyphen where the original has a dash.
+      if (DASHES.includes(ch) && hasHyphenAsDash(transText)) {
+        issue.fix = (value) => value.replace(HYPHEN_AS_DASH, "—");
+      }
+      issues.push(issue);
     }
   }
 
