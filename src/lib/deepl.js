@@ -23,8 +23,10 @@ const XML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 const escapeXml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// Protect formatting codes and placeholders by wrapping in XML tags
-// e.g. "Level §a%d / %d" -> "Level <x id='0'>§a</x><x id='1'>%d</x> / <x id='2'>%d</x>"
+// Protect formatting codes and placeholders by replacing them with empty XML tags,
+// e.g. "Level §a%d / %d" -> 'Level <x id="0"/><x id="1"/> / <x id="2"/>'.
+// Empty tags matter: DeepL treats a wrapping tag as markup around words and may
+// stretch it over the translated word next to it, which would then be lost.
 export const shieldTokens = (text) => {
   const tokens = tokenizeString(text);
   const tokenMap = [];
@@ -36,22 +38,28 @@ export const shieldTokens = (text) => {
     } else {
       const id = tokenMap.length;
       tokenMap.push(part.value);
-      shielded += `<x id="${id}">${escapeXml(part.value)}</x>`;
+      shielded += `<x id="${id}"/>`;
     }
   }
 
   return { shielded, tokenMap };
 };
 
+const decodeXmlEntities = (text) =>
+  text.replace(/&(amp|lt|gt|quot|apos);/g, (_, entity) => XML_ENTITIES[entity]);
+
 // Restore shielded tokens from translated XML and decode the entities DeepL returns.
 // A single pass keeps restored token values (e.g. a literal "&amp;") from being decoded twice.
+// DeepL may still return a placeholder as an open/close pair wrapping a translated
+// word; that word is kept after the token instead of being dropped.
 export const unshieldTokens = (text, tokenMap) => {
   return text.replace(
-    /<x id="(\d+)">.*?<\/x>|&(amp|lt|gt|quot|apos);/g,
-    (match, idStr, entity) => {
+    /<x id="(\d+)"\s*(?:\/>|>(.*?)<\/x>)|&(amp|lt|gt|quot|apos);/g,
+    (match, idStr, wrappedText, entity) => {
       if (entity) return XML_ENTITIES[entity];
       const token = tokenMap?.[parseInt(idStr, 10)];
-      return token !== undefined ? token : match;
+      if (token === undefined) return match;
+      return token + decodeXmlEntities(wrappedText ?? "");
     }
   );
 };

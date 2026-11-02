@@ -15,14 +15,11 @@ describe("deepl", () => {
     const original = "Diamond sword: §a%d damage!\\n<player>";
     const { shielded, tokenMap } = shieldTokens(original);
 
-    expect(shielded).toContain('<x id="0">§a</x>');
-    expect(shielded).toContain('<x id="1">%d</x>');
-    expect(shielded).toContain('<x id="2">\\n</x>');
-    expect(shielded).toContain('<x id="3">&lt;player&gt;</x>');
+    expect(shielded).toBe('Diamond sword: <x id="0"/><x id="1"/> damage!<x id="2"/><x id="3"/>');
 
     // Simulate DeepL translating the surrounding text:
     const mockTranslated =
-      'Алмазний меч: <x id="0">§a</x><x id="1">%d</x> шкоди!<x id="2">\\n</x><x id="3">&lt;player&gt;</x>';
+      'Алмазний меч: <x id="0"/><x id="1"/> шкоди!<x id="2"/><x id="3"/>';
     const restored = unshieldTokens(mockTranslated, tokenMap);
 
     expect(restored).toBe("Алмазний меч: §a%d шкоди!\\n<player>");
@@ -38,5 +35,11 @@ describe("deepl", () => {
     expect(unshieldTokens(mockTranslated, tokenMap)).toBe(
       "Утримуйте &o tilde &r key & mine <fast>"
     );
+  });
+
+  it("keeps a translated word that DeepL wrapped inside a placeholder tag", () => {
+    const { tokenMap } = shieldTokens("§aSpeed Boost");
+    const mockTranslated = '<x id="0">Прискорення</x> &amp; швидкості';
+    expect(unshieldTokens(mockTranslated, tokenMap)).toBe("§aПрискорення & швидкості");
   });
 });
