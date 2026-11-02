@@ -8,14 +8,15 @@
 // 1. Minecraft color/format code: §[0-9a-fk-orA-FK-OR] or &[0-9a-fk-orA-FK-OR]
 // 2. Escape sequences: \n, \r, \t, \\, \"
 // 3. Positional printf specifiers: %1$s, %2$d, etc.
-// 4. Standard printf specifiers: %s, %d, %f, %.2f, %10s, etc.
+// 4. Standard printf specifiers: %s, %d, %f, %.2f, %10s, etc. The space flag
+//    is omitted: "35% Fall" would otherwise read "% F" as a specifier.
 // 5. Named/indexed braces: {0}, {1}, {name}, {{name}}
 // 6. Percent variables: %variable%, %(key)s
 // 7. Bracketed placeholders: <player>, [count]
 // 8. Patchouli codes: $(...) up to the first ")" on the same line. Arguments such
 //    as tooltips or commands may contain spaces, so the body is not restricted.
 const TOKEN_PATTERN =
-  /(?:(?:§|&)[0-9a-fk-orA-FK-OR])|(?:\\[nrt\\"])|(?:%[0-9]+\$[a-zA-Z])|(?:%[-+0 #]*\d*(?:\.\d+)?[a-zA-Z%])|(?:\{\{\s*[\w.-]+\s*\}\})|(?:\{[\w.-]+\})|(?:%\([\w.-]+\)[a-zA-Z])|(?:%[\w.-]+%)|(?:<[\w.-]+>)|(?:\[[\w.-]+\])|(?:\$\([^)\n]*\))/g;
+  /(?:(?:§|&)[0-9a-fk-orA-FK-OR])|(?:\\[nrt\\"])|(?:%[0-9]+\$[a-zA-Z])|(?:%[-+0#]*\d*(?:\.\d+)?[a-zA-Z%])|(?:\{\{\s*[\w.-]+\s*\}\})|(?:\{[\w.-]+\})|(?:%\([\w.-]+\)[a-zA-Z])|(?:%[\w.-]+%)|(?:<[\w.-]+>)|(?:\[[\w.-]+\])|(?:\$\([^)\n]*\))/g;
 
 export const classifyToken = (token) => {
   if (/^(?:§|&)[0-9a-fk-orA-FK-OR]$/.test(token)) {

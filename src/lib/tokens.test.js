@@ -64,4 +64,8 @@ describe("tokens", () => {
   it("does not treat a lone dollar sign as a Patchouli code", () => {
     expect(extractTokens("Costs $5 (cheap)")).toEqual([]);
   });
+
+  it("does not treat a percent sign followed by a space and word as a specifier", () => {
+    expect(extractTokens("-35% Fall Damage, 50% speed")).toEqual([]);
+  });
 });
