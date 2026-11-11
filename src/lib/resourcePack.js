@@ -15,6 +15,7 @@ export const RESOURCE_PACK_FORMATS = [
   ["26.1", "26.1.2", 84], ["26.2", "26.2", 88], ["26.3", "26.3", [97, 1]],
 ];
 export const DEFAULT_MC_VERSION = "1.20.1";
+export const DEFAULT_LANGUAGE = "uk_ua";
 
 // Numeric, not lexicographic: "1.21.10" > "1.21.9"; "1.20" == "1.20.0".
 const compareVersions = (a, b) => {
@@ -90,7 +91,7 @@ export const guessNamespace = (source, keys) => {
 export const defaultPack = (sessionName, keys) => ({
   namespace: guessNamespace(sessionName, keys),
   mcVersion: DEFAULT_MC_VERSION,
-  language: "uk_ua",
+  language: DEFAULT_LANGUAGE,
 });
 
 export const packTitle = (sessionName) => sessionName.split(" · ")[0].replace(/\.(jar|json)$/i, "");
