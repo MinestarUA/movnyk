@@ -11,6 +11,9 @@ export const parseBookKey = (key) => {
   return { path: key.slice(BOOK_KEY_PREFIX.length, hash), pointer: key.slice(hash + 1) };
 };
 
+export const bookFormatOf = (key) =>
+  isBookKey(key) ? (parseBookKey(key).path.endsWith(".md") ? "guideme" : "patchouli") : null;
+
 const CATEGORY_FIELDS = ["name", "description"];
 const ENTRY_FIELDS = ["name"];
 const PAGE_FIELDS = ["title", "text", "name", "link_text"];

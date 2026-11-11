@@ -39,7 +39,7 @@ import { checkTranslationQA } from "../lib/qa";
 import { extractTokens } from "../lib/tokens";
 import { buildWordAutocompleteWords } from "../lib/wordAutocomplete";
 import { activeSyntaxIds, detectSyntaxExtensions, getSyntax } from "../lib/syntaxExtensions";
-import { rowInScope } from "../lib/patchouli";
+import { bookFormatOf, isBookKey, rowInScope } from "../lib/patchouli";
 
 // Text the user has selected: inside a text field it is the field's selection,
 // elsewhere the page selection. Trimmed, empty string when nothing is selected.
@@ -92,16 +92,28 @@ const EditorScreen = ({
   );
   const openedTranslationsRef = useRef(translations);
 
-  // Detected from the current originals, so applying a new original re-detects.
+  // Detected from the current lang originals, so applying a new original re-detects.
   const [detectedSyntaxIds, setDetectedSyntaxIds] = useState(() =>
-    detectSyntaxExtensions(Object.fromEntries(translations.map((t) => [t.key, t.original])))
+    detectSyntaxExtensions(
+      Object.fromEntries(translations.filter((t) => !isBookKey(t.key)).map((t) => [t.key, t.original]))
+    )
   );
   const books = session.books ?? [];
-  // Book text is always Patchouli markup, whatever the settings or detection say.
-  const baseSyntaxIds = activeSyntaxIds(settings, detectedSyntaxIds);
-  const syntax = getSyntax(
-    books.length > 0 && !baseSyntaxIds.includes("patchouli") ? [...baseSyntaxIds, "patchouli"] : baseSyntaxIds
+  // Book text is always the markup of its format, whatever the settings or
+  // detection say; lang rows follow the settings.
+  const langSyntaxIds = activeSyntaxIds(settings, detectedSyntaxIds);
+  const langSyntax = getSyntax(langSyntaxIds);
+  const syntaxFor = useCallback(
+    (key) => {
+      const format = bookFormatOf(key);
+      return format ? getSyntax([format]) : langSyntax;
+    },
+    [langSyntax]
   );
+  const wordSyntax = useMemo(() => {
+    const bookFormats = translations.map((t) => bookFormatOf(t.key)).filter(Boolean);
+    return getSyntax([...new Set([...langSyntax.extensions.map(({ id }) => id), ...bookFormats])]);
+  }, [translations, langSyntax]);
 
   const [query, setQuery] = useState("");
   // { key, text }: the row whose QA warning details Alt+Q has opened, and the text they were opened for.
@@ -125,8 +137,8 @@ const EditorScreen = ({
   const [suggestingKey, setSuggestingKey] = useState(null);
   const wordAutocompleteEnabled = settings.wordAutocompleteEnabled !== false;
   const wordAutocompleteWords = useMemo(
-    () => (wordAutocompleteEnabled ? buildWordAutocompleteWords(translations, syntax) : []),
-    [translations, wordAutocompleteEnabled, syntax]
+    () => (wordAutocompleteEnabled ? buildWordAutocompleteWords(translations, wordSyntax) : []),
+    [translations, wordAutocompleteEnabled, wordSyntax]
   );
 
   const duplicateCounts = useMemo(() => {
@@ -333,7 +345,7 @@ const EditorScreen = ({
           selStart,
           selEnd,
           caseAction,
-          syntax
+          syntaxFor(activeItem.key)
         );
         cursorPositionRef.current = {
           key: activeItem.key,
@@ -365,7 +377,7 @@ const EditorScreen = ({
         e.preventDefault();
         const item = activeItem;
         if (!item || settings.qaChecksEnabled === false) return;
-        const issues = checkTranslationQA(item.original, item.translated, syntax);
+        const issues = checkTranslationQA(item.original, item.translated, syntaxFor(item.key));
         if (issues.length === 0) return;
         if (!qaDetailsVisible) {
           setQaDetails({ key: item.key, text: item.translated });
@@ -392,7 +404,7 @@ const EditorScreen = ({
       if (tokenIndex !== null && isTranslationField) {
         e.preventDefault();
         const item = filtered.find((row) => row.key === active.dataset.key);
-        const token = item && extractTokens(item.original, syntax)[tokenIndex - 1];
+        const token = item && extractTokens(item.original, syntaxFor(item.key))[tokenIndex - 1];
         if (!token) return;
         const next = active.value.slice(0, active.selectionStart) + token.value + active.value.slice(active.selectionEnd);
         const caret = active.selectionStart + token.value.length;
@@ -612,7 +624,7 @@ const EditorScreen = ({
     settings.syncIdenticalTranslations,
     settings.unconfirmOnEdit,
     settings.qaChecksEnabled,
-    syntax,
+    syntaxFor,
     referenceDrawerOpen,
     activeItem,
     qaDetailsVisible,
@@ -670,7 +682,7 @@ const EditorScreen = ({
       }
       setSuggestingKey(item.key);
       try {
-        const suggestion = await translateSingle(item.original, settings, { syntax });
+        const suggestion = await translateSingle(item.original, settings, { syntax: syntaxFor(item.key) });
         if (suggestion) {
           handleTranslationChange(item.originalIndex, suggestion);
           toast("Переклад застосовано!", "success");
@@ -681,7 +693,7 @@ const EditorScreen = ({
         setSuggestingKey(null);
       }
     },
-    [settings, syntax, toast, handleTranslationChange]
+    [settings, syntaxFor, toast, handleTranslationChange]
   );
 
   const handleNavigateFromDrawer = useCallback((key) => {
@@ -834,21 +846,30 @@ const EditorScreen = ({
       return;
     }
 
+    // Each syntax needs its own prompt hints, so targets go out in one run per syntax.
+    const groups = Map.groupBy(targets, ({ key }) => syntaxFor(key));
+
     const controller = new AbortController();
     abortRef.current = controller;
     setAiState({ running: true, done: 0, total: targets.length });
 
     try {
-      const { failed, hadErrors } = await translateAll(targets, settings, {
-        signal: controller.signal,
-        syntax,
-        onBatch: (result, batch) => {
-          // Fill only rows that are still empty, so manual edits made while the
-          // run is in flight are never overwritten.
-          setTranslations((prev) => applyAutoTranslations(prev, result));
-          setAiState((s) => ({ ...s, done: Math.min(s.done + batch.length, s.total) }));
-        },
-      });
+      let failed = 0;
+      let hadErrors = false;
+      for (const [syntax, group] of groups) {
+        const result = await translateAll(group, settings, {
+          signal: controller.signal,
+          syntax,
+          onBatch: (batchResult, batch) => {
+            // Fill only rows that are still empty, so manual edits made while the
+            // run is in flight are never overwritten.
+            setTranslations((prev) => applyAutoTranslations(prev, batchResult));
+            setAiState((s) => ({ ...s, done: Math.min(s.done + batch.length, s.total) }));
+          },
+        });
+        failed += result.failed;
+        hadErrors ||= result.hadErrors;
+      }
 
       if (hadErrors) {
         toast(`Переклад завершено, але деякі рядки не вдалося обробити (${failed}).`, "warning");
@@ -866,7 +887,7 @@ const EditorScreen = ({
       abortRef.current = null;
       setAiState((s) => ({ ...s, running: false }));
     }
-  }, [translations, settings, syntax, toast]);
+  }, [translations, settings, syntaxFor, toast]);
 
   // Only the selected row differs from the collapsed height, so row heights are
   // derived from the selection during render. Offsets then move in the same
@@ -1353,7 +1374,7 @@ const EditorScreen = ({
                   selectedKey: activeKey,
                   qaDetailsVisible,
                   queryRe,
-                  syntax,
+                  syntaxFor,
                   qaEnabled: settings.qaChecksEnabled !== false,
                   wordAutocompleteEnabled,
                   wordAutocompleteWords,
@@ -1444,7 +1465,7 @@ const Row = ({
   selectedKey,
   qaDetailsVisible,
   queryRe,
-  syntax,
+  syntaxFor,
   qaEnabled,
   wordAutocompleteEnabled,
   wordAutocompleteWords,
@@ -1476,7 +1497,7 @@ const Row = ({
       isSelected={isSelected}
       showQaDetails={isSelected && qaDetailsVisible}
       queryRe={queryRe}
-      syntax={syntax}
+      syntax={syntaxFor(item.key)}
       qaEnabled={qaEnabled}
       wordAutocompleteEnabled={wordAutocompleteEnabled}
       wordAutocompleteWords={wordAutocompleteWords}
