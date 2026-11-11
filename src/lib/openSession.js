@@ -1,4 +1,5 @@
 import { applyNewOriginal } from "./originalUpdate";
+import { rebindBookRows } from "./bookRebind";
 import { extractPatchouliUnits, isBookKey } from "./patchouli";
 import { findResumableSession } from "./sessions";
 
@@ -8,15 +9,12 @@ import { findResumableSession } from "./sessions";
 const extractBooks = (books, bookJson, guideUnits, langKeys) =>
   books
     .map((book) => {
-      const rows = {};
-      for (const path of book.files) {
-        const units =
-          book.format === "guideme" ? guideUnits[path] : extractPatchouliUnits(path, bookJson[path], langKeys);
-        for (const { key, original } of units) rows[key] = original;
-      }
-      return { book, rows };
+      const units = book.files.flatMap((path) =>
+        book.format === "guideme" ? guideUnits[path] : extractPatchouliUnits(path, bookJson[path], langKeys)
+      );
+      return { book, units };
     })
-    .filter(({ rows }) => Object.keys(rows).length > 0);
+    .filter(({ units }) => units.length > 0);
 
 const sumStats = (a, b) => Object.fromEntries(Object.keys(a).map((name) => [name, a[name] + b[name]]));
 
@@ -39,23 +37,24 @@ export const openSessionRows = ({
   guideUnits = {},
 }) => {
   const extracted = extractBooks(books, bookJson, guideUnits, new Set(Object.keys(content)));
-  const bookContent = Object.assign({}, ...extracted.map(({ rows }) => rows));
+  const newBookUnits = extracted.flatMap(({ units }) => units);
+  const bookContent = Object.fromEntries(newBookUnits.map(({ key, original }) => [key, original]));
   const overlapSource = Object.keys(content).length > 0 ? content : bookContent;
   const existing = resumable ? findResumableSession(savedSessions, name, overlapSource) : null;
   const saved = existing?.translations ?? [];
 
   const lang = applyNewOriginal(saved.filter((row) => !isBookKey(row.key)), content);
-  const book = applyNewOriginal(saved.filter((row) => isBookKey(row.key)), bookContent);
+  const book = rebindBookRows(saved.filter((row) => isBookKey(row.key)), newBookUnits);
 
   return {
     existing,
     next: [...lang.next, ...book.next],
     removed: [...lang.removed, ...book.removed],
     stats: sumStats(lang.stats, book.stats),
-    books: extracted.map(({ book: { root, id, nameKey }, rows }) => ({
+    books: extracted.map(({ book: { root, id, nameKey }, units }) => ({
       root,
       name: String(content[nameKey] ?? nameKey ?? id),
-      rowCount: Object.keys(rows).length,
+      rowCount: units.length,
     })),
   };
 };

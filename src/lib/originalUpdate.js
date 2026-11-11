@@ -14,7 +14,7 @@
 
 import { isBookKey } from "./patchouli";
 
-const uniqueByText = (items, getText) => {
+export const uniqueByText = (items, getText) => {
   const groups = new Map();
   for (const item of items) {
     const text = getText(item);
