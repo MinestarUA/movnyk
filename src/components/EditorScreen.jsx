@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import JSZip from "jszip";
 import { List } from "react-window";
 import TranslationRow, { ROW_COLLAPSED, ROW_EXPANDED } from "./TranslationRow";
 import Sidebar from "./Sidebar";
@@ -10,6 +11,7 @@ import { useToast } from "./Toast";
 import { loadSettings, saveSettings, hasApiKey, buildSearchPrompt } from "../lib/settings";
 import { translateAll, translateSingle } from "../lib/ai";
 import { mergeLangFile } from "../lib/importing";
+import { collectTranslationFiles, translationsFromArchive } from "../lib/translationArchive";
 import { saveSession } from "../lib/sessions";
 import { levelForProgress } from "../lib/rewards";
 import { useLevelUps } from "../lib/useLevelUps";
@@ -778,6 +780,17 @@ const EditorScreen = ({
     return { applied, skipped };
   };
 
+  const handleLoadArchive = async (file) => {
+    const zip = await JSZip.loadAsync(file);
+    const language = session.pack.language;
+    const paths = collectTranslationFiles(Object.keys(zip.files), language);
+    const files = Object.fromEntries(
+      await Promise.all(paths.map(async (path) => [path, await zip.file(path).async("string")]))
+    );
+    const { values, skippedPageCount } = await translationsFromArchive({ files, language, rows: translations });
+    return { ...handleLoadLangFile(values), skippedPageCount };
+  };
+
   const handleApplyNewOriginal = (newOriginal) => {
     const { next, removed, stats } = applyNewLangOriginal(translations, newOriginal);
     const nextKeys = new Set(Object.keys(newOriginal));
@@ -1418,6 +1431,7 @@ const EditorScreen = ({
           onExportResourcePack={() => onExportResourcePack(translations)}
           onExportClipboard={() => onExportClipboard(translations)}
           onLoadLang={handleLoadLangFile}
+          onLoadArchive={handleLoadArchive}
           onApplyNewOriginal={handleApplyNewOriginal}
           skipApproved={settings.skipApprovedImport !== false}
           onSkipApprovedChange={handleSkipApprovedChange}

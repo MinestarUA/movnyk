@@ -12,6 +12,7 @@ const Sidebar = ({
   onExportResourcePack,
   onExportClipboard,
   onLoadLang,
+  onLoadArchive,
   onApplyNewOriginal,
   skipApproved,
   onSkipApprovedChange,
@@ -32,25 +33,41 @@ const Sidebar = ({
     fileInputRef.current?.click();
   };
 
+  const toastLoadResult = ({ applied, skipped }, extra = "") => {
+    if (applied > 0) {
+      toast(`Застосовано перекладів: ${applied}.` + (skipped > 0 ? ` Пропущено: ${skipped}.` : "") + extra, "success");
+    } else if (skipped > 0) {
+      toast("Усі збіги пропущено." + extra, "warning");
+    } else {
+      toast("Жоден ключ із цього файлу не збігся з поточним проєктом." + extra, "warning");
+    }
+  };
+
+  const handleArchive = async (file) => {
+    let result;
+    try {
+      result = await onLoadArchive(file);
+    } catch (error) {
+      console.error("Error reading archive:", error);
+      toast("Не вдалося прочитати архів. Можливо, він пошкоджений.", "error");
+      return;
+    }
+    const { skippedPageCount } = result;
+    toastLoadResult(
+      result,
+      skippedPageCount > 0 ? ` Сторінок посібника з іншою структурою пропущено: ${skippedPageCount}.` : ""
+    );
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
+    if (file && /\.(zip|jar)$/i.test(file.name)) {
+      handleArchive(file);
+    } else if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
         try {
-          const content = parseLangContent(event.target.result);
-          const { applied, skipped } = onLoadLang(content);
-          if (applied > 0) {
-            toast(
-              `Застосовано перекладів: ${applied}.` +
-                (skipped > 0 ? ` Пропущено: ${skipped}.` : ""),
-              "success"
-            );
-          } else if (skipped > 0) {
-            toast("Усі збіги пропущено.", "warning");
-          } else {
-            toast("Жоден ключ із цього файлу не збігся з поточним проєктом.", "warning");
-          }
+          toastLoadResult(onLoadLang(parseLangContent(event.target.result)));
         } catch (error) {
           console.error("Error parsing lang file:", error);
           toast("Не вдалося обробити файл. Переконайтеся, що це коректний JSON або .lang файл.", "error");
@@ -302,7 +319,7 @@ const Sidebar = ({
 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <div style={sectionLabelStyle}>Імпорт</div>
-          <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept=".json,.lang" />
+          <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept=".json,.lang,.zip,.jar" />
           <button style={importBtnStyle} onClick={handleLoadClick} disabled={running}>
             <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 3v12" />
