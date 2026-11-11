@@ -5,27 +5,48 @@ import EditorScreen from "./components/EditorScreen";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useToast } from "./components/Toast";
-import { loadAutosave } from "./lib/autosave";
+import { deleteSession, loadSessions, newSessionId, sessionIdForName } from "./lib/sessions";
+import { applyNewOriginal } from "./lib/originalUpdate";
 import { createTranslationObject } from "./lib/exporting";
+
+const CLIPBOARD_SESSION_NAME = "З буфера обміну";
 
 const App = () => {
   const [screen, setScreen] = useState("welcome"); // welcome, lang-selection, editor
   const [langFiles, setLangFiles] = useState([]);
+  const [jarName, setJarName] = useState("");
   const [template, setTemplate] = useState(null);
-  const [autosave] = useState(() => loadAutosave());
+  const [sessions, setSessions] = useState(() => loadSessions());
+  const [session, setSession] = useState(null); // { id, name } of the open editor
   const [initialTranslations, setInitialTranslations] = useState(null);
   const toast = useToast();
 
-  const openEditor = (content) => {
-    setInitialTranslations(null);
+  // Reopening a file that already has a session keeps its progress: the saved
+  // rows are re-bound to the freshly loaded original, which is a no-op when
+  // the file has not changed.
+  const openEditor = (content, name, id = sessionIdForName(name)) => {
+    const existing = loadSessions().find((saved) => saved.id === id);
+    setSession({ id, name });
+    setInitialTranslations(existing ? applyNewOriginal(existing.translations, content).next : null);
     setTemplate(content);
     setScreen("editor");
   };
 
-  const handleResume = () => {
-    setTemplate(autosave.template);
-    setInitialTranslations(autosave.translations);
+  const handleResume = (saved) => {
+    setSession({ id: saved.id, name: saved.name });
+    setInitialTranslations(saved.translations);
+    setTemplate(saved.template);
     setScreen("editor");
+  };
+
+  const handleDeleteSession = (id) => {
+    deleteSession(id);
+    setSessions(loadSessions());
+  };
+
+  const handleHome = () => {
+    setSessions(loadSessions());
+    setScreen("welcome");
   };
 
   const handleFileDrop = async (file) => {
@@ -36,7 +57,7 @@ const App = () => {
       reader.onload = (e) => {
         try {
           const content = JSON.parse(e.target.result);
-          openEditor(content);
+          openEditor(content, file.name);
         } catch (error) {
           console.error("Error parsing JSON file:", error);
           toast("Не вдалося обробити файл JSON. Переконайтеся, що це коректний lang-файл.", "error");
@@ -70,8 +91,9 @@ const App = () => {
         if (foundFiles.length === 0) {
           toast("У цьому файлі .jar не знайдено мовних файлів.", "warning");
         } else if (foundFiles.length === 1) {
-          openEditor(foundFiles[0].content);
+          openEditor(foundFiles[0].content, `${file.name} · ${foundFiles[0].name}`);
         } else {
+          setJarName(file.name);
           setLangFiles(foundFiles);
           setScreen("lang-selection");
         }
@@ -84,8 +106,8 @@ const App = () => {
     }
   };
 
-  const handleLangSelect = (selectedContent) => {
-    openEditor(selectedContent);
+  const handleLangSelect = (langFile) => {
+    openEditor(langFile.content, `${jarName} · ${langFile.name}`);
   };
 
 
@@ -147,7 +169,7 @@ const App = () => {
         toast("Вміст буфера обміну не є коректним lang-файлом JSON.", "error");
         return;
       }
-      openEditor(content);
+      openEditor(content, CLIPBOARD_SESSION_NAME, newSessionId());
     } catch (error) {
       console.error("Error parsing clipboard JSON:", error);
       toast("Не вдалося обробити вміст буфера обміну. Переконайтеся, що це коректний JSON.", "error");
@@ -189,10 +211,11 @@ const App = () => {
           <EditorScreen
             template={template}
             initialTranslations={initialTranslations}
+            session={session}
             onExportJson={handleExportJson}
             onExportResourcePack={handleExportResourcePack}
             onExportClipboard={handleExportClipboard}
-            onHome={() => setScreen("welcome")}
+            onHome={handleHome}
           />
         ) : null; // Or a loading spinner
       case "welcome":
@@ -201,8 +224,9 @@ const App = () => {
           <WelcomeScreen
             onFileDrop={handleFileDrop}
             onPasteClipboard={handlePasteClipboard}
-            autosave={autosave}
+            sessions={sessions}
             onResume={handleResume}
+            onDeleteSession={handleDeleteSession}
           />
         );
     }

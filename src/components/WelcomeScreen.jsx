@@ -16,9 +16,15 @@ const FEATURES = [
   },
 ];
 
-const WelcomeScreen = ({ onFileDrop, onPasteClipboard, autosave, onResume }) => {
+const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDeleteSession }) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
+
+  const handleDeleteSession = (session) => {
+    if (window.confirm(`Видалити сесію «${session.name}»? Цю дію не можна скасувати.`)) {
+      onDeleteSession(session.id);
+    }
+  };
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -113,21 +119,60 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, autosave, onResume }) => 
             Вставити JSON з буфера обміну
           </button>
         </div>
-        {autosave && (
-          <div className="mt-6 flex items-center justify-between gap-4 rounded-[10px] border-2 border-primary/40 bg-base-200 p-4 text-left animate-fade-in">
-            <div>
-              <p className="m-0 font-semibold">Є незавершена сесія</p>
-              <p className="m-0 mt-1 text-sm text-base-content/60">
-                Затверджено{" "}
-                {autosave.translations.filter((t) => t.confirmed && isTranslatable(t)).length} /{" "}
-                {autosave.translations.filter(isTranslatable).length} · збережено{" "}
-                {new Date(autosave.savedAt).toLocaleString("uk-UA")}
-              </p>
-            </div>
-            <button type="button" className="btn btn-primary btn-sm" onClick={onResume}>
-              Продовжити
-            </button>
-          </div>
+        {sessions.length > 0 && (
+          <section className="mt-6 text-left animate-fade-in">
+            <h2 className="m-0 mb-3 text-lg font-semibold">Нещодавні сесії</h2>
+            <ul className="m-0 flex list-none flex-col gap-3 p-0">
+              {sessions.map((session) => (
+                <li
+                  key={session.id}
+                  className="flex items-center justify-between gap-4 rounded-[10px] border-2 border-primary/40 bg-base-200 p-4"
+                >
+                  <div className="min-w-0">
+                    <p className="m-0 truncate font-semibold">{session.name}</p>
+                    <p className="m-0 mt-1 text-sm text-base-content/60">
+                      Затверджено{" "}
+                      {session.translations.filter((t) => t.confirmed && isTranslatable(t)).length} /{" "}
+                      {session.translations.filter(isTranslatable).length} · збережено{" "}
+                      {new Date(session.savedAt).toLocaleString("uk-UA")}
+                    </p>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => onResume(session)}
+                    >
+                      Продовжити
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm btn-square text-base-content/60 hover:text-error"
+                      aria-label={`Видалити сесію «${session.name}»`}
+                      title="Видалити"
+                      onClick={() => handleDeleteSession(session)}
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.8}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <path d="M10 11v6M14 11v6" />
+                      </svg>
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
         <div className="flex justify-around mt-12 gap-6 flex-wrap">
           {FEATURES.map((feature, index) => (

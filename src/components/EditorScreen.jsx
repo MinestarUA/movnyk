@@ -10,7 +10,7 @@ import { useToast } from "./Toast";
 import { loadSettings, saveSettings, hasApiKey, buildSearchPrompt } from "../lib/settings";
 import { translateAll, translateSingle } from "../lib/ai";
 import { mergeLangFile } from "../lib/importing";
-import { saveAutosave } from "../lib/autosave";
+import { saveSession } from "../lib/sessions";
 import { levelForProgress } from "../lib/rewards";
 import { useLevelUps } from "../lib/useLevelUps";
 import { GOOSE_MIN_LEVEL, useGooseEvent } from "../lib/useGooseEvent";
@@ -65,7 +65,7 @@ const COLUMN_HEADER_STYLE = {
 
 const GRID_COLUMNS_HEADER = "26px minmax(240px,1.3fr) minmax(240px,1.4fr) 140px";
 
-const EditorScreen = ({ template, initialTranslations, onExportJson, onExportResourcePack, onExportClipboard, onHome }) => {
+const EditorScreen = ({ template, initialTranslations, session, onExportJson, onExportResourcePack, onExportClipboard, onHome }) => {
   const toast = useToast();
   const [settings, setSettings] = useState(() => loadSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -244,19 +244,19 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     qaDetails && activeItem && qaDetails.key === activeItem.key && qaDetails.text === activeItem.translated
   );
 
-  // Persist progress to the single autosave slot, debounced so rapid typing
+  // Persist progress to this session's slot, debounced so rapid typing
   // does not hammer localStorage.
   const quotaWarnedRef = useRef(false);
   useEffect(() => {
     const id = setTimeout(() => {
-      const ok = saveAutosave({ template, translations });
+      const ok = saveSession({ id: session.id, name: session.name, template, translations });
       if (!ok && !quotaWarnedRef.current) {
         quotaWarnedRef.current = true;
         toast("Не вдалося зберегти сесію: вичерпано сховище браузера.", "warning");
       }
     }, 400);
     return () => clearTimeout(id);
-  }, [template, translations, toast]);
+  }, [session, template, translations, toast]);
 
   // Scroll the selected row into view.
   useEffect(() => {
