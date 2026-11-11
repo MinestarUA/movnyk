@@ -12,6 +12,16 @@
   },
   "dependencies": {
     "jszip": "3.10.1",
+    "mdast-util-from-markdown": "2.1.0",
+    "mdast-util-frontmatter": "2.0.1",
+    "mdast-util-gfm-strikethrough": "2.0.1",
+    "mdast-util-gfm-table": "2.0.0",
+    "mdast-util-mdx-jsx": "3.2.0",
+    "micromark-extension-frontmatter": "2.0.0",
+    "micromark-extension-gfm-strikethrough": "2.1.0",
+    "micromark-extension-gfm-table": "2.1.2",
+    "micromark-extension-mdx-jsx": "3.0.2",
+    "micromark-extension-mdx-md": "2.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-window": "2.2.2"
@@ -32,6 +42,9 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "postcss": "8.5.28"
+    "markdown-table": "3.0.4",
+    "mdast-util-to-markdown": "2.2.1",
+    "postcss": "8.5.28",
+    "vfile-message": "4.0.3"
   }
 }
