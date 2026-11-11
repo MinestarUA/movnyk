@@ -47,4 +47,25 @@ describe("openSessionRows", () => {
     expect(again.removed).toEqual([]);
     expect(again.stats).toEqual({ unchanged: edited.length, changed: 0, renamed: 0, added: 0, removed: 0 });
   });
+
+  it("keeps every row unchanged when the same GuideME guide is opened again", () => {
+    const page = "assets/ae2/ae2guide/index.md";
+    const options = {
+      name: NAME,
+      content: {},
+      books: [{ root: "assets/ae2/ae2guide", id: "ae2:ae2guide", format: "guideme", files: [page] }],
+      guideUnits: {
+        [page]: [
+          { key: `book:${page}#title`, original: "Guide" },
+          { key: `book:${page}#0`, original: "Hello" },
+        ],
+      },
+    };
+    const first = openSessionRows({ savedSessions: [], ...options });
+    const edited = first.next.map((r) => ({ ...r, translated: `T ${r.original}`, confirmed: true }));
+    const again = openSessionRows({ savedSessions: saved(edited), ...options });
+    expect(again.next).toEqual(edited);
+    expect(again.stats).toEqual({ unchanged: 2, changed: 0, renamed: 0, added: 0, removed: 0 });
+    expect(again.books).toEqual([{ root: "assets/ae2/ae2guide", name: "ae2:ae2guide", rowCount: 2 }]);
+  });
 });

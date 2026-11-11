@@ -99,10 +99,17 @@ const FIELD_WORDS = {
   link_text: "текст посилання",
 };
 
+const guidePageLabel = (path, ordinal) => {
+  const page = path.replace(/^assets\/[^/]+\/[^/]+\//, "").replace(/\.md$/, "");
+  return `${page} · ${ordinal === "title" ? "заголовок у навігації" : `блок ${Number(ordinal) + 1}`}`;
+};
+
 // "book:assets/a/patchouli_books/b/en_us/entries/x/y.json#/pages/2/text" → "entries/x/y · с. 3 · текст"
+// "book:assets/a/guide/x/y.md#7" → "x/y · блок 8"
 // bookName, when given, is prefixed so rows of several books stay apart.
 export const bookRowLabel = (key, bookName) => {
   const { path, pointer } = parseBookKey(key);
+  if (path.endsWith(".md")) return [bookName, guidePageLabel(path, pointer)].filter(Boolean).join(" · ");
   const file = path.replace(/^.*?\/en_us\//, "").replace(/\.json$/, "");
   const [, first, second, third] = pointer.split("/");
   const field =

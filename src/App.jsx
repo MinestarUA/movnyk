@@ -27,7 +27,7 @@ const App = () => {
   const [langFiles, setLangFiles] = useState([]);
   const [sessions, setSessions] = useState(() => loadSessions());
   const [session, setSession] = useState(null); // { id, name, pack, books } of the open editor
-  const [jar, setJar] = useState(null); // { mcVersion, books, bookFiles, bookJson } of a jar waiting for a lang file choice
+  const [jar, setJar] = useState(null); // { mcVersion, books, bookFiles, bookJson, guideUnits } of a jar waiting for a lang file choice
   const [bookSources, setBookSources] = useState(null); // raw book files of the open session; null when unavailable
   const [packExport, setPackExport] = useState(null); // { translations, sources, summary } while the export dialog is open
   const [initialTranslations, setInitialTranslations] = useState(null);
@@ -41,7 +41,7 @@ const App = () => {
   const openEditor = (
     content,
     name,
-    { resumable = true, mcVersion = null, books = [], bookFiles = null, bookJson = {} } = {}
+    { resumable = true, mcVersion = null, books = [], bookFiles = null, bookJson = {}, guideUnits = {} } = {}
   ) => {
     const {
       existing,
@@ -49,7 +49,15 @@ const App = () => {
       removed,
       stats,
       books: sessionBooks,
-    } = openSessionRows({ savedSessions: loadSessions(), name, content, resumable, books, bookJson });
+    } = openSessionRows({
+      savedSessions: loadSessions(),
+      name,
+      content,
+      resumable,
+      books,
+      bookJson,
+      guideUnits,
+    });
     const changedCount = stats.changed + stats.renamed + stats.added + stats.removed;
     if (existing && changedCount > 0) toast(describeOriginalUpdate(stats), "success");
     // A version inferred from the jar wins over the remembered one.
@@ -71,7 +79,7 @@ const App = () => {
         }
       });
       const summary = sessionBooks.map((book) => `«${book.name}» (рядків: ${book.rowCount})`).join(", ");
-      toast(`Додано книги Patchouli: ${summary}.`, "success");
+      toast(`Додано книги: ${summary}.`, "success");
     }
     setInitialTranslations(next);
     setInitialRemovedRows(removed);
@@ -122,12 +130,25 @@ const App = () => {
       reader.readAsText(file);
     } else if (file.name.endsWith(".jar")) {
       try {
-        const { langFiles: foundFiles, mcVersion, books, unsupportedBooks, bookFiles, bookJson } = await readJar(file);
+        const {
+          langFiles: foundFiles,
+          mcVersion,
+          books,
+          unsupportedBooks,
+          bookFiles,
+          bookJson,
+          guideUnits,
+          skippedGuidePages,
+        } = await readJar(file);
         for (const id of unsupportedBooks) {
           toast(
             `Книга «${id}» зберігається в data/ (Minecraft до 1.20), тому ресурспак не може її перекласти.`,
             "info"
           );
+        }
+
+        if (skippedGuidePages > 0) {
+          toast(`Не вдалося розібрати сторінок посібника: ${skippedGuidePages} — їх пропущено.`, "warning");
         }
 
         if (foundFiles.length === 0 && books.length === 0) {
@@ -140,10 +161,11 @@ const App = () => {
             books,
             bookFiles,
             bookJson,
+            guideUnits,
           });
         } else {
           setLangFiles(foundFiles);
-          setJar({ mcVersion, books, bookFiles, bookJson });
+          setJar({ mcVersion, books, bookFiles, bookJson, guideUnits });
           setScreen("lang-selection");
         }
       } catch (error) {

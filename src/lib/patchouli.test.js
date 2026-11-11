@@ -91,6 +91,13 @@ describe("bookRowLabel", () => {
     expect(bookRowLabel(rowKey)).toBe(label);
   });
 
+  it.each([
+    ["a guide block (1-based)", "book:assets/ae2/ae2guide/items-blocks-machines/inscriber.md#7", "items-blocks-machines/inscriber · блок 8"],
+    ["a guide navigation title", "book:assets/ae2/ae2guide/items-blocks-machines/inscriber.md#title", "items-blocks-machines/inscriber · заголовок у навігації"],
+  ])("labels %s", (_name, rowKey, label) => {
+    expect(bookRowLabel(rowKey)).toBe(label);
+  });
+
   it("prefixes the book name when given", () => {
     expect(bookRowLabel(key("entries/x.json", "/name"), "Гід")).toBe("Гід · entries/x · назва");
   });

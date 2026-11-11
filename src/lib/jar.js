@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { findGuideBooks } from "./guideme";
 import { findPatchouliBooks } from "./patchouli";
 import { inferMinecraftVersion } from "./resourcePack";
 
@@ -10,6 +11,10 @@ const parseJson = (text, path) => {
     return null;
   }
 };
+
+// A guide's pages carry navigation metadata in their frontmatter; other
+// Markdown under assets/ (readmes, docs) does not.
+const hasGuideFrontmatter = (text) => /^navigation:/m.test(text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "");
 
 const readText = async (zip, path) => (await zip.file(path)?.async("string")) ?? null;
 
@@ -54,7 +59,27 @@ export const readJar = async (file) => {
     const bookJsonPath = `${book.root.replace(/^assets/, "data")}/book.json`;
     const bookJsonText = await readText(zip, bookJsonPath);
     const nameKey = bookJsonText && parseJson(bookJsonText, bookJsonPath)?.name;
-    books.push({ ...book, files: readableFiles, nameKey });
+    books.push({ ...book, format: "patchouli", files: readableFiles, nameKey });
+  }
+
+  const guideUnits = {};
+  let skippedGuidePages = 0;
+  for (const { files, ...book } of findGuideBooks(Object.keys(zip.files))) {
+    const pages = await Promise.all(files.map(async (path) => [path, await readText(zip, path)]));
+    if (!pages.some(([, text]) => hasGuideFrontmatter(text))) continue;
+    const { extractGuideUnits } = await import("./guidemeMarkdown");
+    const parsedFiles = [];
+    for (const [path, text] of pages) {
+      try {
+        guideUnits[path] = extractGuideUnits(path, text).map(({ key, original }) => ({ key, original }));
+        bookFiles[path] = text;
+        parsedFiles.push(path);
+      } catch (error) {
+        console.warn(`Could not parse ${path}, skipping.`, error);
+        skippedGuidePages += 1;
+      }
+    }
+    if (parsedFiles.length > 0) books.push({ ...book, format: "guideme", files: parsedFiles });
   }
 
   return {
@@ -64,5 +89,7 @@ export const readJar = async (file) => {
     unsupportedBooks,
     bookFiles,
     bookJson,
+    guideUnits,
+    skippedGuidePages,
   };
 };

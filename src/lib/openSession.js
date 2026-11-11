@@ -2,16 +2,17 @@ import { applyNewOriginal } from "./originalUpdate";
 import { extractPatchouliUnits, isBookKey } from "./patchouli";
 import { findResumableSession } from "./sessions";
 
-// Book rows per book that has any text, in file order. Text equal to a lang
-// key is skipped, so the lang keys are passed in.
-const extractBooks = (books, bookJson, langKeys) =>
+// Book rows per book that has any text, in file order. Patchouli text equal to
+// a lang key is skipped, so the lang keys are passed in. GuideME units were
+// already extracted when the jar was read.
+const extractBooks = (books, bookJson, guideUnits, langKeys) =>
   books
     .map((book) => {
       const rows = {};
       for (const path of book.files) {
-        for (const { key, original } of extractPatchouliUnits(path, bookJson[path], langKeys)) {
-          rows[key] = original;
-        }
+        const units =
+          book.format === "guideme" ? guideUnits[path] : extractPatchouliUnits(path, bookJson[path], langKeys);
+        for (const { key, original } of units) rows[key] = original;
       }
       return { book, rows };
     })
@@ -28,8 +29,16 @@ const sumStats = (a, b) => Object.fromEntries(Object.keys(a).map((name) => [name
 // translation onto a book field that happens to read the same. Overlap with a
 // saved session is measured on lang keys, so a large book cannot push an
 // unchanged lang file below the resume threshold.
-export const openSessionRows = ({ savedSessions, name, content, resumable = true, books = [], bookJson = {} }) => {
-  const extracted = extractBooks(books, bookJson, new Set(Object.keys(content)));
+export const openSessionRows = ({
+  savedSessions,
+  name,
+  content,
+  resumable = true,
+  books = [],
+  bookJson = {},
+  guideUnits = {},
+}) => {
+  const extracted = extractBooks(books, bookJson, guideUnits, new Set(Object.keys(content)));
   const bookContent = Object.assign({}, ...extracted.map(({ rows }) => rows));
   const overlapSource = Object.keys(content).length > 0 ? content : bookContent;
   const existing = resumable ? findResumableSession(savedSessions, name, overlapSource) : null;
