@@ -70,6 +70,7 @@ const EditorScreen = ({
   initialTranslations,
   initialRemovedRows = [],
   session,
+  modalOpen = false,
   onExportJson,
   onExportResourcePack,
   onExportClipboard,
@@ -202,8 +203,8 @@ const EditorScreen = ({
     if (!queryRe || queryError) return 0;
     if (!(filterUntranslated || filterUnconfirmed)) return 0;
     if (filtered.some((item) => !item.pinned)) return 0;
-    return translations.filter((t) => itemMatches(t, queryRe)).length;
-  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, filtered]);
+    return translations.filter((t) => rowInScope(t.key, scope) && itemMatches(t, queryRe)).length;
+  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, scope, filtered]);
 
   const untranslatedCount = useMemo(
     () =>
@@ -294,6 +295,8 @@ const EditorScreen = ({
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Dialogs own the keyboard: the editor's shortcuts must not fire behind them.
+      if (modalOpen || settingsOpen) return;
       // The editor listens in the capture phase, before the level-up screen dismisses on Enter.
       if (celebratingLevel && e.key === "Enter") {
         e.preventDefault();
@@ -599,6 +602,8 @@ const EditorScreen = ({
     return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [
     move,
+    modalOpen,
+    settingsOpen,
     celebratingLevel,
     activeKey,
     activeIndex,
@@ -1194,7 +1199,11 @@ const EditorScreen = ({
           </span>
 
           {books.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+            <div
+              role="group"
+              aria-label="Область"
+              style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}
+            >
               {scopeChips.map(({ id, label }) => (
                 <button
                   key={id}
@@ -1362,6 +1371,7 @@ const EditorScreen = ({
                   handleDefinition,
                   handleSuggest,
                   setExpandedRowHeight,
+                  books: scope === "all" && books.length > 1 ? books : null,
                 }}
               />
             </div>
@@ -1452,6 +1462,7 @@ const Row = ({
   handleDefinition,
   handleSuggest,
   setExpandedRowHeight,
+  books,
 }) => {
   const item = filtered[index];
   const isSelected = item.key === selectedKey;
@@ -1461,6 +1472,7 @@ const Row = ({
       rowStyle={style}
       onHeight={setExpandedRowHeight}
       item={item}
+      bookName={books?.find(({ root }) => rowInScope(item.key, root))?.name}
       isSelected={isSelected}
       showQaDetails={isSelected && qaDetailsVisible}
       queryRe={queryRe}

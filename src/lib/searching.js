@@ -2,6 +2,8 @@
 // Supports literal text or regex, case sensitivity, whole-word matching,
 // space-preserving queries by default, and case-preserving replacement.
 
+import { bookRowLabel, isBookKey } from "./patchouli";
+
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const isWordChar = (ch) => /^[\p{L}\p{N}_]$/u.test(ch);
@@ -71,8 +73,9 @@ export const isReferenceSearchShortcut = (e) =>
   !e.altKey &&
   (e.code === "KeyD" || e.key.toLowerCase() === "d");
 
+// A book row's key is a long internal path; its visible label is what users search.
 export const itemMatches = (item, re) =>
-  re.test(item.key) || re.test(String(item.original)) || re.test(item.translated);
+  re.test(isBookKey(item.key) ? bookRowLabel(item.key) : item.key) || re.test(String(item.original)) || re.test(item.translated);
 
 export const translationMatches = (item, re) => re.test(item.translated);
 

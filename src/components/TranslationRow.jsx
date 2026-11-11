@@ -176,6 +176,7 @@ const statusDotStyle = (status) => {
 const TranslationRow = ({
   rowStyle,
   item,
+  bookName,
   isSelected,
   focusRequestRef,
   cursorPositionRef,
@@ -691,7 +692,7 @@ const TranslationRow = ({
             className="truncate select-text hover:text-base-content/70 transition-colors"
             title={item.key}
           >
-            <HighlightedText text={isBookKey(item.key) ? bookRowLabel(item.key) : item.key} queryRe={queryRe} />
+            <HighlightedText text={isBookKey(item.key) ? bookRowLabel(item.key, bookName) : item.key} queryRe={queryRe} />
           </span>
           {expanded && (
             <button

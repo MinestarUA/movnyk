@@ -15,11 +15,10 @@ const ExportPackModal = ({ pack, summary, onConfirm, onClose }) => {
 
   const dialogRef = useRef(null);
 
-  // The dialog opens from a button; closing hands focus back to it.
-  useEffect(() => {
-    const opener = document.activeElement;
-    return () => opener?.focus?.();
-  }, []);
+  // The dialog opens from a button; closing hands focus back to it. Read
+  // during the first render, before autoFocus moves focus into the dialog.
+  const [opener] = useState(() => document.activeElement);
+  useEffect(() => () => opener?.focus?.(), [opener]);
 
   const errors = validatePack({ namespace, language });
   const isValid = Object.keys(errors).length === 0;

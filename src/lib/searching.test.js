@@ -111,6 +111,16 @@ describe("itemMatches", () => {
     expect(itemMatches(item, compileQuery("nope").re)).toBe(false);
   });
 
+  it("matches a book row by its shown label, not its internal path", () => {
+    const bookItem = {
+      key: "book:assets/a/patchouli_books/b/en_us/entries/x/y.json#/name",
+      original: "Entry",
+      translated: "",
+    };
+    expect(itemMatches(bookItem, compileQuery("entries/x/y · назва").re)).toBe(true);
+    expect(itemMatches(bookItem, compileQuery("patchouli_books").re)).toBe(false);
+  });
+
   it("coerces non-string originals", () => {
     const numeric = { key: "a", original: 42, translated: "" };
     expect(itemMatches(numeric, compileQuery("42").re)).toBe(true);

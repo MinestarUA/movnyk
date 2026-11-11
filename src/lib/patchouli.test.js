@@ -90,6 +90,10 @@ describe("bookRowLabel", () => {
   ])("labels %s", (_name, rowKey, label) => {
     expect(bookRowLabel(rowKey)).toBe(label);
   });
+
+  it("prefixes the book name when given", () => {
+    expect(bookRowLabel(key("entries/x.json", "/name"), "Гід")).toBe("Гід · entries/x · назва");
+  });
 });
 
 describe("rowInScope", () => {

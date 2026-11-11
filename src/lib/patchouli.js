@@ -97,10 +97,12 @@ const FIELD_WORDS = {
 };
 
 // "book:assets/a/patchouli_books/b/en_us/entries/x/y.json#/pages/2/text" → "entries/x/y · с. 3 · текст"
-export const bookRowLabel = (key) => {
+// bookName, when given, is prefixed so rows of several books stay apart.
+export const bookRowLabel = (key, bookName) => {
   const { path, pointer } = parseBookKey(key);
   const file = path.replace(/^.*?\/en_us\//, "").replace(/\.json$/, "");
   const [, first, second, third] = pointer.split("/");
-  if (first !== "pages") return `${file} · ${FIELD_WORDS[first] ?? first}`;
-  return `${file} · с. ${Number(second) + 1} · ${FIELD_WORDS[third] ?? third}`;
+  const field =
+    first === "pages" ? `с. ${Number(second) + 1} · ${FIELD_WORDS[third] ?? third}` : (FIELD_WORDS[first] ?? first);
+  return [bookName, file, field].filter(Boolean).join(" · ");
 };
