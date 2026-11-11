@@ -444,7 +444,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
             </span>
           </label>
 
-          {SYNTAX_EXTENSIONS.map((extension) => {
+          {SYNTAX_EXTENSIONS.filter((extension) => !extension.hidden).map((extension) => {
             const enabled = syntaxExtensions[extension.id] === true;
             const autoEnabled = !enabled && syntaxAutoDetect && detectedSyntaxIds.includes(extension.id);
             return (

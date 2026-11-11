@@ -5,7 +5,9 @@
 // An extension is { id, label, description, promptHint, pattern, detect } plus
 // optional styling: `applyStyle(style, code)` for set/reset codes, `toggles`
 // ({ marker: partialStyle }) for paired markers, `colorOf(code)` for chip
-// colours and `isLineBreak(code)`. `pattern` is a regex source with only
+// colours and `isLineBreak(code)`, and an optional `checks(original,
+// translated)` returning extra QA issues. A `hidden` extension is not offered
+// in settings. `pattern` is a regex source with only
 // non-capturing groups, compiled with the "u" flag.
 
 import { compileSyntax, CORE_SYNTAX } from "../tokens";
@@ -13,8 +15,9 @@ import patchouli from "./patchouli";
 import malum from "./malum";
 import create from "./create";
 import modonomicon from "./modonomicon";
+import guideme from "./guideme";
 
-export const SYNTAX_EXTENSIONS = [patchouli, malum, create, modonomicon];
+export const SYNTAX_EXTENSIONS = [patchouli, malum, create, modonomicon, guideme];
 
 export const SYNTAX_EXTENSION_IDS = SYNTAX_EXTENSIONS.map((extension) => extension.id);
 

@@ -150,6 +150,21 @@ describe("Modonomicon", () => {
   });
 });
 
+describe("GuideME", () => {
+  const GUIDEME = getSyntax(["guideme"]);
+
+  it.each([
+    ['Craft a <ItemLink id="crank" />.', ['<ItemLink id="crank" />']],
+    ['<Color id="red">hot</Color>', ['<Color id="red">', "</Color>"]],
+    ["[spatial storage](ae2-mechanics/spatial-io.md)", ["[", "](ae2-mechanics/spatial-io.md)"]],
+    ["2 * 3", []],
+    ["a \\| b", ["\\|"]],
+    ['<GameScene zoom="4" interactive={true}>', ['<GameScene zoom="4" interactive={true}>']],
+  ])("tokenizes %j", (text, expected) => {
+    expect(codesOf(text, GUIDEME)).toEqual(expected);
+  });
+});
+
 describe("detection", () => {
   const many = (count, makeEntry) => Object.fromEntries(Array.from({ length: count }, (_, i) => makeEntry(i)));
 

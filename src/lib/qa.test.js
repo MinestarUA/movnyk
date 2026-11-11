@@ -170,3 +170,14 @@ describe("extension codes", () => {
     expect(issue.fix).toBeUndefined();
   });
 });
+
+describe("GuideME block start", () => {
+  it.each([
+    ["- Список", "Plain text", true],
+    ["# Заголовок", "Plain text", true],
+    ["- Список", "- List", false],
+  ])("%j against %j warns: %s", (translated, original, warns) => {
+    const issues = checkTranslationQA(original, translated, getSyntax(["guideme"]));
+    expect(issues.some((i) => i.id === "markdown-block-start")).toBe(warns);
+  });
+});

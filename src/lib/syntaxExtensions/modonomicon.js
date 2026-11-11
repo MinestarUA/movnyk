@@ -2,13 +2,9 @@
 // emphasis toggles, "[#](RRGGBB)…[#]()" colours, "[label](entry://…)" links
 // and a "\" before a line break as a hard break. Link labels stay translatable.
 
-const LINK = String.raw`(?:item|entry|command|patchouli|https?):\/\/[^)\s]*`;
+import { emphasis } from "./markdown";
 
-// An emphasis run counts only where it opens (nothing word-like before,
-// non-space after) or closes (non-space before, nothing word-like after), so
-// "* bullet", "2 * 3" and "2*3" stay text. "C++" is a known false closer.
-const emphasis = (marker, char) =>
-  String.raw`(?<![\p{L}\p{N}${char}])${marker}(?=[^\s${char}])|(?<=[^\s${char}])${marker}(?![\p{L}\p{N}${char}])`;
+const LINK = String.raw`(?:item|entry|command|patchouli|https?):\/\/[^)\s]*`;
 
 const COLOR_CODE = /^\[#\]\(([0-9A-Fa-f]{6})\)$/;
 const COLOR_RESET = "[#]()";
