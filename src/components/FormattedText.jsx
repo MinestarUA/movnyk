@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { formatRuns, mcStyleToCss, colorOfCode } from "../lib/mcFormatting";
 import { splitMatches } from "../lib/searching";
+import { CORE_SYNTAX } from "../lib/tokens";
 
 const wsMarkStyle = {
   background: "color-mix(in srgb, var(--color-accent) 22%, transparent)",
@@ -80,9 +81,10 @@ const FormattedText = ({
   showWhitespace = false,
   widthNeutral = false,
   renderToken = renderDefaultToken,
+  syntax = CORE_SYNTAX,
 }) => {
   const str = String(text ?? "");
-  const runs = useMemo(() => formatRuns(str), [str]);
+  const runs = useMemo(() => formatRuns(str, syntax), [str, syntax]);
   const matches = useMemo(() => matchRanges(str, queryRe), [str, queryRe]);
   const matchBoundaries = matches.flat();
 

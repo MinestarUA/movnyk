@@ -1,4 +1,4 @@
-import { tokenizeString } from "./tokens";
+import { CORE_SYNTAX, tokenizeString } from "./tokens";
 import { matchesKey } from "./keyboardShortcuts";
 
 const isWordChar = (ch) => Boolean(ch && /[\p{L}\p{M}\p{N}]/u.test(ch));
@@ -43,9 +43,9 @@ export const getCaseShortcutAction = (e) => {
 };
 
 // Finds the word boundaries touching `caret` while ignoring formatting tokens.
-export const findWordRangeAtCaret = (text, caret) => {
+export const findWordRangeAtCaret = (text, caret, syntax = CORE_SYNTAX) => {
   if (!text) return { start: 0, end: 0 };
-  const blanked = tokenizeString(text)
+  const blanked = tokenizeString(text, syntax)
     .map((seg) => (seg.type === "text" ? seg.value : " ".repeat(seg.value.length)))
     .join("");
 
@@ -65,9 +65,9 @@ export const findWordRangeAtCaret = (text, caret) => {
 
 // Transforms the case of `text` according to `action` ("lower" | "upper" | "sentence"),
 // leaving Minecraft/Patchouli formatting tokens and placeholders untouched.
-export const transformCase = (text, action) => {
+export const transformCase = (text, action, syntax = CORE_SYNTAX) => {
   if (!text) return "";
-  const segments = tokenizeString(text);
+  const segments = tokenizeString(text, syntax);
 
   if (action === "lower") {
     return segments
@@ -100,14 +100,14 @@ export const transformCase = (text, action) => {
 };
 
 // Applies `action` to either the current selection or the word touching the caret.
-export const applyCaseShortcut = (text, selectionStart, selectionEnd, action) => {
+export const applyCaseShortcut = (text, selectionStart, selectionEnd, action, syntax = CORE_SYNTAX) => {
   const str = String(text ?? "");
   const startSel = Math.max(0, Math.min(selectionStart ?? 0, str.length));
   const endSel = Math.max(startSel, Math.min(selectionEnd ?? startSel, str.length));
   const collapsed = startSel === endSel;
 
   const { start, end } = collapsed
-    ? findWordRangeAtCaret(str, startSel)
+    ? findWordRangeAtCaret(str, startSel, syntax)
     : { start: startSel, end: endSel };
 
   if (start === end) {
@@ -120,7 +120,7 @@ export const applyCaseShortcut = (text, selectionStart, selectionEnd, action) =>
   }
 
   const target = str.slice(start, end);
-  const transformed = transformCase(target, action);
+  const transformed = transformCase(target, action, syntax);
   const value = str.slice(0, start) + transformed + str.slice(end);
   const nextEndBound = start + transformed.length;
 

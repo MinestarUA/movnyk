@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkTranslationQA } from "./qa";
+import { getSyntax } from "./syntaxExtensions";
 
 describe("qa linter", () => {
   it("returns no issues for clean matching translations", () => {
@@ -135,9 +136,11 @@ describe("qa linter", () => {
 });
 
 
-describe("extra Patchouli codes", () => {
+describe("extension codes", () => {
+  const PATCHOULI = getSyntax(["patchouli"]);
+
   it("flags codes the original does not have, and removes them", () => {
-    const issues = checkTranslationQA("Hi$(p)there", "Привіт$(p)усім$(p)$(p)");
+    const issues = checkTranslationQA("Hi$(p)there", "Привіт$(p)усім$(p)$(p)", PATCHOULI);
     const extra = issues.find((i) => i.id === "extra-token-$(p)");
     expect(extra.message).toContain("×2");
     expect(extra.fix("Привіт$(p)усім$(p)$(p)")).toBe("Привіт$(p)усім");
@@ -145,7 +148,25 @@ describe("extra Patchouli codes", () => {
 
   it("accepts matching counts", () => {
     expect(
-      checkTranslationQA("Hi$(p)there", "Привіт$(p)усім").some((i) => i.id.startsWith("extra-token"))
+      checkTranslationQA("Hi$(p)there", "Привіт$(p)усім", PATCHOULI).some((i) => i.id.startsWith("extra-token"))
     ).toBe(false);
+  });
+
+  it("removes only the extra token, not the same characters inside a placeholder", () => {
+    const malum = getSyntax(["malum"]);
+    const issues = checkTranslationQA("$sX/$ by %1$s", "$sX/$ від %1$s $s", malum);
+    const extra = issues.find((i) => i.id === "extra-token-$s");
+    expect(extra.fix("$sX/$ від %1$s $s")).toBe("$sX/$ від %1$s ");
+  });
+
+  it.each([
+    ["missing", "Use a _Wrench_ here", "Використайте _Ключ тут"],
+    ["extra", "Use a _Wrench_ here", "Використайте _Ключ_ _тут"],
+  ])("flags a %s paired marker without an autofix", (_, original, translated) => {
+    const issue = checkTranslationQA(original, translated, getSyntax(["create"])).find(
+      (i) => i.id === "toggle-count-_"
+    );
+    expect(issue).toBeDefined();
+    expect(issue.fix).toBeUndefined();
   });
 });

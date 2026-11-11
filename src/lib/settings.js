@@ -1,6 +1,8 @@
 // Lightweight persistence for user settings (Gemini / DeepL API keys + models + preferences).
 // Everything lives in localStorage so the keys never leave the user's browser.
 
+import { SYNTAX_EXTENSION_IDS } from "./syntaxExtensions";
+
 const STORAGE_KEY = "movnyk.settings";
 
 export const DEFAULT_MODEL = "gemini-3.8-flash";
@@ -65,7 +67,13 @@ const DEFAULTS = {
   focusSearchOnFind: true,
   wordAutocompleteEnabled: true,
   rewardsEnabled: true,
+  syntaxExtensions: {}, // { [extension id]: true } for manually enabled ones
+  syntaxAutoDetect: true,
 };
+
+// Keeps only known extensions that are switched on.
+const normalizeSyntaxExtensions = (value) =>
+  Object.fromEntries(SYNTAX_EXTENSION_IDS.filter((id) => value?.[id] === true).map((id) => [id, true]));
 
 const normalizeModel = (model) => {
   if (!model) return DEFAULT_MODEL;
@@ -101,6 +109,9 @@ export const loadSettings = () => {
         typeof parsed.wordAutocompleteEnabled === "boolean" ? parsed.wordAutocompleteEnabled : true,
       rewardsEnabled:
         typeof parsed.rewardsEnabled === "boolean" ? parsed.rewardsEnabled : true,
+      syntaxExtensions: normalizeSyntaxExtensions(parsed.syntaxExtensions),
+      syntaxAutoDetect:
+        typeof parsed.syntaxAutoDetect === "boolean" ? parsed.syntaxAutoDetect : true,
     };
   } catch {
     return { ...DEFAULTS };
@@ -126,6 +137,8 @@ export const saveSettings = (settings) => {
         focusSearchOnFind: settings.focusSearchOnFind !== false,
         wordAutocompleteEnabled: settings.wordAutocompleteEnabled !== false,
         rewardsEnabled: settings.rewardsEnabled !== false,
+        syntaxExtensions: normalizeSyntaxExtensions(settings.syntaxExtensions),
+        syntaxAutoDetect: settings.syntaxAutoDetect !== false,
       })
     );
   } catch (error) {

@@ -2,9 +2,10 @@
 // string will look in game. A colour code sets the colour and resets every
 // decoration; k–o add a decoration; r resets everything. Only "§" is
 // interpreted by the game, so "&x" (common in plain text like "R&D") never
-// restyles the text that follows. Patchouli's "$(...)" codes are styled too.
+// restyles the text that follows. Mod markup is styled by the syntax
+// extension that owns the token (see ./syntaxExtensions).
 
-import { tokenizeString } from "./tokens";
+import { CORE_SYNTAX, tokenizeString } from "./tokens";
 
 export const MC_COLORS = {
   0: "#000000",
@@ -52,7 +53,7 @@ export const mcStyleToCss = (style, { widthNeutral = false } = {}) => {
   return css;
 };
 
-const DECORATIONS = {
+export const DECORATIONS = {
   k: "obfuscated",
   l: "bold",
   m: "strikethrough",
@@ -60,7 +61,7 @@ const DECORATIONS = {
   o: "italic",
 };
 
-const PLAIN_STYLE = Object.freeze({
+export const PLAIN_STYLE = Object.freeze({
   color: null,
   bold: false,
   italic: false,
@@ -85,72 +86,39 @@ const applyCode = (style, code) => {
   return PLAIN_STYLE;
 };
 
-// Patchouli ($(...)) codes that restyle text. Unlike "§" codes, a colour does
-// not clear decorations. Aliases are Patchouli's default macros.
-const PATCHOULI_COLOR_ALIASES = {
-  nocolor: MC_COLORS[0],
-  item: "#bb00bb",
-  thing: "#449900",
-};
-
-const PATCHOULI_DECORATION_ALIASES = {
-  obf: "k",
-  bold: "l",
-  strike: "m",
-  italic: "o",
-  italics: "o",
-};
-
-const PATCHOULI_RESETS = new Set(["", "reset", "clear"]);
-
-const expandShortHex = (hex) =>
-  hex.length === 3 ? [...hex].map((digit) => digit + digit).join("") : hex;
-
-const patchouliBody = (code) => code.slice(2, -1).toLowerCase();
-
-// Colour set by a Patchouli code such as "$(thing)" or "$(#f00)"; null for
-// decoration, reset and structural codes.
-export const patchouliColorOf = (code) => {
-  const body = patchouliBody(code);
-  if (body in PATCHOULI_COLOR_ALIASES) return PATCHOULI_COLOR_ALIASES[body];
-  const hex = body.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/);
-  if (hex) return `#${expandShortHex(hex[1])}`;
-  return MC_COLORS[body] ?? null;
-};
-
-const applyPatchouliCode = (style, code) => {
-  const body = patchouliBody(code);
-  if (PATCHOULI_RESETS.has(body)) return PLAIN_STYLE;
-  const color = patchouliColorOf(code);
-  if (color) return { ...style, color };
-  const codeChar = PATCHOULI_DECORATION_ALIASES[body] ?? body;
-  if (codeChar in DECORATIONS) return { ...style, [DECORATIONS[codeChar]]: true };
-  // Structural or interactive codes ($(br), $(li), $(l:url), ...) keep the style.
-  return style;
-};
-
 // Splits text into contiguous runs covering the whole string.
 // Returns Array<{ start, end, token: null | { type, value }, style }>, where
 // style is the formatting in effect for that run (a "§" code run already
 // carries the style it switches to).
-export const formatRuns = (text) => {
+export const formatRuns = (text, syntax = CORE_SYNTAX) => {
   const runs = [];
   let style = PLAIN_STYLE;
+  // Paired markers (Create "_", markdown "**") flip their own parity, kept
+  // apart from `style` so a "§" colour reset inside a pair cannot invert it.
+  const openToggles = new Map();
   let offset = 0;
-  for (const part of tokenizeString(text)) {
+  for (const part of tokenizeString(text, syntax)) {
     const start = offset;
     const end = offset + part.value.length;
     offset = end;
     if (part.type === "mc-code" && part.value[0] === "§") {
       style = applyCode(style, part.value);
-    } else if (part.type === "patchouli-code") {
-      style = applyPatchouliCode(style, part.value);
+    } else if (part.type === "syntax-code") {
+      const extension = syntax.byId[part.syntax];
+      const toggle = extension.toggles?.[part.value];
+      if (toggle) {
+        const key = `${extension.id}:${part.value}`;
+        if (openToggles.has(key)) openToggles.delete(key);
+        else openToggles.set(key, toggle);
+      } else if (extension.applyStyle) {
+        style = extension.applyStyle(style, part.value);
+      }
     }
     runs.push({
       start,
       end,
       token: part.type === "text" ? null : part,
-      style,
+      style: Object.assign({}, style, ...openToggles.values()),
     });
   }
   return runs;

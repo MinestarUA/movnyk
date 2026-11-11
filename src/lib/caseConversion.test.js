@@ -5,6 +5,9 @@ import {
   transformCase,
   applyCaseShortcut,
 } from "./caseConversion";
+import { getSyntax } from "./syntaxExtensions";
+
+const PATCHOULI = getSyntax(["patchouli"]);
 
 describe("getCaseShortcutAction", () => {
   it("recognizes conflict-free Alt+Z / Alt+L (lower), Alt+X / Alt+U (upper), and Alt+C (sentence) on Latin and Ukrainian layouts", () => {
@@ -121,7 +124,7 @@ describe("findWordRangeAtCaret", () => {
 describe("transformCase", () => {
   it("converts text to lowercase and uppercase while preserving formatting tokens", () => {
     expect(transformCase("§aЗалізний %s Меч", "lower")).toBe("§aзалізний %s меч");
-    expect(transformCase("§aЗалізний %s Меч\\n$(br)", "upper")).toBe("§aЗАЛІЗНИЙ %s МЕЧ\\n$(br)");
+    expect(transformCase("§aЗалізний %s Меч\\n$(br)", "upper", PATCHOULI)).toBe("§aЗАЛІЗНИЙ %s МЕЧ\\n$(br)");
   });
 
   it("capitalizes only the first letter of the entire target in sentence mode, lowercasing all other words", () => {
@@ -132,7 +135,7 @@ describe("transformCase", () => {
 
   it("capitalizes the first letter after leading punctuation or formatting tokens in sentence mode", () => {
     expect(transformCase("«ЗАЛІЗНИЙ МЕЧ»", "sentence")).toBe("«Залізний меч»");
-    expect(transformCase("§a$(l)ЗАЛІЗНИЙ %s МЕЧ", "sentence")).toBe("§a$(l)Залізний %s меч");
+    expect(transformCase("§a$(l)ЗАЛІЗНИЙ %s МЕЧ", "sentence", PATCHOULI)).toBe("§a$(l)Залізний %s меч");
   });
 });
 

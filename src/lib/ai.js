@@ -18,11 +18,11 @@ export const translateAll = (entries, settings, options) => {
   return translateAllGemini(entries, settings, options);
 };
 
-export const translateSingle = (text, settings, signal) => {
+export const translateSingle = (text, settings, options) => {
   if (settings?.aiProvider === "deepl") {
-    return translateSingleDeepL(text, settings, signal);
+    return translateSingleDeepL(text, settings, options);
   }
-  return translateSingleGemini(text, settings, signal);
+  return translateSingleGemini(text, settings, options);
 };
 
 export const testConnection = (settings) => {

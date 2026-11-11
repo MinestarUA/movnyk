@@ -26,7 +26,7 @@ TRANSLATION RULES:
 1. Produce natural, fluent, idiomatic Ukrainian as used in modern video games. Match the register of the source: playful flavour text stays playful, UI labels stay short, tooltips stay concise, technical config stays precise.
 2. Use the terminology of the OFFICIAL Minecraft Ukrainian translation for vanilla concepts. Examples: Creeper → Кріпер, Enderman → Ендермен, Redstone → Редстоун, Nether → Незер, The End → Край, Overworld → Звичайний світ, Diamond → Алмаз, Netherite → Незерит, Crafting Table → Верстак, Furnace → Піч, Enchanting → Зачарування, Anvil → Ковадло, Mob → Моб, Block → Блок, Item → Предмет, Chunk → Чанк, Spawn → Спавн, Durability → Міцність, Stack → Стос. For mod-specific proper nouns keep the conventional rendering; transliterate names only when that reads naturally in Ukrainian.
 3. NEVER translate, delete, reorder or modify any of the following — copy them VERBATIM, only moving them to the grammatically correct position:
-   - Format placeholders: %s, %d, %f, %1$s, %2$d, {0}, {1}, {name}, {{value}}, %variable%, $(name), <player>, [count].
+   - Format placeholders: %s, %d, %f, %1$s, %2$d, {0}, {1}, {name}, {{value}}, %variable%, <player>, [count].
    - Minecraft formatting codes: a § or & followed by one character (e.g. §a, §l, §r, &6, &l). Keep them exactly and in the same relative order.
    - Escape sequences and line breaks: \\n, \\t, \\", \\\\. Preserve every one of them and their positions.
    - Keybind tokens, resource IDs (namespace:path), URLs, numbers and code identifiers.
@@ -35,6 +35,13 @@ TRANSLATION RULES:
 6. Use correct Ukrainian typography (« » quotation marks, — em dash, ' apostrophe) only when it does not risk breaking a placeholder or code.
 
 Return the complete JSON object for every key you were given.`;
+
+// Mod markup rules for the active syntax extensions, appended to the prompt.
+export const systemPromptFor = (syntax) => {
+  const hints = syntax?.extensions.map((extension) => `- ${extension.promptHint}`) ?? [];
+  if (!hints.length) return SYSTEM_PROMPT;
+  return `${SYSTEM_PROMPT}\n\nMOD MARKUP (copy verbatim like the placeholders above):\n${hints.join("\n")}`;
+};
 
 const cleanModelId = (m) => String(m || DEFAULT_MODEL).replace(/^models\//, "").trim();
 
@@ -122,14 +129,14 @@ export const testGeminiConnection = async (rawKey, rawModel) => {
 };
 
 // Translate a single string using Gemini
-export const translateSingleGemini = async (text, settings = {}, signal) => {
+export const translateSingleGemini = async (text, settings = {}, { signal, syntax } = {}) => {
   const apiKey = settings?.apiKey?.trim();
   if (!apiKey) throw new Error("Не вказано ключ Gemini API.");
   const model = cleanModelId(settings?.model);
 
   const source = { test_key: String(text ?? "") };
   const body = {
-    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    system_instruction: { parts: [{ text: systemPromptFor(syntax) }] },
     contents: [{ role: "user", parts: [{ text: JSON.stringify(source) }] }],
     safetySettings: SAFETY_SETTINGS,
     generationConfig: {
@@ -163,12 +170,12 @@ export const translateSingleGemini = async (text, settings = {}, signal) => {
 };
 
 // Translate one batch of entries. `entries` is [{ key, original }, ...].
-const translateBatch = async (entries, { apiKey, model, signal }, attempt = 0) => {
+const translateBatch = async (entries, { apiKey, model, signal, syntax }, attempt = 0) => {
   const source = {};
   for (const entry of entries) source[entry.key] = String(entry.original ?? "");
 
   const body = {
-    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    system_instruction: { parts: [{ text: systemPromptFor(syntax) }] },
     contents: [{ role: "user", parts: [{ text: JSON.stringify(source) }] }],
     safetySettings: SAFETY_SETTINGS,
     generationConfig: {
@@ -200,7 +207,7 @@ const translateBatch = async (entries, { apiKey, model, signal }, attempt = 0) =
   // Transient errors: back off and retry a couple of times before giving up.
   if ((response.status === 429 || response.status === 503) && attempt < 3) {
     await wait(1000 * 2 ** attempt);
-    return translateBatch(entries, { apiKey, model, signal }, attempt + 1);
+    return translateBatch(entries, { apiKey, model, signal, syntax }, attempt + 1);
   }
 
   if (!response.ok) {
@@ -240,7 +247,7 @@ const translateBatch = async (entries, { apiKey, model, signal }, attempt = 0) =
 export const translateAll = async (
   entries,
   settings,
-  { onBatch, signal, batchSize = 35, concurrency = 2 } = {}
+  { onBatch, signal, syntax, batchSize = 35, concurrency = 2 } = {}
 ) => {
   const apiKey = settings?.apiKey?.trim();
   if (!apiKey) throw new Error("Не вказано ключ Gemini API.");
@@ -261,7 +268,7 @@ export const translateAll = async (
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const batch = batches[cursor++];
       try {
-        const result = await translateBatch(batch, { apiKey, model, signal });
+        const result = await translateBatch(batch, { apiKey, model, signal, syntax });
         succeeded += Object.keys(result).length;
         onBatch?.(result, batch, null);
       } catch (error) {

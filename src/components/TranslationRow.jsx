@@ -8,7 +8,7 @@ import {
   getWordAutocompleteContext,
   matchFragmentCase,
 } from "../lib/wordAutocomplete";
-import { colorOfCode, displayColor, patchouliColorOf } from "../lib/mcFormatting";
+import { colorOfCode, displayColor } from "../lib/mcFormatting";
 import { getCaseShortcutAction, applyCaseShortcut } from "../lib/caseConversion";
 import FormattedText from "./FormattedText";
 
@@ -40,25 +40,20 @@ const HighlightedText = ({ text, queryRe }) => {
   );
 };
 
-// Patchouli line/paragraph breaks look like "\n" escapes in the original.
-const LINE_BREAK_CODE = /^\$\((?:br|br2|2br|p)\)$/i;
-
 // Renders interactive tokens (formatting codes, escapes, placeholders) as clickable chips,
 // with Minecraft formatting and colors previewed live.
-const InteractiveOriginal = ({ text, onInsertToken, queryRe }) => {
+const InteractiveOriginal = ({ text, onInsertToken, queryRe, syntax }) => {
   return (
     <FormattedText
       text={text}
       queryRe={queryRe}
       showWhitespace={true}
+      syntax={syntax}
       renderToken={(run, css, idx) => {
         const token = run.token;
+        const extension = token.type === "syntax-code" ? syntax.byId[token.syntax] : null;
         const rawColor =
-          token.type === "mc-code"
-            ? colorOfCode(token.value)
-            : token.type === "patchouli-code"
-              ? patchouliColorOf(token.value)
-              : null;
+          token.type === "mc-code" ? colorOfCode(token.value) : (extension?.colorOf?.(token.value) ?? null);
         const codeColor = rawColor && displayColor(rawColor);
         let badgeStyle = "bg-primary/20 text-primary border-primary/30";
         let customStyle = {};
@@ -80,7 +75,7 @@ const InteractiveOriginal = ({ text, onInsertToken, queryRe }) => {
               textDecoration: char === "n" ? "underline" : char === "m" ? "line-through" : undefined,
             };
           }
-        } else if (token.type === "escape" || LINE_BREAK_CODE.test(token.value)) {
+        } else if (token.type === "escape" || extension?.isLineBreak?.(token.value)) {
           badgeStyle = "bg-accent/20 text-accent border-accent/40";
         }
 
@@ -184,6 +179,7 @@ const TranslationRow = ({
   focusRequestRef,
   cursorPositionRef,
   queryRe,
+  syntax,
   qaEnabled = true,
   wordAutocompleteEnabled = true,
   wordAutocompleteWords = [],
@@ -551,7 +547,8 @@ const TranslationRow = ({
       el.value,
       el.selectionStart,
       el.selectionEnd,
-      action
+      action,
+      syntax
     );
     if (!changed) return;
     if (cursorPositionRef) {
@@ -572,8 +569,8 @@ const TranslationRow = ({
 
   const hasDraft = Boolean(item.translated.trim());
   const hasCodes = useMemo(
-    () => tokenizeString(item.translated || "").some((t) => t.type === "mc-code" && t.value[0] === "§"),
-    [item.translated]
+    () => tokenizeString(item.translated || "", syntax).some((t) => t.type === "mc-code" && t.value[0] === "§"),
+    [item.translated, syntax]
   );
   const status = item.confirmed ? "confirmed" : hasDraft ? "pending" : "empty";
   const expanded = isSelected;
@@ -588,8 +585,8 @@ const TranslationRow = ({
   // Run QA checks
   const qaIssues = useMemo(() => {
     if (!qaEnabled || !hasDraft) return [];
-    return checkTranslationQA(item.original, item.translated);
-  }, [qaEnabled, hasDraft, item.original, item.translated]);
+    return checkTranslationQA(item.original, item.translated, syntax);
+  }, [qaEnabled, hasDraft, item.original, item.translated, syntax]);
 
   const outerStyle = {
     ...rowStyle,
@@ -680,9 +677,10 @@ const TranslationRow = ({
               text={item.original}
               onInsertToken={handleInsertToken}
               queryRe={queryRe}
+              syntax={syntax}
             />
           ) : (
-            <FormattedText text={item.original} queryRe={queryRe} />
+            <FormattedText text={item.original} queryRe={queryRe} syntax={syntax} />
           )}
         </div>
 
@@ -762,7 +760,7 @@ const TranslationRow = ({
                     boxSizing: "border-box",
                   }}
                 >
-                  <FormattedText text={item.translated} widthNeutral={true} />
+                  <FormattedText text={item.translated} widthNeutral={true} syntax={syntax} />
                   {item.translated.endsWith("\n") && "\u200b"}
                 </div>
               )}
@@ -923,7 +921,7 @@ const TranslationRow = ({
               }}
             >
               {hasDraft ? (
-                <FormattedText text={item.translated} queryRe={queryRe} />
+                <FormattedText text={item.translated} queryRe={queryRe} syntax={syntax} />
               ) : (
                 "Переклади…"
               )}

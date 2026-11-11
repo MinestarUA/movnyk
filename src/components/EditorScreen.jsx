@@ -38,6 +38,7 @@ import { getTokenShortcutIndex, isQaShortcut } from "../lib/keyboardShortcuts";
 import { checkTranslationQA } from "../lib/qa";
 import { extractTokens } from "../lib/tokens";
 import { buildWordAutocompleteWords } from "../lib/wordAutocomplete";
+import { activeSyntaxIds, detectSyntaxExtensions, getSyntax } from "../lib/syntaxExtensions";
 
 // Text the user has selected: inside a text field it is the field's selection,
 // elsewhere the page selection. Trimmed, empty string when nothing is selected.
@@ -88,6 +89,12 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         }))
   );
 
+  // Detected from the current originals, so applying a new original re-detects.
+  const [detectedSyntaxIds, setDetectedSyntaxIds] = useState(() =>
+    detectSyntaxExtensions(Object.fromEntries(translations.map((t) => [t.key, t.original])))
+  );
+  const syntax = getSyntax(activeSyntaxIds(settings, detectedSyntaxIds));
+
   const [query, setQuery] = useState("");
   // { key, text }: the row whose QA warning details Alt+Q has opened, and the text they were opened for.
   const [qaDetails, setQaDetails] = useState(null);
@@ -109,8 +116,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
   const [suggestingKey, setSuggestingKey] = useState(null);
   const wordAutocompleteEnabled = settings.wordAutocompleteEnabled !== false;
   const wordAutocompleteWords = useMemo(
-    () => (wordAutocompleteEnabled ? buildWordAutocompleteWords(translations) : []),
-    [translations, wordAutocompleteEnabled]
+    () => (wordAutocompleteEnabled ? buildWordAutocompleteWords(translations, syntax) : []),
+    [translations, wordAutocompleteEnabled, syntax]
   );
 
   const duplicateCounts = useMemo(() => {
@@ -306,7 +313,8 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
           currentText,
           selStart,
           selEnd,
-          caseAction
+          caseAction,
+          syntax
         );
         cursorPositionRef.current = {
           key: activeItem.key,
@@ -338,7 +346,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         e.preventDefault();
         const item = activeItem;
         if (!item || settings.qaChecksEnabled === false) return;
-        const issues = checkTranslationQA(item.original, item.translated);
+        const issues = checkTranslationQA(item.original, item.translated, syntax);
         if (issues.length === 0) return;
         if (!qaDetailsVisible) {
           setQaDetails({ key: item.key, text: item.translated });
@@ -365,7 +373,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       if (tokenIndex !== null && isTranslationField) {
         e.preventDefault();
         const item = filtered.find((row) => row.key === active.dataset.key);
-        const token = item && extractTokens(item.original)[tokenIndex - 1];
+        const token = item && extractTokens(item.original, syntax)[tokenIndex - 1];
         if (!token) return;
         const next = active.value.slice(0, active.selectionStart) + token.value + active.value.slice(active.selectionEnd);
         const caret = active.selectionStart + token.value.length;
@@ -583,6 +591,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     settings.syncIdenticalTranslations,
     settings.unconfirmOnEdit,
     settings.qaChecksEnabled,
+    syntax,
     referenceDrawerOpen,
     activeItem,
     qaDetailsVisible,
@@ -640,7 +649,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       }
       setSuggestingKey(item.key);
       try {
-        const suggestion = await translateSingle(item.original, settings);
+        const suggestion = await translateSingle(item.original, settings, { syntax });
         if (suggestion) {
           handleTranslationChange(item.originalIndex, suggestion);
           toast("Переклад застосовано!", "success");
@@ -651,7 +660,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
         setSuggestingKey(null);
       }
     },
-    [settings, toast, handleTranslationChange]
+    [settings, syntax, toast, handleTranslationChange]
   );
 
   const handleNavigateFromDrawer = useCallback((key) => {
@@ -740,6 +749,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     const { next, removed, stats } = applyNewOriginal(translations, newOriginal);
     const nextKeys = new Set(Object.keys(newOriginal));
     setTranslations(next);
+    setDetectedSyntaxIds(detectSyntaxExtensions(newOriginal));
     // Earlier removals that came back in this original are back in the editor,
     // so they leave the reference panel.
     setRemovedRows((prev) => [...prev.filter((r) => !nextKeys.has(r.key)), ...removed]);
@@ -810,6 +820,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
     try {
       const { failed, hadErrors } = await translateAll(targets, settings, {
         signal: controller.signal,
+        syntax,
         onBatch: (result, batch) => {
           // Fill only rows that are still empty, so manual edits made while the
           // run is in flight are never overwritten.
@@ -834,7 +845,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       abortRef.current = null;
       setAiState((s) => ({ ...s, running: false }));
     }
-  }, [translations, settings, toast]);
+  }, [translations, settings, syntax, toast]);
 
   // Only the selected row differs from the collapsed height, so row heights are
   // derived from the selection during render. Offsets then move in the same
@@ -1287,6 +1298,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
                   selectedKey: activeKey,
                   qaDetailsVisible,
                   queryRe,
+                  syntax,
                   qaEnabled: settings.qaChecksEnabled !== false,
                   wordAutocompleteEnabled,
                   wordAutocompleteWords,
@@ -1347,6 +1359,7 @@ const EditorScreen = ({ template, initialTranslations, onExportJson, onExportRes
       {settingsOpen && (
         <SettingsModal
           settings={settings}
+          detectedSyntaxIds={detectedSyntaxIds}
           onSave={handleSaveSettings}
           onClose={() => setSettingsOpen(false)}
         />
@@ -1375,6 +1388,7 @@ const Row = ({
   selectedKey,
   qaDetailsVisible,
   queryRe,
+  syntax,
   qaEnabled,
   wordAutocompleteEnabled,
   wordAutocompleteWords,
@@ -1404,6 +1418,7 @@ const Row = ({
       isSelected={isSelected}
       showQaDetails={isSelected && qaDetailsVisible}
       queryRe={queryRe}
+      syntax={syntax}
       qaEnabled={qaEnabled}
       wordAutocompleteEnabled={wordAutocompleteEnabled}
       wordAutocompleteWords={wordAutocompleteWords}

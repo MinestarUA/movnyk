@@ -46,6 +46,20 @@ describe("settings", () => {
     expect(loadSettings().focusSearchOnFind).toBe(false);
   });
 
+  it("defaults to no syntax extensions with auto-detect on", () => {
+    expect(loadSettings()).toMatchObject({ syntaxExtensions: {}, syntaxAutoDetect: true });
+  });
+
+  it("round-trips syntax extensions, keeping only known enabled ones", () => {
+    saveSettings({
+      apiKey: "",
+      model: "gemini-2.0-flash",
+      syntaxExtensions: { malum: true, create: false, gone: true },
+      syntaxAutoDetect: false,
+    });
+    expect(loadSettings()).toMatchObject({ syntaxExtensions: { malum: true }, syntaxAutoDetect: false });
+  });
+
   it("normalizes models/ prefix", () => {
     saveSettings({ apiKey: "", model: "models/gemini-3.8-flash" });
     expect(loadSettings().model).toBe("gemini-3.8-flash");

@@ -43,28 +43,6 @@ describe("tokens", () => {
     expect(extractTokens("Hello world")).toEqual([]);
   });
 
-  it("tokenizes Patchouli codes, including arguments with spaces", () => {
-    const input = "$(l)Bold$() $(l:https://a.b/c)link$(/l) $(t:Some tip)hover$(/t) $(#f80)x";
-    const codes = tokenizeString(input)
-      .filter((t) => t.type === "patchouli-code")
-      .map((t) => t.value);
-
-    expect(codes).toEqual([
-      "$(l)",
-      "$()",
-      "$(l:https://a.b/c)",
-      "$(/l)",
-      "$(t:Some tip)",
-      "$(/t)",
-      "$(#f80)",
-    ]);
-    expect(classifyToken("$(br)")).toBe("patchouli-code");
-  });
-
-  it("does not treat a lone dollar sign as a Patchouli code", () => {
-    expect(extractTokens("Costs $5 (cheap)")).toEqual([]);
-  });
-
   it("does not treat a percent sign followed by a space and word as a specifier", () => {
     expect(extractTokens("-35% Fall Damage, 50% speed")).toEqual([]);
   });

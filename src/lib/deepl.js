@@ -4,7 +4,7 @@
 // so DeepL does not touch, strip, or corrupt them.
 // Communicates directly with DeepL API (requires CORS Unblock extension in browser).
 
-import { tokenizeString } from "./tokens";
+import { CORE_SYNTAX, tokenizeString } from "./tokens";
 
 export const CORS_EXTENSION_URL =
   "https://chromewebstore.google.com/detail/cors-unblock/lfhmikememgdcahcdlaciloancbhjino";
@@ -27,8 +27,8 @@ const escapeXml = (text) =>
 // e.g. "Level §a%d / %d" -> 'Level <x id="0"/><x id="1"/> / <x id="2"/>'.
 // Empty tags matter: DeepL treats a wrapping tag as markup around words and may
 // stretch it over the translated word next to it, which would then be lost.
-export const shieldTokens = (text) => {
-  const tokens = tokenizeString(text);
+export const shieldTokens = (text, syntax = CORE_SYNTAX) => {
+  const tokens = tokenizeString(text, syntax);
   const tokenMap = [];
   let shielded = "";
 
@@ -114,11 +114,11 @@ export const testDeeplConnection = async ({ apiKey }) => {
   }
 };
 
-export const translateSingleDeepL = async (text, settings = {}, signal) => {
+export const translateSingleDeepL = async (text, settings = {}, { signal, syntax } = {}) => {
   const apiKey = settings?.deeplApiKey?.trim();
   if (!apiKey) throw new Error("Не вказано ключ DeepL API.");
 
-  const { shielded, tokenMap } = shieldTokens(text);
+  const { shielded, tokenMap } = shieldTokens(text, syntax);
   const url = getDeepLEndpoint(apiKey);
 
   try {
@@ -158,7 +158,7 @@ export const translateSingleDeepL = async (text, settings = {}, signal) => {
 export const translateAllDeepL = async (
   entries,
   settings,
-  { onBatch, signal, batchSize = 30 } = {}
+  { onBatch, signal, syntax, batchSize = 30 } = {}
 ) => {
   const apiKey = settings?.deeplApiKey?.trim();
   if (!apiKey) throw new Error("Не вказано ключ DeepL API.");
@@ -174,7 +174,7 @@ export const translateAllDeepL = async (
     const batch = entries.slice(i, i + batchSize);
 
     try {
-      const shieldedList = batch.map((item) => shieldTokens(String(item.original ?? "")));
+      const shieldedList = batch.map((item) => shieldTokens(String(item.original ?? ""), syntax));
       const response = await fetch(url, {
         method: "POST",
         headers: {

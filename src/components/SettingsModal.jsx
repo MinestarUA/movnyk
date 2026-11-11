@@ -2,8 +2,9 @@ import { useState } from "react";
 import { GEMINI_MODELS, DEFAULT_MODEL, AI_PROVIDERS, DEFAULT_SEARCH_PROMPTS } from "../lib/settings";
 import { testGeminiConnection, fetchAvailableGeminiModels } from "../lib/gemini";
 import { testDeeplConnection, CORS_EXTENSION_URL } from "../lib/deepl";
+import { SYNTAX_EXTENSIONS } from "../lib/syntaxExtensions";
 
-const SettingsModal = ({ settings, onSave, onClose }) => {
+const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) => {
   const [aiProvider, setAiProvider] = useState(settings.aiProvider ?? "gemini");
   const [apiKey, setApiKey] = useState(settings.apiKey ?? "");
   const [model, setModel] = useState(settings.model ?? DEFAULT_MODEL);
@@ -24,6 +25,8 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
     settings.wordAutocompleteEnabled !== false
   );
   const [rewardsEnabled, setRewardsEnabled] = useState(settings.rewardsEnabled !== false);
+  const [syntaxExtensions, setSyntaxExtensions] = useState(settings.syntaxExtensions ?? {});
+  const [syntaxAutoDetect, setSyntaxAutoDetect] = useState(settings.syntaxAutoDetect !== false);
   const [searchPrompts, setSearchPrompts] = useState(
     settings.searchPrompts ?? DEFAULT_SEARCH_PROMPTS
   );
@@ -95,6 +98,8 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
       focusSearchOnFind,
       wordAutocompleteEnabled,
       rewardsEnabled,
+      syntaxExtensions,
+      syntaxAutoDetect,
       searchPrompts,
     });
     onClose();
@@ -418,6 +423,48 @@ const SettingsModal = ({ settings, onSave, onClose }) => {
               Режим нагород (30 рівнів із новими прикрасами інтерфейсу)
             </span>
           </label>
+        </div>
+
+        {/* Optional mod markup */}
+        <div className="mt-6 space-y-3 border-t border-neutral pt-4">
+          <span className="text-sm font-semibold">Розширення синтаксису</span>
+          <p className="text-xs text-base-content/50">
+            Підсвічування та перевірка розмітки окремих модів. Вимкнені, доки ви їх не ввімкнете.
+          </p>
+
+          <label className="label cursor-pointer justify-start gap-3 py-0">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm checkbox-primary"
+              checked={syntaxAutoDetect}
+              onChange={(e) => setSyntaxAutoDetect(e.target.checked)}
+            />
+            <span className="label-text text-sm font-medium">
+              Автоматично вмикати розширення, знайдені у файлі
+            </span>
+          </label>
+
+          {SYNTAX_EXTENSIONS.map((extension) => {
+            const enabled = syntaxExtensions[extension.id] === true;
+            const autoEnabled = !enabled && syntaxAutoDetect && detectedSyntaxIds.includes(extension.id);
+            return (
+              <div key={extension.id}>
+                <label className="label cursor-pointer justify-start gap-3 py-0">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm checkbox-primary"
+                    checked={enabled}
+                    onChange={(e) =>
+                      setSyntaxExtensions({ ...syntaxExtensions, [extension.id]: e.target.checked })
+                    }
+                  />
+                  <span className="label-text text-sm font-medium">{extension.label}</span>
+                  {autoEnabled && <span className="badge badge-sm badge-accent badge-outline">Виявлено у файлі</span>}
+                </label>
+                <p className="text-xs text-base-content/50 pl-7">{extension.description}</p>
+              </div>
+            );
+          })}
         </div>
 
         {/* Google AI search prompts */}
