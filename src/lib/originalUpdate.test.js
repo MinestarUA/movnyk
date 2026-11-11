@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyNewOriginal } from "./originalUpdate";
+import { applyNewLangOriginal, applyNewOriginal } from "./originalUpdate";
 
 const row = (key, original, translated = "", confirmed = false) => ({
   key,
@@ -62,5 +62,18 @@ describe("applyNewOriginal", () => {
     const rows = [row("a", "A"), row("b", "B")];
     const { next } = applyNewOriginal(rows, { b: "B", a: "A" });
     expect(next.map((r) => r.key)).toEqual(["b", "a"]);
+  });
+});
+
+describe("applyNewLangOriginal", () => {
+  const bookRow = row("book:assets/a/patchouli_books/b/en_us/entries/x.json#/name", "Entry", "Запис", true);
+
+  it("keeps book rows untouched after the lang rows and counts only lang rows as removed", () => {
+    const rows = [bookRow, row("a", "Apple", "Яблуко", true), row("gone", "Gone", "Зникло", true)];
+    const { next, removed, stats } = applyNewLangOriginal(rows, { a: "Apple", b: "Bread" });
+    expect(next.map((r) => r.key)).toEqual(["a", "b", bookRow.key]);
+    expect(next.at(-1)).toBe(bookRow);
+    expect(removed.map((r) => r.key)).toEqual(["gone"]);
+    expect(stats).toEqual({ unchanged: 1, changed: 0, renamed: 0, added: 1, removed: 1 });
   });
 });

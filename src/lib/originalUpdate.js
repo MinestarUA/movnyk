@@ -12,6 +12,8 @@
 // Old rows that match nothing are "removed": they leave the editor but are
 // returned so the reference panel can still find their translations.
 
+import { isBookKey } from "./patchouli";
+
 const uniqueByText = (items, getText) => {
   const groups = new Map();
   for (const item of items) {
@@ -73,3 +75,12 @@ export const applyNewOriginal = (translations, newOriginal) => {
 export const describeOriginalUpdate = ({ changed, renamed, added, removed }) =>
   `Оригінал оновлено. Змінено: ${changed}, перейменовано: ${renamed}, нових: ${added}, видалено: ${removed}.` +
   (removed > 0 ? " Видалені рядки є в довіднику." : "");
+
+// A pasted or loaded lang file says nothing about guidebook text, so book rows
+// pass through untouched and uncounted.
+export const applyNewLangOriginal = (translations, newOriginal) => {
+  const bookRows = translations.filter((row) => isBookKey(row.key));
+  const langRows = translations.filter((row) => !isBookKey(row.key));
+  const { next, removed, stats } = applyNewOriginal(langRows, newOriginal);
+  return { next: [...next, ...bookRows], removed, stats };
+};

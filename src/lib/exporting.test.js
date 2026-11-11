@@ -25,4 +25,12 @@ describe("createTranslationObject", () => {
       "item.cake": "Торт",
     });
   });
+
+  it("leaves guidebook rows to the book files", () => {
+    const translations = [
+      { key: "book:assets/a/patchouli_books/b/en_us/entries/x.json#/name", original: "E", translated: "Е" },
+      { key: "item.cake", original: "Cake", translated: "Торт" },
+    ];
+    expect(createTranslationObject(translations)).toEqual({ "item.cake": "Торт" });
+  });
 });

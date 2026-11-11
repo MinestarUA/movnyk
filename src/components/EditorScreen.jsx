@@ -24,7 +24,7 @@ import {
   applyAutoTranslations,
 } from "../lib/translations";
 import ProjectReferenceDrawer from "./ProjectReferenceDrawer";
-import { applyNewOriginal } from "../lib/originalUpdate";
+import { applyNewLangOriginal } from "../lib/originalUpdate";
 import {
   compileQuery,
   isFindShortcut,
@@ -755,7 +755,7 @@ const EditorScreen = ({
   };
 
   const handleApplyNewOriginal = (newOriginal) => {
-    const { next, removed, stats } = applyNewOriginal(translations, newOriginal);
+    const { next, removed, stats } = applyNewLangOriginal(translations, newOriginal);
     const nextKeys = new Set(Object.keys(newOriginal));
     setTranslations(next);
     setDetectedSyntaxIds(detectSyntaxExtensions(newOriginal));
