@@ -1,7 +1,8 @@
 import JSZip from "jszip";
 import { findGuideBooks } from "./guideme";
 import { findPatchouliBooks } from "./patchouli";
-import { inferMinecraftVersion } from "./resourcePack";
+import { DEFAULT_LANGUAGE, inferMinecraftVersion } from "./resourcePack";
+import { collectTranslationFiles } from "./translationArchive";
 
 const parseJson = (text, path) => {
   try {
@@ -82,6 +83,13 @@ export const readJar = async (file) => {
     if (parsedFiles.length > 0) books.push({ ...book, format: "guideme", files: parsedFiles });
   }
 
+  // The mod's own translation into the default language, as { path: text }.
+  const translationFiles = Object.fromEntries(
+    await Promise.all(
+      collectTranslationFiles(Object.keys(zip.files), DEFAULT_LANGUAGE).map(async (path) => [path, await readText(zip, path)])
+    )
+  );
+
   return {
     langFiles,
     mcVersion: inferMinecraftVersion({ modsToml, fabricModJson }),
@@ -91,5 +99,6 @@ export const readJar = async (file) => {
     bookJson,
     guideUnits,
     skippedGuidePages,
+    translationFiles,
   };
 };

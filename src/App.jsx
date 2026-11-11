@@ -11,10 +11,13 @@ import { describeOriginalUpdate } from "./lib/originalUpdate";
 import { openSessionRows } from "./lib/openSession";
 import { createTranslationObject } from "./lib/exporting";
 import { readJar } from "./lib/jar";
+import { mergeLangFile } from "./lib/importing";
+import { translationsFromArchive } from "./lib/translationArchive";
 import { loadBookSources, pruneBookSources, saveBookSources } from "./lib/bookSources";
 import {
   bookSourcesWarning,
   buildResourcePackFiles,
+  DEFAULT_LANGUAGE,
   defaultPack,
   invalidGuidePagesWarning,
   packFileBase,
@@ -28,7 +31,7 @@ const App = () => {
   const [langFiles, setLangFiles] = useState([]);
   const [sessions, setSessions] = useState(() => loadSessions());
   const [session, setSession] = useState(null); // { id, name, pack, books } of the open editor
-  const [jar, setJar] = useState(null); // { mcVersion, books, bookFiles, bookJson, guideUnits } of a jar waiting for a lang file choice
+  const [jar, setJar] = useState(null); // { mcVersion, books, bookFiles, bookJson, guideUnits, translationFiles } of a jar waiting for a lang file choice
   const [bookSources, setBookSources] = useState(null); // raw book files of the open session; null when unavailable
   const [packExport, setPackExport] = useState(null); // { translations, sources, summary } while the export dialog is open
   const [initialTranslations, setInitialTranslations] = useState(null);
@@ -39,10 +42,18 @@ const App = () => {
     pruneBookSources(loadSessions().map(({ id }) => id));
   }, []);
 
-  const openEditor = (
+  const openEditor = async (
     content,
     name,
-    { resumable = true, mcVersion = null, books = [], bookFiles = null, bookJson = {}, guideUnits = {} } = {}
+    {
+      resumable = true,
+      mcVersion = null,
+      books = [],
+      bookFiles = null,
+      bookJson = {},
+      guideUnits = {},
+      translationFiles = {},
+    } = {}
   ) => {
     const {
       existing,
@@ -82,7 +93,23 @@ const App = () => {
       const summary = sessionBooks.map((book) => `«${book.name}» (рядків: ${book.rowCount})`).join(", ");
       toast(`Додано книги: ${summary}.`, "success");
     }
-    setInitialTranslations(next);
+    let rows = next;
+    if (Object.keys(translationFiles).length > 0) {
+      if (existing) {
+        toast(
+          "У моді є власний переклад uk_ua. Щоб підставити його, імпортуйте цей .jar на бічній панелі (Імпорт).",
+          "info"
+        );
+      } else {
+        const { values } = await translationsFromArchive({ files: translationFiles, language: DEFAULT_LANGUAGE, rows });
+        const merged = mergeLangFile(rows, values, { skipIdentical: true, confirmImported: false, skipApproved: true });
+        rows = merged.next;
+        if (merged.applied > 0) {
+          toast(`У моді вже є переклад uk_ua: підставлено рядків — ${merged.applied}, їх не затверджено.`, "info");
+        }
+      }
+    }
+    setInitialTranslations(rows);
     setInitialRemovedRows(removed);
     setScreen("editor");
   };
@@ -118,10 +145,10 @@ const App = () => {
 
     if (file.name.endsWith(".json")) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const content = JSON.parse(e.target.result);
-          openEditor(content, file.name);
+          await openEditor(content, file.name);
         } catch (error) {
           console.error("Error parsing JSON file:", error);
           toast("Не вдалося обробити файл JSON. Переконайтеся, що це коректний lang-файл.", "error");
@@ -140,6 +167,7 @@ const App = () => {
           bookJson,
           guideUnits,
           skippedGuidePages,
+          translationFiles,
         } = await readJar(file);
         for (const id of unsupportedBooks) {
           toast(
@@ -157,16 +185,17 @@ const App = () => {
         } else if (foundFiles.length <= 1) {
           // A jar may carry only a guidebook, with no lang file of its own.
           const [langFile] = foundFiles;
-          openEditor(langFile?.content ?? {}, langFile?.sessionName ?? file.name, {
+          await openEditor(langFile?.content ?? {}, langFile?.sessionName ?? file.name, {
             mcVersion,
             books,
             bookFiles,
             bookJson,
             guideUnits,
+            translationFiles,
           });
         } else {
           setLangFiles(foundFiles);
-          setJar({ mcVersion, books, bookFiles, bookJson, guideUnits });
+          setJar({ mcVersion, books, bookFiles, bookJson, guideUnits, translationFiles });
           setScreen("lang-selection");
         }
       } catch (error) {
@@ -178,8 +207,8 @@ const App = () => {
     }
   };
 
-  const handleLangSelect = (langFile) => {
-    openEditor(langFile.content, langFile.sessionName, jar);
+  const handleLangSelect = async (langFile) => {
+    await openEditor(langFile.content, langFile.sessionName, jar);
   };
 
 
@@ -241,7 +270,7 @@ const App = () => {
         toast("Вміст буфера обміну не є коректним lang-файлом JSON.", "error");
         return;
       }
-      openEditor(content, CLIPBOARD_SESSION_NAME, { resumable: false });
+      await openEditor(content, CLIPBOARD_SESSION_NAME, { resumable: false });
     } catch (error) {
       console.error("Error parsing clipboard JSON:", error);
       toast("Не вдалося обробити вміст буфера обміну. Переконайтеся, що це коректний JSON.", "error");
