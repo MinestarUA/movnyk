@@ -1,30 +1,36 @@
 // A short history of recent projects in localStorage, so a page reload or a
-// switch to another file never wipes translation progress.
+// switch to another file never wipes translation progress. Sessions hold only
+// the editor rows: they carry each key's original text, so the source file is
+// not needed to resume.
 
 const STORAGE_KEY = "movnyk.sessions";
 const LEGACY_STORAGE_KEY = "movnyk.autosave";
-const MAX_SESSIONS = 5;
+const LEGACY_SESSION_ID = "legacy";
 const LEGACY_SESSION_NAME = "Попередня сесія";
+const MAX_SESSIONS = 5;
+// Lang files of unrelated mods share names (nearly every one is en_us.json),
+// so a name match alone must not resume another project's progress.
+const MIN_KEY_OVERLAP = 0.5;
 
 export const newSessionId = () => crypto.randomUUID();
-
-// Reopening the same file must land in the same slot instead of adding a copy.
-export const sessionIdForName = (name) => `name:${name}`;
 
 const isValidSession = (session) =>
   Boolean(session) &&
   typeof session.id === "string" &&
   typeof session.name === "string" &&
-  typeof session.template === "object" &&
-  session.template !== null &&
   Array.isArray(session.translations) &&
-  session.translations.every((row) => typeof row === "object" && row !== null) &&
+  session.translations.every((row) => typeof row?.key === "string") &&
   typeof session.savedAt === "number";
+
+const withoutDuplicateIds = (sessions) => {
+  const seen = new Set();
+  return sessions.filter(({ id }) => !seen.has(id) && seen.add(id));
+};
 
 const readSessions = () => {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return Array.isArray(parsed) ? parsed.filter(isValidSession) : [];
+    return Array.isArray(parsed) ? withoutDuplicateIds(parsed.filter(isValidSession)) : [];
   } catch {
     return [];
   }
@@ -40,40 +46,74 @@ const writeSessions = (sessions) => {
   }
 };
 
-// The old single-slot autosave becomes the first history entry. The old key is
-// only dropped once its content is safe in the new store (or is unusable).
-const migrateLegacyAutosave = () => {
+const parseLegacySession = (raw) => {
   try {
-    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!raw) return [];
     const legacy = JSON.parse(raw);
     const session = {
-      id: newSessionId(),
+      id: LEGACY_SESSION_ID,
       name: LEGACY_SESSION_NAME,
-      template: legacy?.template,
       translations: legacy?.translations,
       savedAt: legacy?.savedAt,
     };
-    const sessions = isValidSession(session) ? [session] : [];
-    if (sessions.length === 0 || writeSessions(sessions)) {
-      localStorage.removeItem(LEGACY_STORAGE_KEY);
-    }
-    return sessions;
+    return isValidSession(session) ? session : null;
   } catch {
-    return [];
+    return null;
+  }
+};
+
+// The old single-slot autosave joins the history. Its key is only dropped once
+// its content is safe in the new store (or is unusable), so a failed write
+// retries on the next load.
+const mergeLegacyAutosave = (sessions) => {
+  try {
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (raw === null) return sessions;
+    const legacy = parseLegacySession(raw);
+    // An existing "legacy" session may have been edited since, so the old
+    // payload must never overwrite it.
+    if (!legacy || sessions.some(({ id }) => id === legacy.id)) {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      return sessions;
+    }
+    const merged = [...sessions, legacy]
+      .sort((a, b) => b.savedAt - a.savedAt)
+      .slice(0, MAX_SESSIONS);
+    if (writeSessions(merged)) localStorage.removeItem(LEGACY_STORAGE_KEY);
+    return merged;
+  } catch {
+    return sessions;
   }
 };
 
 // Most recently saved first.
-export const loadSessions = () => {
-  const sessions = readSessions();
-  return sessions.length > 0 ? sessions : migrateLegacyAutosave();
+export const loadSessions = () => mergeLegacyAutosave(readSessions());
+
+// An unchanged file resumes its session; an edited version of it still does,
+// as long as most of its keys are already in the saved rows.
+export const findResumableSession = (sessions, name, content) => {
+  const newKeys = Object.keys(content);
+  if (newKeys.length === 0) return null;
+  return (
+    sessions.find((session) => {
+      if (session.name !== name) return false;
+      const savedKeys = new Set(session.translations.map((row) => row.key));
+      const shared = newKeys.filter((key) => savedKeys.has(key)).length;
+      return shared / newKeys.length >= MIN_KEY_OVERLAP;
+    }) ?? null
+  );
 };
 
-export const saveSession = ({ id, name, template, translations }) => {
+// When the browser's quota is exhausted, older sessions make room for the one
+// being edited; the write only fails if that session alone does not fit.
+export const saveSession = ({ id, name, translations }) => {
+  const saved = { id, name, translations, savedAt: Date.now() };
   const others = readSessions().filter((session) => session.id !== id);
-  const saved = { id, name, template, translations, savedAt: Date.now() };
-  return writeSessions([saved, ...others].slice(0, MAX_SESSIONS));
+  let sessions = [saved, ...others].slice(0, MAX_SESSIONS);
+  while (!writeSessions(sessions)) {
+    if (sessions.length === 1) return false;
+    sessions = sessions.slice(0, -1);
+  }
+  return true;
 };
 
 export const deleteSession = (id) => {

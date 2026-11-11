@@ -5,8 +5,8 @@ import EditorScreen from "./components/EditorScreen";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useToast } from "./components/Toast";
-import { deleteSession, loadSessions, newSessionId, sessionIdForName } from "./lib/sessions";
-import { applyNewOriginal } from "./lib/originalUpdate";
+import { deleteSession, findResumableSession, loadSessions, newSessionId } from "./lib/sessions";
+import { applyNewOriginal, describeOriginalUpdate } from "./lib/originalUpdate";
 import { createTranslationObject } from "./lib/exporting";
 
 const CLIPBOARD_SESSION_NAME = "З буфера обміну";
@@ -14,28 +14,30 @@ const CLIPBOARD_SESSION_NAME = "З буфера обміну";
 const App = () => {
   const [screen, setScreen] = useState("welcome"); // welcome, lang-selection, editor
   const [langFiles, setLangFiles] = useState([]);
-  const [jarName, setJarName] = useState("");
-  const [template, setTemplate] = useState(null);
   const [sessions, setSessions] = useState(() => loadSessions());
   const [session, setSession] = useState(null); // { id, name } of the open editor
   const [initialTranslations, setInitialTranslations] = useState(null);
+  const [initialRemovedRows, setInitialRemovedRows] = useState([]);
   const toast = useToast();
 
   // Reopening a file that already has a session keeps its progress: the saved
   // rows are re-bound to the freshly loaded original, which is a no-op when
   // the file has not changed.
-  const openEditor = (content, name, id = sessionIdForName(name)) => {
-    const existing = loadSessions().find((saved) => saved.id === id);
-    setSession({ id, name });
-    setInitialTranslations(existing ? applyNewOriginal(existing.translations, content).next : null);
-    setTemplate(content);
+  const openEditor = (content, name, { resumable = true } = {}) => {
+    const existing = resumable ? findResumableSession(loadSessions(), name, content) : null;
+    const { next, removed, stats } = applyNewOriginal(existing?.translations ?? [], content);
+    const changedCount = stats.changed + stats.renamed + stats.added + stats.removed;
+    if (existing && changedCount > 0) toast(describeOriginalUpdate(stats), "success");
+    setSession({ id: existing?.id ?? newSessionId(), name });
+    setInitialTranslations(next);
+    setInitialRemovedRows(removed);
     setScreen("editor");
   };
 
   const handleResume = (saved) => {
     setSession({ id: saved.id, name: saved.name });
     setInitialTranslations(saved.translations);
-    setTemplate(saved.template);
+    setInitialRemovedRows([]);
     setScreen("editor");
   };
 
@@ -77,7 +79,11 @@ const App = () => {
               zipEntry.async("string").then((content) => {
                 try {
                   const jsonContent = JSON.parse(content);
-                  foundFiles.push({ name: relativePath, content: jsonContent });
+                  foundFiles.push({
+                    name: relativePath,
+                    sessionName: `${file.name} · ${relativePath}`,
+                    content: jsonContent,
+                  });
                 } catch {
                   console.warn(`Could not parse ${relativePath}, skipping.`);
                 }
@@ -91,9 +97,8 @@ const App = () => {
         if (foundFiles.length === 0) {
           toast("У цьому файлі .jar не знайдено мовних файлів.", "warning");
         } else if (foundFiles.length === 1) {
-          openEditor(foundFiles[0].content, `${file.name} · ${foundFiles[0].name}`);
+          openEditor(foundFiles[0].content, foundFiles[0].sessionName);
         } else {
-          setJarName(file.name);
           setLangFiles(foundFiles);
           setScreen("lang-selection");
         }
@@ -107,7 +112,7 @@ const App = () => {
   };
 
   const handleLangSelect = (langFile) => {
-    openEditor(langFile.content, `${jarName} · ${langFile.name}`);
+    openEditor(langFile.content, langFile.sessionName);
   };
 
 
@@ -169,7 +174,7 @@ const App = () => {
         toast("Вміст буфера обміну не є коректним lang-файлом JSON.", "error");
         return;
       }
-      openEditor(content, CLIPBOARD_SESSION_NAME, newSessionId());
+      openEditor(content, CLIPBOARD_SESSION_NAME, { resumable: false });
     } catch (error) {
       console.error("Error parsing clipboard JSON:", error);
       toast("Не вдалося обробити вміст буфера обміну. Переконайтеся, що це коректний JSON.", "error");
@@ -207,10 +212,10 @@ const App = () => {
       case "lang-selection":
         return <LangSelectionScreen langFiles={langFiles} onLangSelect={handleLangSelect} />;
       case "editor":
-        return template ? (
+        return initialTranslations ? (
           <EditorScreen
-            template={template}
             initialTranslations={initialTranslations}
+            initialRemovedRows={initialRemovedRows}
             session={session}
             onExportJson={handleExportJson}
             onExportResourcePack={handleExportResourcePack}

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isTranslatable } from "../lib/translations";
 
 const FEATURES = [
@@ -20,8 +20,23 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
-  const handleDeleteSession = (session) => {
+  const pickerButtonRef = useRef(null);
+  const continueButtonRefs = useRef([]);
+  const focusAfterDeleteRef = useRef(null);
+
+  // The deleted row's button is gone, so keyboard focus would drop to the page
+  // top: move it to the session that took its place, or to the file picker.
+  useEffect(() => {
+    const deletedIndex = focusAfterDeleteRef.current;
+    if (deletedIndex === null) return;
+    focusAfterDeleteRef.current = null;
+    const target = continueButtonRefs.current[Math.min(deletedIndex, sessions.length - 1)];
+    (target ?? pickerButtonRef.current)?.focus();
+  }, [sessions]);
+
+  const handleDeleteSession = (session, index) => {
     if (window.confirm(`Видалити сесію «${session.name}»? Цю дію не можна скасувати.`)) {
+      focusAfterDeleteRef.current = index;
       onDeleteSession(session.id);
     }
   };
@@ -61,6 +76,7 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
           Інструмент для перекладу модифікацій Minecraft.
         </p>
         <button
+          ref={pickerButtonRef}
           type="button"
           onClick={openFilePicker}
           onDragOver={handleDragOver}
@@ -123,7 +139,7 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
           <section className="mt-6 text-left animate-fade-in">
             <h2 className="m-0 mb-3 text-lg font-semibold">Нещодавні сесії</h2>
             <ul className="m-0 flex list-none flex-col gap-3 p-0">
-              {sessions.map((session) => (
+              {sessions.map((session, index) => (
                 <li
                   key={session.id}
                   className="flex items-center justify-between gap-4 rounded-[10px] border-2 border-primary/40 bg-base-200 p-4"
@@ -139,8 +155,12 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2">
                     <button
+                      ref={(button) => {
+                        continueButtonRefs.current[index] = button;
+                      }}
                       type="button"
                       className="btn btn-primary btn-sm"
+                      aria-label={`Продовжити сесію «${session.name}»`}
                       onClick={() => onResume(session)}
                     >
                       Продовжити
@@ -149,8 +169,7 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
                       type="button"
                       className="btn btn-ghost btn-sm btn-square text-base-content/60 hover:text-error"
                       aria-label={`Видалити сесію «${session.name}»`}
-                      title="Видалити"
-                      onClick={() => handleDeleteSession(session)}
+                      onClick={() => handleDeleteSession(session, index)}
                     >
                       <svg
                         className="w-4 h-4"

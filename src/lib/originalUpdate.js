@@ -69,3 +69,7 @@ export const applyNewOriginal = (translations, newOriginal) => {
 
   return { next, removed, stats };
 };
+
+export const describeOriginalUpdate = ({ changed, renamed, added, removed }) =>
+  `Оригінал оновлено. Змінено: ${changed}, перейменовано: ${renamed}, нових: ${added}, видалено: ${removed}.` +
+  (removed > 0 ? " Видалені рядки є в довіднику." : "");

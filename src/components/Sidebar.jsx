@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useToast } from "./Toast";
 import { hasApiKey } from "../lib/settings";
 import { parseLangContent } from "../lib/importing";
+import { describeOriginalUpdate } from "../lib/originalUpdate";
 
 const Sidebar = ({
   open = true,
@@ -110,12 +111,7 @@ const Sidebar = ({
     }
     try {
       const newOriginal = parseLangContent(text);
-      const { changed, renamed, added, removed } = onApplyNewOriginal(newOriginal);
-      toast(
-        `Оригінал оновлено. Змінено: ${changed}, перейменовано: ${renamed}, нових: ${added}, видалено: ${removed}.` +
-          (removed > 0 ? " Видалені рядки є в довіднику." : ""),
-        "success"
-      );
+      toast(describeOriginalUpdate(onApplyNewOriginal(newOriginal)), "success");
     } catch (error) {
       console.error("Error parsing clipboard original:", error);
       toast("Не вдалося обробити вміст буфера обміну. Переконайтеся, що це коректний JSON або .lang файл.", "error");

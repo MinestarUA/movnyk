@@ -65,29 +65,30 @@ const COLUMN_HEADER_STYLE = {
 
 const GRID_COLUMNS_HEADER = "26px minmax(240px,1.3fr) minmax(240px,1.4fr) 140px";
 
-const EditorScreen = ({ template, initialTranslations, session, onExportJson, onExportResourcePack, onExportClipboard, onHome }) => {
+const EditorScreen = ({
+  initialTranslations,
+  initialRemovedRows = [],
+  session,
+  onExportJson,
+  onExportResourcePack,
+  onExportClipboard,
+  onHome,
+}) => {
   const toast = useToast();
   const [settings, setSettings] = useState(() => loadSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiState, setAiState] = useState({ running: false, done: 0, total: 0 });
   const abortRef = useRef(null);
   const [translations, setTranslations] = useState(() =>
-    initialTranslations
-      ? initialTranslations.map((t) => ({
-          key: t.key,
-          original: t.original,
-          translated: typeof t.translated === "string" ? t.translated : "",
-          confirmed: Boolean(t.confirmed),
-          unsynced: Boolean(t.unsynced),
-        }))
-      : Object.entries(template).map(([key, value]) => ({
-          key,
-          original: value,
-          translated: "",
-          confirmed: false,
-          unsynced: false,
-        }))
+    initialTranslations.map((t) => ({
+      key: t.key,
+      original: t.original,
+      translated: typeof t.translated === "string" ? t.translated : "",
+      confirmed: Boolean(t.confirmed),
+      unsynced: Boolean(t.unsynced),
+    }))
   );
+  const openedTranslationsRef = useRef(translations);
 
   // Detected from the current originals, so applying a new original re-detects.
   const [detectedSyntaxIds, setDetectedSyntaxIds] = useState(() =>
@@ -112,7 +113,7 @@ const EditorScreen = ({ template, initialTranslations, session, onExportJson, on
   const [referenceQuery, setReferenceQuery] = useState("");
   // Rows dropped from the editor by an original update. Not editable, but the
   // reference panel still finds their translations.
-  const [removedRows, setRemovedRows] = useState([]);
+  const [removedRows, setRemovedRows] = useState(initialRemovedRows);
   const [suggestingKey, setSuggestingKey] = useState(null);
   const wordAutocompleteEnabled = settings.wordAutocompleteEnabled !== false;
   const wordAutocompleteWords = useMemo(
@@ -244,19 +245,27 @@ const EditorScreen = ({ template, initialTranslations, session, onExportJson, on
     qaDetails && activeItem && qaDetails.key === activeItem.key && qaDetails.text === activeItem.translated
   );
 
-  // Persist progress to this session's slot, debounced so rapid typing
-  // does not hammer localStorage.
+  // Persist progress to this session's slot, debounced so rapid typing does
+  // not hammer localStorage. Merely opening a session saves nothing, so it
+  // keeps its place in the recent list. Leaving the editor flushes a pending
+  // save so the last edit survives.
   const quotaWarnedRef = useRef(false);
+  const pendingSaveRef = useRef(null);
   useEffect(() => {
-    const id = setTimeout(() => {
-      const ok = saveSession({ id: session.id, name: session.name, template, translations });
+    if (translations === openedTranslationsRef.current) return;
+    const save = () => {
+      pendingSaveRef.current = null;
+      const ok = saveSession({ id: session.id, name: session.name, translations });
       if (!ok && !quotaWarnedRef.current) {
         quotaWarnedRef.current = true;
         toast("Не вдалося зберегти сесію: вичерпано сховище браузера.", "warning");
       }
-    }, 400);
+    };
+    pendingSaveRef.current = save;
+    const id = setTimeout(save, 400);
     return () => clearTimeout(id);
-  }, [session, template, translations, toast]);
+  }, [session, translations, toast]);
+  useEffect(() => () => pendingSaveRef.current?.(), []);
 
   // Scroll the selected row into view.
   useEffect(() => {
