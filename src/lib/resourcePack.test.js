@@ -95,3 +95,46 @@ describe("validatePack", () => {
     expect(Object.keys(validatePack(pack))).toEqual(invalidFields);
   });
 });
+
+describe("buildResourcePackFiles with books", () => {
+  const entryPath = "assets/a/patchouli_books/b/en_us/entries/x.json";
+  const otherPath = "assets/a/patchouli_books/b/en_us/entries/y.json";
+  const pack = { namespace: "a", mcVersion: "1.20.1", language: "uk_ua" };
+  const bookRow = (path, pointer, translated) => ({
+    key: `book:${path}#${pointer}`,
+    original: "x",
+    translated,
+  });
+  const sources = {
+    [entryPath]: JSON.stringify({ name: "E", pages: [{ type: "patchouli:text", text: "One" }, { type: "patchouli:text", text: "Two" }] }),
+    [otherPath]: JSON.stringify({ name: "Other" }),
+  };
+  const build = (translations, bookSources) =>
+    buildResourcePackFiles({ translations, pack, description: "d", bookSources });
+
+  it("writes a full copy under the target language with only translated fields replaced", () => {
+    const translations = [
+      bookRow(entryPath, "/name", "Е"),
+      bookRow(entryPath, "/pages/0/text", "Один"),
+      bookRow(entryPath, "/pages/1/text", ""),
+      bookRow(otherPath, "/name", ""),
+    ];
+    const result = build(translations, sources);
+    const written = JSON.parse(result.files["assets/a/patchouli_books/b/uk_ua/entries/x.json"]);
+    expect(written.pages.map((page) => page.text)).toEqual(["Один", "Two"]);
+    expect(written.name).toBe("Е");
+    expect(Object.keys(result.files)).not.toContain("assets/a/patchouli_books/b/uk_ua/entries/y.json");
+    expect([result.bookFileCount, result.partialBookFileCount]).toEqual([1, 1]);
+  });
+
+  it("still exports the lang file but flags missing sources when translated book rows have none", () => {
+    const translations = [
+      { key: "item.a", original: "A", translated: "А" },
+      bookRow(entryPath, "/name", "Е"),
+    ];
+    const result = build(translations, null);
+    expect(Object.keys(result.files).sort()).toEqual(["assets/a/lang/uk_ua.json", "pack.mcmeta"]);
+    expect(result.bookSourcesMissing).toBe(true);
+    expect(result.bookFileCount).toBe(0);
+  });
+});

@@ -1,9 +1,14 @@
 import { useState } from "react";
-import { RESOURCE_PACK_FORMATS, validatePack, versionRowFor } from "../lib/resourcePack";
+import {
+  BOOK_SOURCES_MISSING_MESSAGE,
+  RESOURCE_PACK_FORMATS,
+  validatePack,
+  versionRowFor,
+} from "../lib/resourcePack";
 
 const VERSION_OPTIONS = RESOURCE_PACK_FORMATS.map(([, last]) => versionRowFor(last)).reverse();
 
-const ExportPackModal = ({ pack, onConfirm, onClose }) => {
+const ExportPackModal = ({ pack, summary, onConfirm, onClose }) => {
   const [mcVersion, setMcVersion] = useState(pack.mcVersion);
   const [namespace, setNamespace] = useState(pack.namespace);
   const [language, setLanguage] = useState(pack.language);
@@ -74,6 +79,13 @@ const ExportPackModal = ({ pack, onConfirm, onClose }) => {
             {errors.language && <span className="mt-1 block text-xs text-error">{errors.language}</span>}
           </label>
         </div>
+
+        {summary.bookFileCount > 0 && (
+          <p className="mt-4 text-sm">
+            Файлів книги: {summary.bookFileCount}, з них перекладено частково: {summary.partialBookFileCount}.
+          </p>
+        )}
+        {summary.bookSourcesMissing && <p className="mt-4 text-sm text-warning">{BOOK_SOURCES_MISSING_MESSAGE}</p>}
 
         <div className="mt-8 flex justify-end gap-3">
           <button className="btn btn-ghost" onClick={onClose}>

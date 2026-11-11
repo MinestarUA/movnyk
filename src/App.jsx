@@ -11,8 +11,14 @@ import { applyNewOriginal, describeOriginalUpdate } from "./lib/originalUpdate";
 import { createTranslationObject } from "./lib/exporting";
 import { readJar } from "./lib/jar";
 import { extractPatchouliUnits } from "./lib/patchouli";
-import { pruneBookSources, saveBookSources } from "./lib/bookSources";
-import { buildResourcePackFiles, defaultPack, packFileBase, packTitle } from "./lib/resourcePack";
+import { loadBookSources, pruneBookSources, saveBookSources } from "./lib/bookSources";
+import {
+  BOOK_SOURCES_MISSING_MESSAGE,
+  buildResourcePackFiles,
+  defaultPack,
+  packFileBase,
+  packTitle,
+} from "./lib/resourcePack";
 
 const CLIPBOARD_SESSION_NAME = "З буфера обміну";
 
@@ -35,8 +41,8 @@ const App = () => {
   const [sessions, setSessions] = useState(() => loadSessions());
   const [session, setSession] = useState(null); // { id, name, pack, books } of the open editor
   const [jar, setJar] = useState(null); // { mcVersion, books, bookFiles } of a jar waiting for a lang file choice
-  const [, setBookSources] = useState(null); // raw book files of the open session; null when unavailable
-  const [packExportTranslations, setPackExportTranslations] = useState(null); // set while the export dialog is open
+  const [bookSources, setBookSources] = useState(null); // raw book files of the open session; null when unavailable
+  const [packExport, setPackExport] = useState(null); // { translations, sources, summary } while the export dialog is open
   const [initialTranslations, setInitialTranslations] = useState(null);
   const [initialRemovedRows, setInitialRemovedRows] = useState([]);
   const toast = useToast();
@@ -230,25 +236,31 @@ const App = () => {
     }
   };
 
-  const handleExportResourcePack = (translations) => {
-    if (Object.keys(createTranslationObject(translations)).length === 0) {
-      toast("Немає перекладів для експорту.", "warning");
+  const buildPackFiles = ({ translations, sources }, pack) =>
+    buildResourcePackFiles({
+      translations,
+      pack,
+      description: `Переклад: ${packTitle(session.name)} (Movnyk)`,
+      bookSources: sources,
+    });
+
+  const handleExportResourcePack = async (translations) => {
+    const sources = bookSources ?? (session.books.length > 0 ? await loadBookSources(session.id) : null);
+    const { files, ...summary } = buildPackFiles({ translations, sources }, session.pack);
+    if (Object.keys(files).every((path) => path === "pack.mcmeta")) {
+      toast(summary.bookSourcesMissing ? BOOK_SOURCES_MISSING_MESSAGE : "Немає перекладів для експорту.", "warning");
       return;
     }
-    setPackExportTranslations(translations);
+    setPackExport({ translations, sources, summary });
   };
 
   const handleConfirmResourcePack = async (pack) => {
-    const { files } = buildResourcePackFiles({
-      translations: packExportTranslations,
-      pack,
-      description: `Переклад: ${packTitle(session.name)} (Movnyk)`,
-    });
+    const { files } = buildPackFiles(packExport, pack);
     const zip = new JSZip();
     for (const [path, content] of Object.entries(files)) zip.file(path, content);
     const blob = await zip.generateAsync({ type: "blob" });
     setSession({ ...session, pack });
-    setPackExportTranslations(null);
+    setPackExport(null);
     triggerDownload(blob, `${packFileBase(session.name)}-${pack.language}.zip`);
     toast("Ресурспак завантажено.", "success");
   };
@@ -286,11 +298,12 @@ const App = () => {
   return (
     <div className={"movnyk h-full w-full"}>
       <ErrorBoundary>{renderScreen()}</ErrorBoundary>
-      {packExportTranslations && (
+      {packExport && (
         <ExportPackModal
           pack={session.pack}
+          summary={packExport.summary}
           onConfirm={handleConfirmResourcePack}
-          onClose={() => setPackExportTranslations(null)}
+          onClose={() => setPackExport(null)}
         />
       )}
     </div>

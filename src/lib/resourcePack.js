@@ -1,4 +1,5 @@
 import { createTranslationObject } from "./exporting";
+import { applyPatchouliTranslations, isBookKey, parseBookKey } from "./patchouli";
 
 // [first, last, format]; row id = last. Newest last. A format with a minor
 // part is [major, minor]; min/max_format accept that form.
@@ -109,7 +110,29 @@ export const validatePack = ({ namespace, language }) => {
 
 const toJson = (value) => JSON.stringify(value, null, 2);
 
-export const buildResourcePackFiles = ({ translations, pack, description }) => {
+export const BOOK_SOURCES_MISSING_MESSAGE =
+  "Файли книги недоступні в цьому браузері. Перетягніть той самий .jar ще раз, щоб додати книгу до ресурспаку.";
+
+export const patchouliTargetPath = (path, language) =>
+  path.replace(/^(assets\/[^/]+\/patchouli_books\/[^/]+)\/en_us\//, `$1/${language}/`);
+
+// Book rows grouped by source file, each with its translated [pointer, text] pairs.
+const groupBookRows = (translations) => {
+  const byPath = new Map();
+  for (const row of translations) {
+    if (!isBookKey(row.key)) continue;
+    const { path, pointer } = parseBookKey(row.key);
+    const group = byPath.get(path) ?? { rowCount: 0, translated: [] };
+    group.rowCount += 1;
+    if (row.translated?.trim()) group.translated.push([pointer, row.translated]);
+    byPath.set(path, group);
+  }
+  return byPath;
+};
+
+// A Patchouli file falls back to en_us as a whole, so a translated file is a
+// full copy of the source with only the translated fields replaced.
+export const buildResourcePackFiles = ({ translations, pack, description, bookSources = null }) => {
   const files = {
     "pack.mcmeta": toJson(packMcmeta(versionRowFor(pack.mcVersion).format, description)),
   };
@@ -117,5 +140,24 @@ export const buildResourcePackFiles = ({ translations, pack, description }) => {
   if (Object.keys(langObject).length > 0) {
     files[`assets/${pack.namespace}/lang/${pack.language}.json`] = toJson(langObject);
   }
-  return { files };
+
+  let bookFileCount = 0;
+  let partialBookFileCount = 0;
+  let hasTranslatedBookRows = false;
+  for (const [path, { rowCount, translated }] of groupBookRows(translations)) {
+    if (translated.length === 0) continue;
+    hasTranslatedBookRows = true;
+    if (!bookSources?.[path]) continue;
+    const json = applyPatchouliTranslations(JSON.parse(bookSources[path]), translated);
+    files[patchouliTargetPath(path, pack.language)] = toJson(json);
+    bookFileCount += 1;
+    if (translated.length < rowCount) partialBookFileCount += 1;
+  }
+
+  return {
+    files,
+    bookFileCount,
+    partialBookFileCount,
+    bookSourcesMissing: hasTranslatedBookRows && !bookSources,
+  };
 };
