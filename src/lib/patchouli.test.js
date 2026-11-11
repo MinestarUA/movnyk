@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPatchouliTranslations, extractPatchouliUnits } from "./patchouli";
+import { applyPatchouliTranslations, extractPatchouliUnits, findPatchouliBooks } from "./patchouli";
 
 const ENTRY_PATH = "assets/a/patchouli_books/b/en_us/entries/x/y.json";
 const CATEGORY_PATH = "assets/a/patchouli_books/b/en_us/categories/c.json";
@@ -44,5 +44,33 @@ describe("applyPatchouliTranslations", () => {
   it("ignores pointers to missing or non-string fields", () => {
     const out = applyPatchouliTranslations({ ...json, sortnum: 3 }, [["/sortnum", "x"], ["/pages/5/text", "x"]]);
     expect(out).toEqual({ ...json, sortnum: 3 });
+  });
+});
+
+describe("findPatchouliBooks", () => {
+  const root = "assets/a/patchouli_books/b";
+  it.each([
+    [
+      "categories before entries, other languages and templates excluded",
+      [
+        `${root}/en_us/entries/z.json`,
+        `${root}/en_us/categories/c.json`,
+        `${root}/uk_ua/entries/y.json`,
+        `${root}/en_us/templates/t.json`,
+      ],
+      { books: [{ root, id: "a:b", files: [`${root}/en_us/categories/c.json`, `${root}/en_us/entries/z.json`] }], unsupported: [] },
+    ],
+    [
+      "a book with only data/ content is unsupported",
+      ["data/a/patchouli_books/old/book.json", "data/a/patchouli_books/old/en_us/entries/x.json"],
+      { books: [], unsupported: ["a:old"] },
+    ],
+    [
+      "a book with data/book.json and assets content is supported",
+      ["data/a/patchouli_books/b/book.json", `${root}/en_us/entries/x.json`],
+      { books: [{ root, id: "a:b", files: [`${root}/en_us/entries/x.json`] }], unsupported: [] },
+    ],
+  ])("%s", (_name, paths, expected) => {
+    expect(findPatchouliBooks(paths)).toEqual(expected);
   });
 });

@@ -49,3 +49,36 @@ export const applyPatchouliTranslations = (json, translated) => {
   }
   return out;
 };
+
+const ASSET_FILE = /^assets\/([^/]+)\/patchouli_books\/([^/]+)\/en_us\/(categories|entries)\/.+\.json$/;
+const DATA_EN_US_FILE = /^data\/([^/]+)\/patchouli_books\/([^/]+)\/en_us\//;
+
+// assets/<ns>/patchouli_books/<book>/en_us/(categories|entries)/**.json → content.
+// A book whose en_us files sit only under data/ (Minecraft before 1.20) cannot
+// be translated from a resource pack, so it is reported as unsupported.
+export const findPatchouliBooks = (paths) => {
+  const byRoot = new Map();
+  for (const path of paths) {
+    const match = path.match(ASSET_FILE);
+    if (!match) continue;
+    const [, namespace, book, folder] = match;
+    const root = `assets/${namespace}/patchouli_books/${book}`;
+    if (!byRoot.has(root)) {
+      byRoot.set(root, { root, id: `${namespace}:${book}`, categories: [], entries: [] });
+    }
+    byRoot.get(root)[folder].push(path);
+  }
+  const books = [...byRoot.values()].map(({ categories, entries, ...book }) => ({
+    ...book,
+    files: [...categories.sort(), ...entries.sort()],
+  }));
+
+  const supportedIds = new Set(books.map(({ id }) => id));
+  const unsupported = new Set();
+  for (const path of paths) {
+    const match = path.match(DATA_EN_US_FILE);
+    const id = match && `${match[1]}:${match[2]}`;
+    if (id && !supportedIds.has(id)) unsupported.add(id);
+  }
+  return { books, unsupported: [...unsupported] };
+};
