@@ -1,3 +1,5 @@
+import { createTranslationObject } from "./exporting";
+
 // [first, last, format]; row id = last. Newest last.
 // Formats verified against minecraft.wiki/w/Pack_format.
 export const RESOURCE_PACK_FORMATS = [
@@ -63,4 +65,56 @@ export const inferMinecraftVersion = ({ modsToml = null, fabricModJson = null })
   const range = (modsToml && tomlMinecraftRange(modsToml)) || (fabricModJson && fabricMinecraftRange(fabricModJson));
   const version = firstVersion(range);
   return version ? (versionRowFor(version)?.id ?? null) : null;
+};
+
+export const guessNamespace = (source, keys) => {
+  const fromPath = source?.match(/assets\/([a-z0-9_.-]+)\/lang\//)?.[1];
+  if (fromPath) return fromPath;
+  const counts = new Map();
+  for (const key of keys) {
+    const namespace = key.split(".")[1];
+    if (namespace) counts.set(namespace, (counts.get(namespace) ?? 0) + 1);
+  }
+  const [mostCommon] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? [];
+  return mostCommon ?? "minecraft";
+};
+
+export const defaultPack = (sessionName, keys) => ({
+  namespace: guessNamespace(sessionName, keys),
+  mcVersion: DEFAULT_MC_VERSION,
+  language: "uk_ua",
+});
+
+export const packTitle = (sessionName) => sessionName.split(" · ")[0].replace(/\.(jar|json)$/i, "");
+
+export const packFileBase = (sessionName) => {
+  const base = packTitle(sessionName).replace(/[^\p{L}\p{N}._-]+/gu, "_");
+  return /[\p{L}\p{N}]/u.test(base) ? base : "movnyk";
+};
+
+// Messages keyed by field; empty when the pack is valid.
+export const validatePack = ({ namespace, language }) => {
+  const errors = {};
+  if (!/^[a-z0-9_.-]+$/.test(namespace)) {
+    errors.namespace = "Лише малі латинські літери, цифри та _ . -";
+  }
+  if (language === "en_us") {
+    errors.language = "Код мови не може бути en_us — це перезапише англійський оригінал.";
+  } else if (!/^[a-z]{2,3}_[a-z]{2,4}$/.test(language)) {
+    errors.language = "Код мови має вигляд uk_ua";
+  }
+  return errors;
+};
+
+const toJson = (value) => JSON.stringify(value, null, 2);
+
+export const buildResourcePackFiles = ({ translations, pack, description }) => {
+  const files = {
+    "pack.mcmeta": toJson(packMcmeta(versionRowFor(pack.mcVersion).format, description)),
+  };
+  const langObject = createTranslationObject(translations);
+  if (Object.keys(langObject).length > 0) {
+    files[`assets/${pack.namespace}/lang/${pack.language}.json`] = toJson(langObject);
+  }
+  return { files };
 };
