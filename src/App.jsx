@@ -6,14 +6,14 @@ import ExportPackModal from "./components/ExportPackModal";
 import WelcomeScreen from "./components/WelcomeScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useToast } from "./components/Toast";
-import { deleteSession, findResumableSession, loadSessions, newSessionId } from "./lib/sessions";
-import { applyNewOriginal, describeOriginalUpdate } from "./lib/originalUpdate";
+import { deleteSession, loadSessions, newSessionId } from "./lib/sessions";
+import { describeOriginalUpdate } from "./lib/originalUpdate";
+import { openSessionRows } from "./lib/openSession";
 import { createTranslationObject } from "./lib/exporting";
 import { readJar } from "./lib/jar";
-import { extractPatchouliUnits } from "./lib/patchouli";
 import { loadBookSources, pruneBookSources, saveBookSources } from "./lib/bookSources";
 import {
-  BOOK_SOURCES_MISSING_MESSAGE,
+  bookSourcesWarning,
   buildResourcePackFiles,
   defaultPack,
   packFileBase,
@@ -22,25 +22,12 @@ import {
 
 const CLIPBOARD_SESSION_NAME = "З буфера обміну";
 
-// Book rows per book, in file order. Text that is a lang key is skipped, so
-// lang keys are passed in.
-const extractBookContent = (books, bookFiles, langKeys) =>
-  books.map((book) => {
-    const content = {};
-    for (const path of book.files) {
-      for (const { key, original } of extractPatchouliUnits(path, JSON.parse(bookFiles[path]), langKeys)) {
-        content[key] = original;
-      }
-    }
-    return { book, content };
-  });
-
 const App = () => {
   const [screen, setScreen] = useState("welcome"); // welcome, lang-selection, editor
   const [langFiles, setLangFiles] = useState([]);
   const [sessions, setSessions] = useState(() => loadSessions());
   const [session, setSession] = useState(null); // { id, name, pack, books } of the open editor
-  const [jar, setJar] = useState(null); // { mcVersion, books, bookFiles } of a jar waiting for a lang file choice
+  const [jar, setJar] = useState(null); // { mcVersion, books, bookFiles, bookJson } of a jar waiting for a lang file choice
   const [bookSources, setBookSources] = useState(null); // raw book files of the open session; null when unavailable
   const [packExport, setPackExport] = useState(null); // { translations, sources, summary } while the export dialog is open
   const [initialTranslations, setInitialTranslations] = useState(null);
@@ -51,18 +38,18 @@ const App = () => {
     pruneBookSources(loadSessions().map(({ id }) => id));
   }, []);
 
-  // Reopening a file that already has a session keeps its progress: the saved
-  // rows are re-bound to the freshly loaded original, which is a no-op when
-  // the file has not changed.
-  // Book text joins the lang rows before re-binding, otherwise saved book rows
-  // would count as removed whenever the jar is dropped again.
-  const openEditor = (content, name, { resumable = true, mcVersion = null, books = [], bookFiles = null } = {}) => {
-    const extracted = extractBookContent(books, bookFiles, new Set(Object.keys(content))).filter(
-      ({ content: bookContent }) => Object.keys(bookContent).length > 0
-    );
-    const merged = Object.assign({}, content, ...extracted.map(({ content: bookContent }) => bookContent));
-    const existing = resumable ? findResumableSession(loadSessions(), name, merged) : null;
-    const { next, removed, stats } = applyNewOriginal(existing?.translations ?? [], merged);
+  const openEditor = (
+    content,
+    name,
+    { resumable = true, mcVersion = null, books = [], bookFiles = null, bookJson = {} } = {}
+  ) => {
+    const {
+      existing,
+      next,
+      removed,
+      stats,
+      books: sessionBooks,
+    } = openSessionRows({ savedSessions: loadSessions(), name, content, resumable, books, bookJson });
     const changedCount = stats.changed + stats.renamed + stats.added + stats.removed;
     if (existing && changedCount > 0) toast(describeOriginalUpdate(stats), "success");
     // A version inferred from the jar wins over the remembered one.
@@ -72,11 +59,6 @@ const App = () => {
       ...(mcVersion && { mcVersion }),
     };
     const id = existing?.id ?? newSessionId();
-    const sessionBooks = extracted.map(({ book, content: bookContent }) => ({
-      root: book.root,
-      name: content[book.nameKey] ?? book.nameKey ?? book.id,
-      rowCount: Object.keys(bookContent).length,
-    }));
     setSession({ id, name, pack, books: sessionBooks.map(({ root, name }) => ({ root, name })) });
     setBookSources(sessionBooks.length > 0 ? bookFiles : null);
     if (sessionBooks.length > 0) {
@@ -140,7 +122,7 @@ const App = () => {
       reader.readAsText(file);
     } else if (file.name.endsWith(".jar")) {
       try {
-        const { langFiles: foundFiles, mcVersion, books, unsupportedBooks, bookFiles } = await readJar(file);
+        const { langFiles: foundFiles, mcVersion, books, unsupportedBooks, bookFiles, bookJson } = await readJar(file);
         for (const id of unsupportedBooks) {
           toast(
             `Книга «${id}» зберігається в data/ (Minecraft до 1.20), тому ресурспак не може її перекласти.`,
@@ -148,13 +130,20 @@ const App = () => {
           );
         }
 
-        if (foundFiles.length === 0) {
+        if (foundFiles.length === 0 && books.length === 0) {
           toast("У цьому файлі .jar не знайдено мовних файлів.", "warning");
-        } else if (foundFiles.length === 1) {
-          openEditor(foundFiles[0].content, foundFiles[0].sessionName, { mcVersion, books, bookFiles });
+        } else if (foundFiles.length <= 1) {
+          // A jar may carry only a guidebook, with no lang file of its own.
+          const [langFile] = foundFiles;
+          openEditor(langFile?.content ?? {}, langFile?.sessionName ?? file.name, {
+            mcVersion,
+            books,
+            bookFiles,
+            bookJson,
+          });
         } else {
           setLangFiles(foundFiles);
-          setJar({ mcVersion, books, bookFiles });
+          setJar({ mcVersion, books, bookFiles, bookJson });
           setScreen("lang-selection");
         }
       } catch (error) {
@@ -248,7 +237,7 @@ const App = () => {
     const sources = bookSources ?? (session.books.length > 0 ? await loadBookSources(session.id) : null);
     const { files, ...summary } = buildPackFiles({ translations, sources }, session.pack);
     if (Object.keys(files).every((path) => path === "pack.mcmeta")) {
-      toast(summary.bookSourcesMissing ? BOOK_SOURCES_MISSING_MESSAGE : "Немає перекладів для експорту.", "warning");
+      toast(bookSourcesWarning(summary) ?? "Немає перекладів для експорту.", "warning");
       return;
     }
     setPackExport({ translations, sources, summary });
@@ -258,7 +247,14 @@ const App = () => {
     const { files } = buildPackFiles(packExport, pack);
     const zip = new JSZip();
     for (const [path, content] of Object.entries(files)) zip.file(path, content);
-    const blob = await zip.generateAsync({ type: "blob" });
+    let blob;
+    try {
+      blob = await zip.generateAsync({ type: "blob" });
+    } catch (error) {
+      console.error("Resource pack generation failed:", error);
+      toast("Не вдалося створити ресурспак.", "error");
+      return;
+    }
     setSession({ ...session, pack });
     setPackExport(null);
     triggerDownload(blob, `${packFileBase(session.name)}-${pack.language}.zip`);
@@ -272,6 +268,7 @@ const App = () => {
       case "editor":
         return initialTranslations ? (
           <EditorScreen
+            modalOpen={packExport !== null}
             initialTranslations={initialTranslations}
             initialRemovedRows={initialRemovedRows}
             session={session}

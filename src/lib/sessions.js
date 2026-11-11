@@ -3,6 +3,8 @@
 // the editor rows: they carry each key's original text, so the source file is
 // not needed to resume.
 
+import { DEFAULT_MC_VERSION, isKnownMcVersion } from "./resourcePack";
+
 const STORAGE_KEY = "movnyk.sessions";
 const LEGACY_STORAGE_KEY = "movnyk.autosave";
 const LEGACY_SESSION_ID = "legacy";
@@ -32,10 +34,13 @@ const isValidBooks = (books) =>
   Array.isArray(books) && books.every((book) => typeof book?.root === "string" && typeof book.name === "string");
 
 // Export settings and the book list are optional extras: a malformed one is
-// dropped so it can never cost the translation rows.
+// dropped so it can never cost the translation rows. A version the format
+// table does not know falls back to the default rather than breaking export.
 const normalize = ({ pack, books, ...session }) => ({
   ...session,
-  ...(isValidPack(pack) && { pack }),
+  ...(isValidPack(pack) && {
+    pack: isKnownMcVersion(pack.mcVersion) ? pack : { ...pack, mcVersion: DEFAULT_MC_VERSION },
+  }),
   ...(isValidBooks(books) && { books }),
 });
 

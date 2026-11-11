@@ -21,16 +21,10 @@ export const readJar = async (file) => {
   zip.forEach((relativePath, zipEntry) => {
     if (relativePath.match(/assets\/.*\/lang\/.*\.json$/) && !zipEntry.dir) {
       langFilePromises.push(
-        zipEntry.async("string").then((content) => {
-          try {
-            langFiles.push({
-              name: relativePath,
-              sessionName: `${file.name} · ${relativePath}`,
-              content: JSON.parse(content),
-            });
-          } catch {
-            console.warn(`Could not parse ${relativePath}, skipping.`);
-          }
+        zipEntry.async("string").then((text) => {
+          const content = parseJson(text, relativePath);
+          if (content === null) return;
+          langFiles.push({ name: relativePath, sessionName: `${file.name} · ${relativePath}`, content });
         })
       );
     }
@@ -44,13 +38,16 @@ export const readJar = async (file) => {
 
   const { books: foundBooks, unsupported: unsupportedBooks } = findPatchouliBooks(Object.keys(zip.files));
   const bookFiles = {};
+  const bookJson = {};
   const books = [];
   for (const { files, ...book } of foundBooks) {
     const readableFiles = [];
     for (const path of files) {
       const text = await readText(zip, path);
-      if (parseJson(text, path) === null) continue;
+      const json = parseJson(text, path);
+      if (json === null) continue;
       bookFiles[path] = text;
+      bookJson[path] = json;
       readableFiles.push(path);
     }
     if (readableFiles.length === 0) continue;
@@ -66,5 +63,6 @@ export const readJar = async (file) => {
     books,
     unsupportedBooks,
     bookFiles,
+    bookJson,
   };
 };

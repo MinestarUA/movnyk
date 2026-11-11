@@ -22,6 +22,8 @@ describe("versionRowFor", () => {
 describe("packMcmeta", () => {
   it.each([
     ["before 1.21.9: only pack_format", 34, { pack_format: 34, description: "d" }],
+    ["the last pack_format-only format", 64, { pack_format: 64, description: "d" }],
+    ["the first min/max_format format", 65, { description: "d", min_format: 65, max_format: 65 }],
     ["from 1.21.9: min/max_format", 69, { description: "d", min_format: 69, max_format: 69 }],
     [
       "a format with a minor part: [major, minor] arrays",
@@ -50,6 +52,8 @@ versionRange = "[1.21.1,1.21.2)"
     ["fabric tilde range", { fabricModJson: fabric("~1.20.1") }, "1.20.1"],
     ["fabric array range", { fabricModJson: fabric([">=1.21"]) }, "1.21.1"],
     ["fabric wildcard", { fabricModJson: fabric("1.21.x") }, "1.21.1"],
+    ["a Forge range with no lower bound", { modsToml: '[[dependencies.m]]\nmodId="minecraft"\nversionRange="[,1.20.2)"\n' }, null],
+    ["a fabric range with no lower bound", { fabricModJson: fabric("<1.21") }, null],
     ["no metadata", {}, null],
   ])("%s", (_name, input, expected) => {
     expect(inferMinecraftVersion(input)).toBe(expected);
@@ -66,6 +70,12 @@ describe("guessNamespace", () => {
       "ae2",
     ],
     ["minecraft for dotless keys", "en_us.json", ["apple", "sword"], "minecraft"],
+    [
+      "minecraft when only book keys have dots",
+      "x.jar",
+      ["book:assets/a/patchouli_books/b/en_us/entries/x.json#/name"],
+      "minecraft",
+    ],
   ])("uses %s", (_name, source, keys, expected) => {
     expect(guessNamespace(source, keys)).toBe(expected);
   });
@@ -111,6 +121,20 @@ describe("buildResourcePackFiles with books", () => {
   };
   const build = (translations, bookSources) =>
     buildResourcePackFiles({ translations, pack, description: "d", bookSources });
+
+  it("counts a fully translated file as not partial and reports no missing sources", () => {
+    const translations = [bookRow(otherPath, "/name", "Інший")];
+    const result = build(translations, sources);
+    expect([result.bookFileCount, result.partialBookFileCount]).toEqual([1, 0]);
+    expect(result.bookSourcesMissing).toBe(false);
+    expect(result.missingBookFileCount).toBe(0);
+  });
+
+  it("counts a translated file whose source is absent from the stored sources", () => {
+    const result = build([bookRow(otherPath, "/name", "Інший")], { [entryPath]: sources[entryPath] });
+    expect([result.bookFileCount, result.missingBookFileCount]).toEqual([0, 1]);
+    expect(result.bookSourcesMissing).toBe(false);
+  });
 
   it("writes a full copy under the target language with only translated fields replaced", () => {
     const translations = [

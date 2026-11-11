@@ -53,6 +53,10 @@ const tomlMinecraftRange = (toml) => {
 
 const firstVersion = (text) => text?.match(/\d+\.\d+(?:\.\d+)?/)?.[0] ?? null;
 
+// A range with no lower bound ("[,1.20.2)", "<1.21") names only an upper one,
+// which says nothing about the version the mod was built for.
+const lowerBoundVersion = (range) => (/^\s*(?:[[(]\s*,|<)/.test(range ?? "") ? null : firstVersion(range));
+
 const fabricMinecraftRange = (fabricModJson) => {
   try {
     const dependency = JSON.parse(fabricModJson)?.depends?.minecraft;
@@ -65,7 +69,7 @@ const fabricMinecraftRange = (fabricModJson) => {
 // Inputs are raw file texts or null. Returns a row id or null.
 export const inferMinecraftVersion = ({ modsToml = null, fabricModJson = null }) => {
   const range = (modsToml && tomlMinecraftRange(modsToml)) || (fabricModJson && fabricMinecraftRange(fabricModJson));
-  const version = firstVersion(range);
+  const version = lowerBoundVersion(range);
   return version ? (versionRowFor(version)?.id ?? null) : null;
 };
 
@@ -74,6 +78,7 @@ export const guessNamespace = (source, keys) => {
   if (fromPath) return fromPath;
   const counts = new Map();
   for (const key of keys) {
+    if (isBookKey(key)) continue;
     const namespace = key.split(".")[1];
     if (namespace) counts.set(namespace, (counts.get(namespace) ?? 0) + 1);
   }
@@ -110,8 +115,18 @@ export const validatePack = ({ namespace, language }) => {
 
 const toJson = (value) => JSON.stringify(value, null, 2);
 
-export const BOOK_SOURCES_MISSING_MESSAGE =
+export const isKnownMcVersion = (version) => versionRowFor(version)?.id === version;
+
+const BOOK_SOURCES_MISSING_MESSAGE =
   "Файли книги недоступні в цьому браузері. Перетягніть той самий .jar ще раз, щоб додати книгу до ресурспаку.";
+const SOME_BOOK_FILES_MISSING_MESSAGE =
+  "Деякі файли книги відсутні в збережених джерелах. Перетягніть той самий .jar ще раз.";
+
+// What to tell the user when translated book text cannot go into the pack.
+export const bookSourcesWarning = ({ bookSourcesMissing, missingBookFileCount }) => {
+  if (bookSourcesMissing) return BOOK_SOURCES_MISSING_MESSAGE;
+  return missingBookFileCount > 0 ? SOME_BOOK_FILES_MISSING_MESSAGE : null;
+};
 
 export const patchouliTargetPath = (path, language) =>
   path.replace(/^(assets\/[^/]+\/patchouli_books\/[^/]+)\/en_us\//, `$1/${language}/`);
@@ -143,11 +158,15 @@ export const buildResourcePackFiles = ({ translations, pack, description, bookSo
 
   let bookFileCount = 0;
   let partialBookFileCount = 0;
+  let missingBookFileCount = 0;
   let hasTranslatedBookRows = false;
   for (const [path, { rowCount, translated }] of groupBookRows(translations)) {
     if (translated.length === 0) continue;
     hasTranslatedBookRows = true;
-    if (!bookSources?.[path]) continue;
+    if (!bookSources?.[path]) {
+      if (bookSources) missingBookFileCount += 1;
+      continue;
+    }
     const json = applyPatchouliTranslations(JSON.parse(bookSources[path]), translated);
     files[patchouliTargetPath(path, pack.language)] = toJson(json);
     bookFileCount += 1;
@@ -158,6 +177,7 @@ export const buildResourcePackFiles = ({ translations, pack, description, bookSo
     files,
     bookFileCount,
     partialBookFileCount,
+    missingBookFileCount,
     bookSourcesMissing: hasTranslatedBookRows && !bookSources,
   };
 };

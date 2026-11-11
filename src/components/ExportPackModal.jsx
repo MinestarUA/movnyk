@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  BOOK_SOURCES_MISSING_MESSAGE,
+  bookSourcesWarning,
   RESOURCE_PACK_FORMATS,
   validatePack,
   versionRowFor,
@@ -13,14 +13,41 @@ const ExportPackModal = ({ pack, summary, onConfirm, onClose }) => {
   const [namespace, setNamespace] = useState(pack.namespace);
   const [language, setLanguage] = useState(pack.language);
 
+  const dialogRef = useRef(null);
+
+  // The dialog opens from a button; closing hands focus back to it.
+  useEffect(() => {
+    const opener = document.activeElement;
+    return () => opener?.focus?.();
+  }, []);
+
   const errors = validatePack({ namespace, language });
   const isValid = Object.keys(errors).length === 0;
 
-  const handleKeyDown = (e) => {
-    if (e.key !== "Escape") return;
-    e.stopPropagation();
-    onClose();
-  };
+  // Listens on the window so Esc and Tab also work when a click left focus on the page body.
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      } else if (e.key === "Tab") {
+        const focusable = dialogRef.current.querySelectorAll("button:not([disabled]), input, select");
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const focusIsInside = dialogRef.current.contains(document.activeElement);
+        if (!focusIsInside || (e.shiftKey && document.activeElement === first)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const sourcesWarning = bookSourcesWarning(summary);
 
   return (
     <div
@@ -29,9 +56,9 @@ const ExportPackModal = ({ pack, summary, onConfirm, onClose }) => {
       aria-modal="true"
       aria-label="Експорт ресурспаку"
       onClick={onClose}
-      onKeyDown={handleKeyDown}
     >
       <div
+        ref={dialogRef}
         className="w-full max-w-md rounded-2xl border-2 border-neutral bg-base-200 p-7 shadow-2xl my-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -85,7 +112,7 @@ const ExportPackModal = ({ pack, summary, onConfirm, onClose }) => {
             Файлів книги: {summary.bookFileCount}, з них перекладено частково: {summary.partialBookFileCount}.
           </p>
         )}
-        {summary.bookSourcesMissing && <p className="mt-4 text-sm text-warning">{BOOK_SOURCES_MISSING_MESSAGE}</p>}
+        {sourcesWarning && <p className="mt-4 text-sm text-warning">{sourcesWarning}</p>}
 
         <div className="mt-8 flex justify-end gap-3">
           <button className="btn btn-ghost" onClick={onClose}>

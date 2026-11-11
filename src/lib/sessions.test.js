@@ -51,6 +51,11 @@ describe("sessions", () => {
       expect(loadSessions()[0].pack).toEqual(pack);
     });
 
+    it("replaces a Minecraft version missing from the format table with the default", () => {
+      store.set("movnyk.sessions", JSON.stringify([{ ...session("a"), savedAt: 1, pack: { ...pack, mcVersion: "1.12.2" } }]));
+      expect(loadSessions()[0].pack).toEqual({ ...pack, mcVersion: "1.20.1" });
+    });
+
     it("drops a malformed pack but keeps the session and its rows", () => {
       store.set("movnyk.sessions", JSON.stringify([{ ...session("a"), savedAt: 1, pack: "x" }]));
       const [loaded] = loadSessions();
