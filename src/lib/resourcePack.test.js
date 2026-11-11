@@ -82,13 +82,13 @@ describe("guessNamespace", () => {
 });
 
 describe("buildResourcePackFiles", () => {
-  it("writes only translated keys to the target language path, never en_us", () => {
+  it("writes only translated keys to the target language path, never en_us", async () => {
     const translations = [
       { key: "item.ae2.a", original: "A", translated: "А" },
       { key: "item.ae2.b", original: "B", translated: "" },
     ];
     const pack = { namespace: "ae2", mcVersion: "1.20.1", language: "uk_ua" };
-    const { files } = buildResourcePackFiles({ translations, pack, description: "d" });
+    const { files } = await buildResourcePackFiles({ translations, pack, description: "d" });
     expect(Object.keys(files).sort()).toEqual(["assets/ae2/lang/uk_ua.json", "pack.mcmeta"]);
     expect(JSON.parse(files["assets/ae2/lang/uk_ua.json"])).toEqual({ "item.ae2.a": "А" });
     expect(JSON.parse(files["pack.mcmeta"]).pack.pack_format).toBe(15);
@@ -119,31 +119,31 @@ describe("buildResourcePackFiles with books", () => {
     [entryPath]: JSON.stringify({ name: "E", pages: [{ type: "patchouli:text", text: "One" }, { type: "patchouli:text", text: "Two" }] }),
     [otherPath]: JSON.stringify({ name: "Other" }),
   };
-  const build = (translations, bookSources) =>
+  const build = async (translations, bookSources) =>
     buildResourcePackFiles({ translations, pack, description: "d", bookSources });
 
-  it("counts a fully translated file as not partial and reports no missing sources", () => {
+  it("counts a fully translated file as not partial and reports no missing sources", async () => {
     const translations = [bookRow(otherPath, "/name", "Інший")];
-    const result = build(translations, sources);
+    const result = await build(translations, sources);
     expect([result.bookFileCount, result.partialBookFileCount]).toEqual([1, 0]);
     expect(result.bookSourcesMissing).toBe(false);
     expect(result.missingBookFileCount).toBe(0);
   });
 
-  it("counts a translated file whose source is absent from the stored sources", () => {
-    const result = build([bookRow(otherPath, "/name", "Інший")], { [entryPath]: sources[entryPath] });
+  it("counts a translated file whose source is absent from the stored sources", async () => {
+    const result = await build([bookRow(otherPath, "/name", "Інший")], { [entryPath]: sources[entryPath] });
     expect([result.bookFileCount, result.missingBookFileCount]).toEqual([0, 1]);
     expect(result.bookSourcesMissing).toBe(false);
   });
 
-  it("writes a full copy under the target language with only translated fields replaced", () => {
+  it("writes a full copy under the target language with only translated fields replaced", async () => {
     const translations = [
       bookRow(entryPath, "/name", "Е"),
       bookRow(entryPath, "/pages/0/text", "Один"),
       bookRow(entryPath, "/pages/1/text", ""),
       bookRow(otherPath, "/name", ""),
     ];
-    const result = build(translations, sources);
+    const result = await build(translations, sources);
     const written = JSON.parse(result.files["assets/a/patchouli_books/b/uk_ua/entries/x.json"]);
     expect(written.pages.map((page) => page.text)).toEqual(["Один", "Two"]);
     expect(written.name).toBe("Е");
@@ -151,14 +151,54 @@ describe("buildResourcePackFiles with books", () => {
     expect([result.bookFileCount, result.partialBookFileCount]).toEqual([1, 1]);
   });
 
-  it("still exports the lang file but flags missing sources when translated book rows have none", () => {
+  it("still exports the lang file but flags missing sources when translated book rows have none", async () => {
     const translations = [
       { key: "item.a", original: "A", translated: "А" },
       bookRow(entryPath, "/name", "Е"),
     ];
-    const result = build(translations, null);
+    const result = await build(translations, null);
     expect(Object.keys(result.files).sort()).toEqual(["assets/a/lang/uk_ua.json", "pack.mcmeta"]);
     expect(result.bookSourcesMissing).toBe(true);
     expect(result.bookFileCount).toBe(0);
+  });
+});
+
+describe("buildResourcePackFiles with GuideME pages", () => {
+  const page = "assets/ae2/ae2guide/items/inscriber.md";
+  const target = "assets/ae2/ae2guide/_uk_ua/items/inscriber.md";
+  const patchouliPath = "assets/ae2/patchouli_books/b/en_us/entries/x.json";
+  const patchouliTarget = "assets/ae2/patchouli_books/b/uk_ua/entries/x.json";
+  const source = "---\nnavigation:\n  title: Inscriber\n---\n\n# Head\n\nBody text.\n";
+  const pack = { namespace: "ae2", mcVersion: "1.20.1", language: "uk_ua" };
+  // The page has three rows; `translated` maps a pointer to its translation.
+  const pageRows = (translated) =>
+    ["title", "0", "1"].map((pointer) => ({ key: `book:${page}#${pointer}`, original: "x", translated: translated[pointer] ?? "" }));
+
+  it.each([
+    [
+      "one paragraph translated, the rest unchanged",
+      pageRows({ 1: "Текст." }),
+      { [target]: "---\nnavigation:\n  title: Inscriber\n---\n\n# Head\n\nТекст.\n" },
+      [1, 1, 0],
+    ],
+    ["no translated rows", pageRows({}), {}, [0, 0, 0]],
+    ["a translation that turns the paragraph into a heading", pageRows({ 1: "# Текст" }), {}, [0, 0, 1]],
+    [
+      "a fully translated page together with a Patchouli file",
+      [
+        ...pageRows({ title: "Інскрайбер", 0: "Заголовок", 1: "Текст." }),
+        { key: `book:${patchouliPath}#/name`, original: "x", translated: "Е" },
+      ],
+      {
+        [target]: "---\nnavigation:\n  title: Інскрайбер\n---\n\n# Заголовок\n\nТекст.\n",
+        [patchouliTarget]: JSON.stringify({ name: "Е" }, null, 2),
+      },
+      [2, 0, 0],
+    ],
+  ])("%s", async (_name, translations, written, counts) => {
+    const bookSources = { [page]: source, [patchouliPath]: JSON.stringify({ name: "E" }) };
+    const result = await buildResourcePackFiles({ translations, pack, description: "d", bookSources });
+    expect(Object.fromEntries(Object.entries(result.files).filter(([path]) => path !== "pack.mcmeta"))).toEqual(written);
+    expect([result.bookFileCount, result.partialBookFileCount, result.invalidGuideFileCount]).toEqual(counts);
   });
 });

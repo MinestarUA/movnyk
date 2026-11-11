@@ -1,5 +1,6 @@
 import { createTranslationObject } from "./exporting";
-import { applyPatchouliTranslations, isBookKey, parseBookKey } from "./patchouli";
+import { guideTargetPath } from "./guideme";
+import { applyPatchouliTranslations, bookKey, isBookKey, parseBookKey } from "./patchouli";
 
 // [first, last, format]; row id = last. Newest last. A format with a minor
 // part is [major, minor]; min/max_format accept that form.
@@ -128,6 +129,11 @@ export const bookSourcesWarning = ({ bookSourcesMissing, missingBookFileCount })
   return missingBookFileCount > 0 ? SOME_BOOK_FILES_MISSING_MESSAGE : null;
 };
 
+export const invalidGuidePagesWarning = ({ invalidGuideFileCount }) =>
+  invalidGuideFileCount > 0
+    ? `Сторінок посібника не додано через зламану розмітку: ${invalidGuideFileCount}. Перевірте рядки з попередженням QA.`
+    : null;
+
 export const patchouliTargetPath = (path, language) =>
   path.replace(/^(assets\/[^/]+\/patchouli_books\/[^/]+)\/en_us\//, `$1/${language}/`);
 
@@ -146,8 +152,11 @@ const groupBookRows = (translations) => {
 };
 
 // A Patchouli file falls back to en_us as a whole, so a translated file is a
-// full copy of the source with only the translated fields replaced.
-export const buildResourcePackFiles = ({ translations, pack, description, bookSources = null }) => {
+// full copy of the source with only the translated fields replaced. A GuideME
+// page falls back the same way. Its parser is loaded only when a page is
+// translated, and a page whose translation breaks its Markdown structure is
+// left out.
+export const buildResourcePackFiles = async ({ translations, pack, description, bookSources = null }) => {
   const files = {
     "pack.mcmeta": toJson(packMcmeta(versionRowFor(pack.mcVersion).format, description)),
   };
@@ -159,6 +168,7 @@ export const buildResourcePackFiles = ({ translations, pack, description, bookSo
   let bookFileCount = 0;
   let partialBookFileCount = 0;
   let missingBookFileCount = 0;
+  let invalidGuideFileCount = 0;
   let hasTranslatedBookRows = false;
   for (const [path, { rowCount, translated }] of groupBookRows(translations)) {
     if (translated.length === 0) continue;
@@ -167,8 +177,19 @@ export const buildResourcePackFiles = ({ translations, pack, description, bookSo
       if (bookSources) missingBookFileCount += 1;
       continue;
     }
-    const json = applyPatchouliTranslations(JSON.parse(bookSources[path]), translated);
-    files[patchouliTargetPath(path, pack.language)] = toJson(json);
+    if (path.endsWith(".md")) {
+      const { rewriteGuidePage, hasSameStructure } = await import("./guidemeMarkdown");
+      const translatedByKey = new Map(translated.map(([pointer, text]) => [bookKey(path, pointer), text]));
+      const page = rewriteGuidePage(path, bookSources[path], translatedByKey);
+      if (!hasSameStructure(bookSources[path], page)) {
+        invalidGuideFileCount += 1;
+        continue;
+      }
+      files[guideTargetPath(path, pack.language)] = page;
+    } else {
+      const json = applyPatchouliTranslations(JSON.parse(bookSources[path]), translated);
+      files[patchouliTargetPath(path, pack.language)] = toJson(json);
+    }
     bookFileCount += 1;
     if (translated.length < rowCount) partialBookFileCount += 1;
   }
@@ -178,6 +199,7 @@ export const buildResourcePackFiles = ({ translations, pack, description, bookSo
     bookFileCount,
     partialBookFileCount,
     missingBookFileCount,
+    invalidGuideFileCount,
     bookSourcesMissing: hasTranslatedBookRows && !bookSources,
   };
 };

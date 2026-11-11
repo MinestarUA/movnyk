@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   bookSourcesWarning,
+  invalidGuidePagesWarning,
   RESOURCE_PACK_FORMATS,
   validatePack,
   versionRowFor,
@@ -47,6 +48,7 @@ const ExportPackModal = ({ pack, summary, onConfirm, onClose }) => {
   }, [onClose]);
 
   const sourcesWarning = bookSourcesWarning(summary);
+  const guideWarning = invalidGuidePagesWarning(summary);
 
   return (
     <div
@@ -112,6 +114,7 @@ const ExportPackModal = ({ pack, summary, onConfirm, onClose }) => {
           </p>
         )}
         {sourcesWarning && <p className="mt-4 text-sm text-warning">{sourcesWarning}</p>}
+        {guideWarning && <p className="mt-4 text-sm text-warning">{guideWarning}</p>}
 
         <div className="mt-8 flex justify-end gap-3">
           <button className="btn btn-ghost" onClick={onClose}>

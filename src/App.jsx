@@ -16,6 +16,7 @@ import {
   bookSourcesWarning,
   buildResourcePackFiles,
   defaultPack,
+  invalidGuidePagesWarning,
   packFileBase,
   packTitle,
 } from "./lib/resourcePack";
@@ -257,16 +258,19 @@ const App = () => {
 
   const handleExportResourcePack = async (translations) => {
     const sources = bookSources ?? (session.books.length > 0 ? await loadBookSources(session.id) : null);
-    const { files, ...summary } = buildPackFiles({ translations, sources }, session.pack);
+    const { files, ...summary } = await buildPackFiles({ translations, sources }, session.pack);
     if (Object.keys(files).every((path) => path === "pack.mcmeta")) {
-      toast(bookSourcesWarning(summary) ?? "Немає перекладів для експорту.", "warning");
+      toast(
+        bookSourcesWarning(summary) ?? invalidGuidePagesWarning(summary) ?? "Немає перекладів для експорту.",
+        "warning"
+      );
       return;
     }
     setPackExport({ translations, sources, summary });
   };
 
   const handleConfirmResourcePack = async (pack) => {
-    const { files } = buildPackFiles(packExport, pack);
+    const { files } = await buildPackFiles(packExport, pack);
     const zip = new JSZip();
     for (const [path, content] of Object.entries(files)) zip.file(path, content);
     let blob;
