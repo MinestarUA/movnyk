@@ -59,6 +59,22 @@ describe("sessions", () => {
     });
   });
 
+  describe("guidebook list", () => {
+    const books = [{ root: "assets/a/patchouli_books/b", name: "Книга" }];
+
+    it("round-trips the books", () => {
+      saveSession({ ...session("a"), books });
+      expect(loadSessions()[0].books).toEqual(books);
+    });
+
+    it("drops malformed books but keeps the session and its rows", () => {
+      store.set("movnyk.sessions", JSON.stringify([{ ...session("a"), savedAt: 1, books: [{ root: 1 }] }]));
+      const [loaded] = loadSessions();
+      expect(loaded.books).toBeUndefined();
+      expect(loaded.translations).toEqual(translations);
+    });
+  });
+
   describe("quota", () => {
     // Pretends the browser can hold at most `limit` sessions.
     const limitSessions = (limit) => {

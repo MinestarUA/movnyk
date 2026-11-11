@@ -28,9 +28,16 @@ const isValidPack = (pack) =>
   typeof pack.mcVersion === "string" &&
   typeof pack.language === "string";
 
-// Export settings are optional extras: a malformed one is dropped so it can
-// never cost the translation rows.
-const normalize = ({ pack, ...session }) => (isValidPack(pack) ? { ...session, pack } : session);
+const isValidBooks = (books) =>
+  Array.isArray(books) && books.every((book) => typeof book?.root === "string" && typeof book.name === "string");
+
+// Export settings and the book list are optional extras: a malformed one is
+// dropped so it can never cost the translation rows.
+const normalize = ({ pack, books, ...session }) => ({
+  ...session,
+  ...(isValidPack(pack) && { pack }),
+  ...(isValidBooks(books) && { books }),
+});
 
 const withoutDuplicateIds = (sessions) => {
   const seen = new Set();
@@ -115,8 +122,15 @@ export const findResumableSession = (sessions, name, content) => {
 
 // When the browser's quota is exhausted, older sessions make room for the one
 // being edited; the write only fails if that session alone does not fit.
-export const saveSession = ({ id, name, translations, pack }) => {
-  const saved = { id, name, translations, savedAt: Date.now(), ...(pack && { pack }) };
+export const saveSession = ({ id, name, translations, pack, books }) => {
+  const saved = {
+    id,
+    name,
+    translations,
+    savedAt: Date.now(),
+    ...(pack && { pack }),
+    ...(books?.length > 0 && { books }),
+  };
   const others = readSessions().filter((session) => session.id !== id);
   let sessions = [saved, ...others].slice(0, MAX_SESSIONS);
   while (!writeSessions(sessions)) {
