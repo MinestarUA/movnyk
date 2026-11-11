@@ -43,6 +43,22 @@ describe("sessions", () => {
     expect(ids()).toEqual(["c", "a"]);
   });
 
+  describe("resource pack settings", () => {
+    const pack = { namespace: "ae2", mcVersion: "1.20.1", language: "uk_ua" };
+
+    it("round-trips the pack", () => {
+      saveSession({ ...session("a"), pack });
+      expect(loadSessions()[0].pack).toEqual(pack);
+    });
+
+    it("drops a malformed pack but keeps the session and its rows", () => {
+      store.set("movnyk.sessions", JSON.stringify([{ ...session("a"), savedAt: 1, pack: "x" }]));
+      const [loaded] = loadSessions();
+      expect(loaded.pack).toBeUndefined();
+      expect(loaded.translations).toEqual(translations);
+    });
+  });
+
   describe("quota", () => {
     // Pretends the browser can hold at most `limit` sessions.
     const limitSessions = (limit) => {

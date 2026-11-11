@@ -22,6 +22,16 @@ const isValidSession = (session) =>
   session.translations.every((row) => typeof row?.key === "string") &&
   typeof session.savedAt === "number";
 
+const isValidPack = (pack) =>
+  Boolean(pack) &&
+  typeof pack.namespace === "string" &&
+  typeof pack.mcVersion === "string" &&
+  typeof pack.language === "string";
+
+// Export settings are optional extras: a malformed one is dropped so it can
+// never cost the translation rows.
+const normalize = ({ pack, ...session }) => (isValidPack(pack) ? { ...session, pack } : session);
+
 const withoutDuplicateIds = (sessions) => {
   const seen = new Set();
   return sessions.filter(({ id }) => !seen.has(id) && seen.add(id));
@@ -30,7 +40,7 @@ const withoutDuplicateIds = (sessions) => {
 const readSessions = () => {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return Array.isArray(parsed) ? withoutDuplicateIds(parsed.filter(isValidSession)) : [];
+    return Array.isArray(parsed) ? withoutDuplicateIds(parsed.filter(isValidSession).map(normalize)) : [];
   } catch {
     return [];
   }
@@ -105,8 +115,8 @@ export const findResumableSession = (sessions, name, content) => {
 
 // When the browser's quota is exhausted, older sessions make room for the one
 // being edited; the write only fails if that session alone does not fit.
-export const saveSession = ({ id, name, translations }) => {
-  const saved = { id, name, translations, savedAt: Date.now() };
+export const saveSession = ({ id, name, translations, pack }) => {
+  const saved = { id, name, translations, savedAt: Date.now(), ...(pack && { pack }) };
   const others = readSessions().filter((session) => session.id !== id);
   let sessions = [saved, ...others].slice(0, MAX_SESSIONS);
   while (!writeSessions(sessions)) {

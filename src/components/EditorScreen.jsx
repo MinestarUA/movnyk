@@ -255,7 +255,7 @@ const EditorScreen = ({
     if (translations === openedTranslationsRef.current) return;
     const save = () => {
       pendingSaveRef.current = null;
-      const ok = saveSession({ id: session.id, name: session.name, translations });
+      const ok = saveSession({ ...session, translations });
       if (!ok && !quotaWarnedRef.current) {
         quotaWarnedRef.current = true;
         toast("Не вдалося зберегти сесію: вичерпано сховище браузера.", "warning");
