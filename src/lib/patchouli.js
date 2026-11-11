@@ -82,3 +82,25 @@ export const findPatchouliBooks = (paths) => {
   }
   return { books, unsupported: [...unsupported] };
 };
+
+// scope: "all" | "lang" | a book root. The "/" keeps a book from claiming a
+// sibling whose id merely starts with the same text.
+export const rowInScope = (key, scope) =>
+  scope === "all" || (scope === "lang" ? !isBookKey(key) : key.startsWith(`${BOOK_KEY_PREFIX}${scope}/`));
+
+const FIELD_WORDS = {
+  name: "назва",
+  description: "опис",
+  title: "заголовок",
+  text: "текст",
+  link_text: "текст посилання",
+};
+
+// "book:assets/a/patchouli_books/b/en_us/entries/x/y.json#/pages/2/text" → "entries/x/y · с. 3 · текст"
+export const bookRowLabel = (key) => {
+  const { path, pointer } = parseBookKey(key);
+  const file = path.replace(/^.*?\/en_us\//, "").replace(/\.json$/, "");
+  const [, first, second, third] = pointer.split("/");
+  if (first !== "pages") return `${file} · ${FIELD_WORDS[first] ?? first}`;
+  return `${file} · с. ${Number(second) + 1} · ${FIELD_WORDS[third] ?? third}`;
+};

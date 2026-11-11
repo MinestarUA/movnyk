@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { applyPatchouliTranslations, extractPatchouliUnits, findPatchouliBooks } from "./patchouli";
+import {
+  applyPatchouliTranslations,
+  bookRowLabel,
+  extractPatchouliUnits,
+  findPatchouliBooks,
+  rowInScope,
+} from "./patchouli";
 
 const ENTRY_PATH = "assets/a/patchouli_books/b/en_us/entries/x/y.json";
 const CATEGORY_PATH = "assets/a/patchouli_books/b/en_us/categories/c.json";
@@ -72,5 +78,31 @@ describe("findPatchouliBooks", () => {
     ],
   ])("%s", (_name, paths, expected) => {
     expect(findPatchouliBooks(paths)).toEqual(expected);
+  });
+});
+
+describe("bookRowLabel", () => {
+  const key = (file, pointer) => `book:assets/a/patchouli_books/b/en_us/${file}#${pointer}`;
+  it.each([
+    ["an entry name", key("entries/x/y.json", "/name"), "entries/x/y · назва"],
+    ["a page title (pages are 1-based)", key("entries/x/y.json", "/pages/0/title"), "entries/x/y · с. 1 · заголовок"],
+    ["a category description", key("categories/c.json", "/description"), "categories/c · опис"],
+  ])("labels %s", (_name, rowKey, label) => {
+    expect(bookRowLabel(rowKey)).toBe(label);
+  });
+});
+
+describe("rowInScope", () => {
+  const bookRow = "book:assets/a/patchouli_books/guide/en_us/entries/x.json#/name";
+  const siblingRow = "book:assets/a/patchouli_books/guide_extra/en_us/entries/x.json#/name";
+  it.each([
+    ["all", "item.apple", "all", true],
+    ["lang", "item.apple", "lang", true],
+    ["lang", bookRow, "lang", false],
+    ["its own book", bookRow, "assets/a/patchouli_books/guide", true],
+    ["a lang row in a book scope", "item.apple", "assets/a/patchouli_books/guide", false],
+    ["a sibling book whose id starts the same", siblingRow, "assets/a/patchouli_books/guide", false],
+  ])("%s", (_name, key, scope, expected) => {
+    expect(rowInScope(key, scope)).toBe(expected);
   });
 });

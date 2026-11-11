@@ -39,6 +39,7 @@ import { checkTranslationQA } from "../lib/qa";
 import { extractTokens } from "../lib/tokens";
 import { buildWordAutocompleteWords } from "../lib/wordAutocomplete";
 import { activeSyntaxIds, detectSyntaxExtensions, getSyntax } from "../lib/syntaxExtensions";
+import { rowInScope } from "../lib/patchouli";
 
 // Text the user has selected: inside a text field it is the field's selection,
 // elsewhere the page selection. Trimmed, empty string when nothing is selected.
@@ -94,7 +95,12 @@ const EditorScreen = ({
   const [detectedSyntaxIds, setDetectedSyntaxIds] = useState(() =>
     detectSyntaxExtensions(Object.fromEntries(translations.map((t) => [t.key, t.original])))
   );
-  const syntax = getSyntax(activeSyntaxIds(settings, detectedSyntaxIds));
+  const books = session.books ?? [];
+  // Book text is always Patchouli markup, whatever the settings or detection say.
+  const baseSyntaxIds = activeSyntaxIds(settings, detectedSyntaxIds);
+  const syntax = getSyntax(
+    books.length > 0 && !baseSyntaxIds.includes("patchouli") ? [...baseSyntaxIds, "patchouli"] : baseSyntaxIds
+  );
 
   const [query, setQuery] = useState("");
   // { key, text }: the row whose QA warning details Alt+Q has opened, and the text they were opened for.
@@ -107,6 +113,7 @@ const EditorScreen = ({
   const [preserveCase, setPreserveCase] = useState(false);
   const [filterUntranslated, setFilterUntranslated] = useState(false);
   const [filterUnconfirmed, setFilterUnconfirmed] = useState(false);
+  const [scope, setScope] = useState("all"); // "all" | "lang" | a book root
   const [selectedKey, setSelectedKey] = useState(() => translations[0]?.key ?? null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
@@ -180,14 +187,14 @@ const EditorScreen = ({
         !statusActive ||
         (filterUntranslated && empty && translatable) ||
         (filterUnconfirmed && !empty && !item.confirmed && translatable);
-      const passes = matchesQuery && matchesStatus;
+      const passes = matchesQuery && matchesStatus && rowInScope(item.key, scope);
       // The selected row is pinned into view even when it fails the query or
       // status filter, so the row being edited never vanishes mid-work.
       const pinned = !passes && item.key === selectedKey;
       if (passes || pinned) result.push({ ...item, originalIndex, pinned });
     });
     return result;
-  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, selectedKey, stolenKey]);
+  }, [translations, queryRe, queryError, filterUntranslated, filterUnconfirmed, scope, selectedKey, stolenKey]);
 
   // Rows the status filter hides even though they match the search query —
   // surfaced as a banner so a filtered-out search is never a dead end.
@@ -917,6 +924,20 @@ const EditorScreen = ({
     dot: "#f0be5a",
   };
 
+  const skyTint = {
+    bgOn: "rgba(100,170,240,0.22)",
+    bgOff: "rgba(100,170,240,0.08)",
+    borderOn: "#64aaf0",
+    borderOff: "rgba(100,170,240,0.3)",
+    color: "#9cc7f5",
+    dot: "#64aaf0",
+  };
+  const scopeChips = [
+    { id: "all", label: "Усе" },
+    { id: "lang", label: "Мовний файл" },
+    ...books.map(({ root, name }) => ({ id: root, label: name })),
+  ];
+
   return (
     <div
       className={`animate-fade-in ${rewardClasses}`}
@@ -1171,6 +1192,22 @@ const EditorScreen = ({
           <span style={{ fontSize: "12px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
             Показано: {filtered.length}
           </span>
+
+          {books.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+              {scopeChips.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setScope(id)}
+                  aria-pressed={scope === id}
+                  style={chipStyle(scope === id, skyTint)}
+                >
+                  <span style={{ whiteSpace: "nowrap" }}>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
             <button

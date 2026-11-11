@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { checkTranslationQA } from "../lib/qa";
+import { bookRowLabel, isBookKey } from "../lib/patchouli";
 import { splitMatches } from "../lib/searching";
 import { tokenizeString } from "../lib/tokens";
 import {
@@ -690,7 +691,7 @@ const TranslationRow = ({
             className="truncate select-text hover:text-base-content/70 transition-colors"
             title={item.key}
           >
-            <HighlightedText text={item.key} queryRe={queryRe} />
+            <HighlightedText text={isBookKey(item.key) ? bookRowLabel(item.key) : item.key} queryRe={queryRe} />
           </span>
           {expanded && (
             <button
