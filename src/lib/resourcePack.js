@@ -1,6 +1,7 @@
 import { createTranslationObject } from "./exporting";
 
-// [first, last, format]; row id = last. Newest last.
+// [first, last, format]; row id = last. Newest last. A format with a minor
+// part is [major, minor]; min/max_format accept that form.
 // Formats verified against minecraft.wiki/w/Pack_format.
 export const RESOURCE_PACK_FORMATS = [
   ["1.16.2", "1.16.5", 6], ["1.17", "1.17.1", 7], ["1.18", "1.18.2", 8],
@@ -9,7 +10,7 @@ export const RESOURCE_PACK_FORMATS = [
   ["1.20.5", "1.20.6", 32], ["1.21", "1.21.1", 34], ["1.21.2", "1.21.3", 42],
   ["1.21.4", "1.21.4", 46], ["1.21.5", "1.21.5", 55], ["1.21.6", "1.21.6", 63],
   ["1.21.7", "1.21.8", 64], ["1.21.9", "1.21.10", 69], ["1.21.11", "1.21.11", 75],
-  ["26.1", "26.1.2", 84], ["26.2", "26.2", 88], ["26.3", "26.3", 97],
+  ["26.1", "26.1.2", 84], ["26.2", "26.2", 88], ["26.3", "26.3", [97, 1]],
 ];
 export const DEFAULT_MC_VERSION = "1.20.1";
 
@@ -35,7 +36,7 @@ export const versionRowFor = (version) => {
 
 // Formats >= 65 (1.21.9+, 25w31a) use min/max_format; older only pack_format.
 export const packMcmeta = (format, description) =>
-  format >= 65
+  [format].flat()[0] >= 65
     ? { pack: { description, min_format: format, max_format: format } }
     : { pack: { pack_format: format, description } };
 

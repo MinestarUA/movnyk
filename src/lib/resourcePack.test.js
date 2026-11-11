@@ -4,6 +4,7 @@ import {
   guessNamespace,
   inferMinecraftVersion,
   packMcmeta,
+  validatePack,
   versionRowFor,
 } from "./resourcePack";
 
@@ -19,12 +20,16 @@ describe("versionRowFor", () => {
 });
 
 describe("packMcmeta", () => {
-  it("uses only pack_format before 1.21.9", () => {
-    expect(packMcmeta(34, "d").pack).toEqual({ pack_format: 34, description: "d" });
-  });
-
-  it("uses min/max_format from 1.21.9", () => {
-    expect(packMcmeta(69, "d").pack).toEqual({ description: "d", min_format: 69, max_format: 69 });
+  it.each([
+    ["before 1.21.9: only pack_format", 34, { pack_format: 34, description: "d" }],
+    ["from 1.21.9: min/max_format", 69, { description: "d", min_format: 69, max_format: 69 }],
+    [
+      "a format with a minor part: [major, minor] arrays",
+      [97, 1],
+      { description: "d", min_format: [97, 1], max_format: [97, 1] },
+    ],
+  ])("%s", (_name, format, pack) => {
+    expect(packMcmeta(format, "d").pack).toEqual(pack);
   });
 });
 
@@ -77,5 +82,16 @@ describe("buildResourcePackFiles", () => {
     expect(Object.keys(files).sort()).toEqual(["assets/ae2/lang/uk_ua.json", "pack.mcmeta"]);
     expect(JSON.parse(files["assets/ae2/lang/uk_ua.json"])).toEqual({ "item.ae2.a": "А" });
     expect(JSON.parse(files["pack.mcmeta"]).pack.pack_format).toBe(15);
+  });
+});
+
+describe("validatePack", () => {
+  it.each([
+    ["a valid pack", { namespace: "ae2", language: "uk_ua" }, []],
+    ["en_us, which would overwrite the English original", { namespace: "ae2", language: "en_us" }, ["language"]],
+    ["a malformed language code", { namespace: "ae2", language: "ukua" }, ["language"]],
+    ["a namespace with uppercase or spaces", { namespace: "My Mod", language: "uk_ua" }, ["namespace"]],
+  ])("%s", (_name, pack, invalidFields) => {
+    expect(Object.keys(validatePack(pack))).toEqual(invalidFields);
   });
 });
