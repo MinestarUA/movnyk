@@ -26,8 +26,11 @@ export const detectSyntaxExtensions = (template) => {
   return SYNTAX_EXTENSIONS.filter((extension) => extension.detect(entries)).map((extension) => extension.id);
 };
 
+// Hidden extensions apply to their own rows only, whatever the settings hold.
+const SELECTABLE_IDS = SYNTAX_EXTENSIONS.filter((extension) => !extension.hidden).map((extension) => extension.id);
+
 export const activeSyntaxIds = (settings, detectedIds) => {
-  const enabled = SYNTAX_EXTENSION_IDS.filter((id) => settings.syntaxExtensions?.[id] === true);
+  const enabled = SELECTABLE_IDS.filter((id) => settings.syntaxExtensions?.[id] === true);
   if (settings.syntaxAutoDetect === false) return enabled;
   return SYNTAX_EXTENSION_IDS.filter((id) => enabled.includes(id) || detectedIds.includes(id));
 };
