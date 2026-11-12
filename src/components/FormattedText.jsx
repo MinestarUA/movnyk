@@ -119,17 +119,33 @@ const FormattedText = ({
     return byPosition;
   }, [changes]);
   const matchBoundaries = [...matches.flatMap(([from, to]) => [from, to]), ...deletionsAt.keys()];
-  const markersAt = (position) => {
-    const deletions = deletionsAt.get(position);
-    return deletions ? <DeletionMarkers key={`del-${position}`} deletions={deletions} /> : null;
+  const markersIn = (from, to) => {
+    const deletions = [...deletionsAt].filter(([at]) => at >= from && at < to).flatMap(([, list]) => list);
+    return deletions.length > 0 ? <DeletionMarkers key={`del-${from}`} deletions={deletions} /> : null;
   };
+  const markersAt = (position) => markersIn(position, position + 1);
+  const replacedTitle = (range) => (changes && range[2] ? `Було: ${range[2]}` : undefined);
 
   const rendered = runs.map((run, runIdx) => {
     const css = mcStyleToCss(run.style, { widthNeutral });
     if (run.token) {
-      const markers = markersAt(run.start);
+      // A token is drawn whole, so a deletion inside it is marked at its start.
+      const markers = markersIn(run.start, run.end);
+      const range = changes ? rangeAt(matches, run.start) : null;
       const token = renderToken(run, css, runIdx);
-      return markers ? <span key={runIdx}>{markers}{token}</span> : token;
+      if (!markers && !range) return token;
+      return (
+        <span key={runIdx}>
+          {markers}
+          {range ? (
+            <mark className={REPLACED_MARK} title={replacedTitle(range)}>
+              {token}
+            </mark>
+          ) : (
+            token
+          )}
+        </span>
+      );
     }
 
     const runText = str.slice(run.start, run.end);
@@ -156,7 +172,7 @@ const FormattedText = ({
               <mark
                 className={changes ? REPLACED_MARK : SEARCH_MARK}
                 style={css.color ? { color: "inherit" } : undefined}
-                title={changes ? `Було: ${range[2]}` : undefined}
+                title={replacedTitle(range)}
               >
                 {piece}
               </mark>

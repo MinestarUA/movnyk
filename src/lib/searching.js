@@ -3,6 +3,7 @@
 // space-preserving queries by default, and case-preserving replacement.
 
 import { bookRowLabel, isBookKey } from "./patchouli";
+import { isTranslatable } from "./translations";
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -79,16 +80,15 @@ export const itemMatches = (item, re) =>
 
 export const translationMatches = (item, re) => re.test(item.translated);
 
-// `$12` against a single-group pattern means "group 1 followed by 2" — the
-// engine drops trailing digits until the reference resolves. Returns null when
-// no prefix names a real group, so the caller can emit the token literally.
-const expandGroupNumber = (token, args, numGroups) => {
-  for (let len = token.length; len > 0; len -= 1) {
-    const num = parseInt(token.slice(0, len), 10);
-    if (num > 0 && num <= numGroups) {
-      return (args[num] ?? "") + token.slice(len);
-    }
-  }
+// Native $n rules: two digits name a group when that group exists, else the
+// first digit alone does (so `$12` with one group is group 1 then "2"), and
+// `$0`/`$00` never do. Returns null when neither form names a real group, so
+// the caller emits the reference literally.
+const expandGroupNumber = (digits, groups) => {
+  const twoDigit = digits.length === 2 ? Number(digits) : 0;
+  if (twoDigit >= 1 && twoDigit <= groups.length) return groups[twoDigit - 1] ?? "";
+  const oneDigit = Number(digits[0]);
+  if (oneDigit >= 1 && oneDigit <= groups.length) return (groups[oneDigit - 1] ?? "") + digits.slice(1);
   return null;
 };
 
@@ -151,27 +151,28 @@ const applyCaseOperators = (text) => {
 const HAS_CASE_OPERATOR = /\\[ULEul]/;
 
 // A String#replace callback receives (match, ...groups, offset, string[, namedGroups]).
-const matchOffset = (args) => {
+const replaceArgs = (args) => {
   const hasNamed = typeof args[args.length - 1] === "object" && args[args.length - 1] !== null;
-  return hasNamed ? args[args.length - 3] : args[args.length - 2];
+  const tail = hasNamed ? 3 : 2;
+  return {
+    match: args[0],
+    groups: args.slice(1, args.length - tail),
+    offset: args[args.length - tail],
+    fullStr: args[args.length - tail + 1],
+    namedGroups: hasNamed ? args[args.length - 1] : undefined,
+  };
 };
 
 const expandReplacement = (args, replacement) => {
-  const match = args[0];
-  const hasNamed = typeof args[args.length - 1] === "object" && args[args.length - 1] !== null;
-  const groupsObj = hasNamed ? args[args.length - 1] : undefined;
-  const fullStr = hasNamed ? args[args.length - 2] : args[args.length - 1];
-  const offset = matchOffset(args);
-  const numGroups = hasNamed ? args.length - 4 : args.length - 3;
-  const expanded = replacement.replace(/\$([$&`']|\d+|<([^>]+)>)/g, (m, token, groupName) => {
+  const { match, groups, offset, fullStr, namedGroups } = replaceArgs(args);
+  const expanded = replacement.replace(/\$([$&`']|\d\d?|<([^>]*)>)/g, (m, token, groupName) => {
     if (token === "$") return "$";
     if (token === "&") return match;
     if (token === "`") return fullStr.slice(0, offset);
     if (token === "'") return fullStr.slice(offset + match.length);
-    if (groupName) {
-      return groupsObj && groupName in groupsObj ? groupsObj[groupName] ?? "" : m;
-    }
-    return expandGroupNumber(token, args, numGroups) ?? m;
+    // Without named groups `$<name>` is literal; with them an unknown name is empty.
+    if (groupName !== undefined) return namedGroups ? namedGroups[groupName] ?? "" : m;
+    return expandGroupNumber(token, groups) ?? m;
   });
   return HAS_CASE_OPERATOR.test(replacement) ? applyCaseOperators(expanded) : expanded;
 };
@@ -195,34 +196,40 @@ const compileReplacer = (
   return { re, replaceMatch };
 };
 
-// Replace occurrences of the query inside a translation.
-// Supports caseSensitive, wholeWord, preserveCase, and regex.
-export const replaceInTranslation = (text, query, replacement, options) => {
-  const replacer = compileReplacer(query, replacement, options);
-  return replacer ? text.replace(replacer.re, replacer.replaceMatch) : text;
-};
+const replaceWith = (replacer, text) => text.replace(replacer.re, replacer.replaceMatch);
 
-// The text replaceInTranslation would produce, plus where each replacement
-// landed in it: `changes` holds [from, to) in the new text and the source
-// fragment it replaced (from === to for a deletion). Null when nothing matches.
-export const previewReplacement = (text, query, replacement, options) => {
-  const replacer = compileReplacer(query, replacement, options);
-  if (!replacer) return null;
+// The result plus where each replacement landed in it: `changes` holds
+// [from, to) in the new text and the source fragment it replaced (from === to
+// for a deletion). Matches the replacement leaves as they were are not changes.
+const previewWith = (replacer, text) => {
   const changes = [];
   let out = "";
   let last = 0;
   text.replace(replacer.re, (...args) => {
-    const match = args[0];
-    const offset = matchOffset(args);
+    const { match, offset } = replaceArgs(args);
     const replaced = replacer.replaceMatch(...args);
     out += text.slice(last, offset);
-    if (match || replaced) changes.push({ from: out.length, to: out.length + replaced.length, original: match });
+    if (replaced !== match) changes.push({ from: out.length, to: out.length + replaced.length, original: match });
     out += replaced;
     last = offset + match.length;
     return replaced;
   });
-  if (changes.length === 0) return null;
-  return { text: out + text.slice(last), changes };
+  out += text.slice(last);
+  return changes.length > 0 && out !== text ? { text: out, changes } : null;
+};
+
+// Replace occurrences of the query inside a translation.
+// Supports caseSensitive, wholeWord, preserveCase, and regex.
+export const replaceInTranslation = (text, query, replacement, options) => {
+  const replacer = compileReplacer(query, replacement, options);
+  return replacer ? replaceWith(replacer, text) : text;
+};
+
+// What replaceInTranslation would make of the text, located for highlighting.
+// Null when the replacement would leave the text unchanged.
+export const previewReplacement = (text, query, replacement, options) => {
+  const replacer = compileReplacer(query, replacement, options);
+  return replacer ? previewWith(replacer, text) : null;
 };
 
 // Splits text into chunks with `isMatch: boolean` flags for UI search highlighting.
@@ -275,16 +282,36 @@ export const splitMatches = (text, queryRe) => {
 };
 
 
-// "Fill from original": runs the replacement over the source text of rows
-// whose translation is still empty, as if each had been pre-filled with its
-// original. Rows the replacement leaves untouched stay empty rather than
-// receiving untranslated source text.
+// The pinned row is shown only to keep it in view; bulk actions leave it out.
+const bulkRows = (rows) => rows.filter((row) => !row.pinned);
+
+// "Replace all": the new translation of every row the replacement changes.
+export const planReplaceAll = (rows, query, replacement, options) => {
+  const edits = new Map();
+  const replacer = compileReplacer(query, replacement, options);
+  if (!replacer) return edits;
+  for (const row of bulkRows(rows)) {
+    const replaced = replaceWith(replacer, row.translated);
+    if (replaced !== row.translated) edits.set(row.key, replaced);
+  }
+  return edits;
+};
+
+// Spacer rows (blank original) are never translated, so they are never filled.
+export const isFillable = (row) => isTranslatable(row) && !row.translated.trim();
+
+// "Fill from original": runs the replacement over the source text of empty
+// rows, as if each had been pre-filled with its original. Rows the
+// replacement leaves untouched stay empty rather than receiving untranslated
+// source text.
 export const planOriginalFill = (rows, query, replacement, options) => {
   const fills = new Map();
-  for (const row of rows) {
-    if (row.translated.trim()) continue;
-    const original = String(row.original ?? "");
-    const filled = replaceInTranslation(original, query, replacement, options);
+  const replacer = compileReplacer(query, replacement, options);
+  if (!replacer) return fills;
+  for (const row of bulkRows(rows)) {
+    if (!isFillable(row)) continue;
+    const original = String(row.original);
+    const filled = replaceWith(replacer, original);
     if (filled !== original) fills.set(row.key, filled);
   }
   return fills;

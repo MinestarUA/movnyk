@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } fr
 import { createPortal } from "react-dom";
 import { checkTranslationQA } from "../lib/qa";
 import { bookRowLabel, isBookKey } from "../lib/patchouli";
-import { previewReplacement, splitMatches } from "../lib/searching";
+import { isFillable, previewReplacement, splitMatches } from "../lib/searching";
 import { tokenizeString } from "../lib/tokens";
 import {
   findWordAutocompleteSuggestions,
@@ -582,19 +582,18 @@ const TranslationRow = ({
 
   // What "Replace" would make of this row's translation or, for an empty row
   // with the fill preview on, what "Fill from original" would write into it.
-  // The pinned row is outside the result set, so a fill would skip it.
+  // Bulk actions leave the pinned row out, so it gets no preview.
   const preview = useMemo(() => {
-    if (!replacePreview) return null;
+    if (!replacePreview || item.pinned) return null;
     const { query, replacement, options, showFill } = replacePreview;
     if (hasDraft) {
       const replaced = previewReplacement(item.translated, query, replacement, options);
       return replaced && { ...replaced, kind: "replace" };
     }
-    if (!showFill || item.pinned) return null;
-    const original = String(item.original ?? "");
-    const filled = previewReplacement(original, query, replacement, options);
-    return filled && filled.text !== original ? { ...filled, kind: "fill" } : null;
-  }, [replacePreview, hasDraft, item.translated, item.original, item.pinned]);
+    if (!showFill || !isFillable(item)) return null;
+    const filled = previewReplacement(String(item.original), query, replacement, options);
+    return filled && { ...filled, kind: "fill" };
+  }, [replacePreview, hasDraft, item]);
   const expanded = isSelected;
   const stop = (e) => e.stopPropagation();
 

@@ -70,26 +70,43 @@ export const applyAutoTranslations = (translations, result) =>
 
 
 // Writes bulk results by key and records what each changed row held before,
-// so the whole edit can be undone in one step.
-export const applyBulkEdit = (translations, edits, { unconfirm = false } = {}) => {
+// so the whole edit can be undone in one step. A synced group follows its
+// edited member even where the group's other rows are filtered out of view,
+// as it does for a manual edit. With `overwrite` off (a fill), followers are
+// written only where they are still empty.
+export const applyBulkEdit = (
+  translations,
+  edits,
+  { unconfirm = false, overwrite = true, syncIdenticalTranslations = true } = {}
+) => {
+  const byOriginal = new Map();
+  for (const t of translations) {
+    if (edits.has(t.key) && isGroupSynced(t, syncIdenticalTranslations) && !byOriginal.has(t.original)) {
+      byOriginal.set(t.original, edits.get(t.key));
+    }
+  }
   const undo = [];
   const next = translations.map((t) => {
-    if (!edits.has(t.key)) return t;
-    const translated = edits.get(t.key);
-    if (translated === t.translated) return t;
-    undo.push({ key: t.key, translated: t.translated, confirmed: t.confirmed, applied: translated });
-    return { ...t, translated, confirmed: unconfirm ? false : t.confirmed };
+    const translated = edits.has(t.key)
+      ? edits.get(t.key)
+      : isGroupSynced(t, syncIdenticalTranslations) && (overwrite || !t.translated.trim())
+        ? byOriginal.get(t.original)
+        : undefined;
+    if (translated === undefined || translated === t.translated) return t;
+    const confirmed = unconfirm ? false : t.confirmed;
+    undo.push({ key: t.key, translated: t.translated, confirmed: t.confirmed, applied: translated, appliedConfirmed: confirmed });
+    return { ...t, translated, confirmed };
   });
   return { next, undo };
 };
 
-// Rows edited after the bulk edit keep the newer text: undo must not throw
-// away work done in the meantime.
+// Rows edited or (un)confirmed after the bulk edit keep their newer state:
+// undo must not throw away work done in the meantime.
 export const revertBulkEdit = (translations, undo) => {
   const byKey = new Map(undo.map((entry) => [entry.key, entry]));
   return translations.map((t) => {
     const entry = byKey.get(t.key);
-    if (!entry || t.translated !== entry.applied) return t;
+    if (!entry || t.translated !== entry.applied || t.confirmed !== entry.appliedConfirmed) return t;
     return { ...t, translated: entry.translated, confirmed: entry.confirmed };
   });
 };

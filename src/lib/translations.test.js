@@ -185,13 +185,30 @@ describe("applyBulkEdit / revertBulkEdit", () => {
     expect(undo.map((u) => u.key)).toEqual(["a", "b"]);
   });
 
-  it("restores changed rows but keeps rows edited after the bulk edit", () => {
+  it.each([
+    ["text", { translated: "ая" }],
+    ["confirmation", { confirmed: true }],
+  ])("restores changed rows but keeps a row whose %s changed after the bulk edit", (_, since) => {
     const { next, undo } = applyBulkEdit(rows, edits, { unconfirm: true });
-    const editedSince = next.map((t) => (t.key === "a" ? { ...t, translated: "ая" } : t));
-    expect(revertBulkEdit(editedSince, undo)).toEqual([
-      { ...rows[0], translated: "ая" },
-      rows[1],
-      rows[2],
-    ]);
+    const editedSince = next.map((t) => (t.key === "a" ? { ...t, ...since } : t));
+    expect(revertBulkEdit(editedSince, undo)).toEqual([editedSince[0], rows[1], rows[2]]);
+  });
+
+  describe("synced groups", () => {
+    const group = [
+      { key: "shown", original: "Oak", translated: "", confirmed: false },
+      { key: "hidden", original: "Oak", translated: "", confirmed: false },
+      { key: "hiddenFilled", original: "Oak", translated: "дуб", confirmed: true },
+      { key: "unsynced", original: "Oak", translated: "", confirmed: false, unsynced: true },
+    ];
+    const edit = new Map([["shown", "ясен"]]);
+
+    it.each([
+      ["a replace overwrites every synced member", { overwrite: true }, ["ясен", "ясен", "ясен", ""]],
+      ["a fill writes only empty synced members", { overwrite: false }, ["ясен", "ясен", "дуб", ""]],
+      ["sync off edits only the given key", { syncIdenticalTranslations: false }, ["ясен", "", "дуб", ""]],
+    ])("%s", (_, options, expected) => {
+      expect(applyBulkEdit(group, edit, options).next.map((t) => t.translated)).toEqual(expected);
+    });
   });
 });

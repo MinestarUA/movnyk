@@ -9,6 +9,7 @@ import {
   splitMatches,
   planOriginalFill,
   previewReplacement,
+  planReplaceAll,
 } from "./searching";
 
 const item = { key: "block.mod.copper_door", original: "Copper Door", translated: "Мідні двері" };
@@ -320,14 +321,15 @@ describe("replaceInTranslation case operators", () => {
 });
 
 describe("planOriginalFill", () => {
-  const row = (key, original, translated = "") => ({ key, original, translated });
+  const row = (key, original, translated = "", pinned = false) => ({ key, original, translated, pinned });
 
-  it("replaces in the original of empty rows only, skipping rows the query misses", () => {
+  it("replaces in the original of empty rows only, skipping misses, spacers and the pinned row", () => {
     const rows = [
       row("a", "Oak Planks"),
       row("b", "Birch Planks", "Березові дошки"),
       row("c", "Oak Planks", "  "),
       row("d", "Stone"),
+      row("e", "Oak Planks", "", true),
     ];
     const fills = planOriginalFill(rows, "^(.+) Planks$", "$1 дошки", { regex: true });
     expect([...fills]).toEqual([
@@ -338,6 +340,21 @@ describe("planOriginalFill", () => {
 
   it("skips a match whose replacement leaves the original unchanged", () => {
     expect(planOriginalFill([row("a", "Oak")], "Oak", "Oak", {}).size).toBe(0);
+  });
+
+  it("never fills a spacer row, whose blank original a regex can still match", () => {
+    expect(planOriginalFill([row("a", "")], "^", "x", { regex: true }).size).toBe(0);
+  });
+});
+
+describe("planReplaceAll", () => {
+  it("returns the new translation of changed rows, leaving out the pinned row", () => {
+    const rows = [
+      { key: "a", translated: "дуб дуб" },
+      { key: "b", translated: "береза" },
+      { key: "c", translated: "дуб", pinned: true },
+    ];
+    expect([...planReplaceAll(rows, "дуб", "ясен", {})]).toEqual([["a", "ясен ясен"]]);
   });
 });
 
@@ -361,6 +378,10 @@ describe("previewReplacement", () => {
     expect(text.slice(0, 9)).toBe("Oak дошки");
   });
 
+  it("returns null when every match is replaced by itself", () => {
+    expect(previewReplacement("Oak", "oak", "Oak", {})).toBeNull();
+  });
+
   it("reports a deletion as an empty range at its position", () => {
     expect(previewReplacement("a, b", ", ", "", {}).changes).toEqual([{ from: 1, to: 1, original: ", " }]);
   });
@@ -371,5 +392,23 @@ describe("previewReplacement", () => {
     ["empty query", "Oak", "", {}],
   ])("returns null for %s", (_, text, query, options) => {
     expect(previewReplacement(text, query, "x", options)).toBeNull();
+  });
+});
+
+describe("regex replacement matches native String#replace", () => {
+  it.each([
+    ["unknown named group", "(?<x>a)", "[$<y>]"],
+    ["empty group name", "(?<x>a)", "[$<>]"],
+    ["named reference without named groups", "(a)", "[$<x>]"],
+    ["leading zeros", "(a)", "[$001]"],
+    ["$0", "(a)", "[$0]"],
+    ["two digits past the group count", "(a)", "[$12]"],
+    ["two-digit group then a digit", "(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)", "[$100]"],
+    ["$$, $& and the surrounding text", "b", "[$$|$&|$`|$']"],
+  ])("%s", (_, query, replacement) => {
+    const text = "abcdefghijk";
+    expect(replaceInTranslation(text, query, replacement, { regex: true, caseSensitive: true })).toBe(
+      text.replace(new RegExp(query, "g"), replacement)
+    );
   });
 });

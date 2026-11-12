@@ -39,6 +39,7 @@ import {
   translationMatches,
   replaceInTranslation,
   planOriginalFill,
+  planReplaceAll,
 } from "../lib/searching";
 import { getCaseShortcutAction, applyCaseShortcut } from "../lib/caseConversion";
 import { getTokenShortcutIndex, isQaShortcut } from "../lib/keyboardShortcuts";
@@ -776,16 +777,13 @@ const EditorScreen = ({
   );
 
   // Bulk replacements touch only the rows the list shows: a scope or status
-  // filter the user set narrows the edit too. The pinned row is shown only
-  // to keep it in view, so it is not part of the result set.
-  const visibleRows = useMemo(() => filtered.filter((item) => !item.pinned), [filtered]);
-
+  // filter the user set narrows the edit too.
   const originalFills = useMemo(
     () =>
       replaceMode && queryRe
-        ? planOriginalFill(visibleRows, query, replaceValue, replaceOptions)
+        ? planOriginalFill(filtered, query, replaceValue, replaceOptions)
         : new Map(),
-    [replaceMode, queryRe, visibleRows, query, replaceValue, replaceOptions]
+    [replaceMode, queryRe, filtered, query, replaceValue, replaceOptions]
   );
 
   const replacePreview = useMemo(
@@ -797,34 +795,34 @@ const EditorScreen = ({
   );
 
   const applyBulkWithUndo = useCallback(
-    (edits, { unconfirm, doneMessage }) => {
-      const { next, undo } = applyBulkEdit(translations, edits, { unconfirm });
+    (edits, { unconfirm, overwrite, doneMessage }) => {
+      const { next, undo } = applyBulkEdit(translations, edits, {
+        unconfirm,
+        overwrite,
+        syncIdenticalTranslations: settings.syncIdenticalTranslations,
+      });
       setTranslations(next);
       toast(doneMessage(undo.length), "success", 10000, {
         label: "Скасувати",
         onClick: () => setTranslations((prev) => revertBulkEdit(prev, undo)),
       });
     },
-    [translations, toast]
+    [translations, toast, settings.syncIdenticalTranslations]
   );
 
   const handleReplaceAll = useCallback(() => {
     if (!queryRe) return;
-    const edits = new Map();
-    for (const item of visibleRows) {
-      if (!translationMatches(item, queryRe)) continue;
-      const replaced = replaceInTranslation(item.translated, query, replaceValue, replaceOptions);
-      if (replaced !== item.translated) edits.set(item.key, replaced);
-    }
+    const edits = planReplaceAll(filtered, query, replaceValue, replaceOptions);
     if (edits.size === 0) {
       toast("Збігів у перекладах не знайдено.", "info");
       return;
     }
     applyBulkWithUndo(edits, {
       unconfirm: false,
+      overwrite: true,
       doneMessage: (count) => `Замінено у рядках: ${count}.`,
     });
-  }, [queryRe, visibleRows, query, replaceValue, replaceOptions, toast, applyBulkWithUndo]);
+  }, [queryRe, filtered, query, replaceValue, replaceOptions, toast, applyBulkWithUndo]);
 
   const handleFillFromOriginal = useCallback(() => {
     if (originalFills.size === 0) {
@@ -833,6 +831,7 @@ const EditorScreen = ({
     }
     applyBulkWithUndo(originalFills, {
       unconfirm: true,
+      overwrite: false,
       doneMessage: (count) => `Заповнено з оригіналу рядків: ${count}.`,
     });
   }, [originalFills, toast, applyBulkWithUndo]);
@@ -843,7 +842,7 @@ const EditorScreen = ({
     for (let step = 0; step < filtered.length; step++) {
       const i = (start + step) % filtered.length;
       const item = filtered[i];
-      if (!translationMatches(item, queryRe)) continue;
+      if (item.pinned || !translationMatches(item, queryRe)) continue;
       const replaced = replaceInTranslation(item.translated, query, replaceValue, replaceOptions);
       setTranslations((prev) =>
         prev.map((t) => (t.key === item.key ? { ...t, translated: replaced } : t))
@@ -851,7 +850,7 @@ const EditorScreen = ({
       // Move the selection to the next row whose translation also matches.
       for (let ahead = 1; ahead < filtered.length; ahead++) {
         const j = (i + ahead) % filtered.length;
-        if (translationMatches(filtered[j], queryRe)) {
+        if (!filtered[j].pinned && translationMatches(filtered[j], queryRe)) {
           setSelectedKey(filtered[j].key);
           break;
         }
