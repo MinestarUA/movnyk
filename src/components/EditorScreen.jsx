@@ -28,6 +28,7 @@ import {
   applyAutoTranslations,
   applyBulkEdit,
   revertBulkEdit,
+  planWithSyncedFollowers,
 } from "../lib/translations";
 import ProjectReferenceDrawer from "./ProjectReferenceDrawer";
 import { applyNewLangOriginal } from "../lib/originalUpdate";
@@ -776,14 +777,21 @@ const EditorScreen = ({
     [regexMode, caseSensitive, wholeWord, preserveCase]
   );
 
-  // Bulk replacements touch only the rows the list shows: a scope or status
-  // filter the user set narrows the edit too.
+  const syncIdenticalTranslations = settings.syncIdenticalTranslations !== false;
+
+  // Bulk replacements touch the rows the list shows (a scope or status filter
+  // the user set narrows the edit too) and the synced groups they reach.
+  const planBulk = useCallback(
+    (plan) => planWithSyncedFollowers(filtered, translations, plan, { syncIdenticalTranslations }),
+    [filtered, translations, syncIdenticalTranslations]
+  );
+
   const originalFills = useMemo(
     () =>
       replaceMode && queryRe
-        ? planOriginalFill(filtered, query, replaceValue, replaceOptions)
+        ? planBulk((rows) => planOriginalFill(rows, query, replaceValue, replaceOptions))
         : new Map(),
-    [replaceMode, queryRe, filtered, query, replaceValue, replaceOptions]
+    [replaceMode, queryRe, planBulk, query, replaceValue, replaceOptions]
   );
 
   const replacePreview = useMemo(
@@ -795,34 +803,29 @@ const EditorScreen = ({
   );
 
   const applyBulkWithUndo = useCallback(
-    (edits, { unconfirm, overwrite, doneMessage }) => {
-      const { next, undo } = applyBulkEdit(translations, edits, {
-        unconfirm,
-        overwrite,
-        syncIdenticalTranslations: settings.syncIdenticalTranslations,
-      });
+    (edits, { unconfirm, doneMessage }) => {
+      const { next, undo } = applyBulkEdit(translations, edits, { unconfirm });
       setTranslations(next);
       toast(doneMessage(undo.length), "success", 10000, {
         label: "Скасувати",
         onClick: () => setTranslations((prev) => revertBulkEdit(prev, undo)),
       });
     },
-    [translations, toast, settings.syncIdenticalTranslations]
+    [translations, toast]
   );
 
   const handleReplaceAll = useCallback(() => {
     if (!queryRe) return;
-    const edits = planReplaceAll(filtered, query, replaceValue, replaceOptions);
+    const edits = planBulk((rows) => planReplaceAll(rows, query, replaceValue, replaceOptions));
     if (edits.size === 0) {
       toast("Збігів у перекладах не знайдено.", "info");
       return;
     }
     applyBulkWithUndo(edits, {
       unconfirm: false,
-      overwrite: true,
       doneMessage: (count) => `Замінено у рядках: ${count}.`,
     });
-  }, [queryRe, filtered, query, replaceValue, replaceOptions, toast, applyBulkWithUndo]);
+  }, [queryRe, planBulk, query, replaceValue, replaceOptions, toast, applyBulkWithUndo]);
 
   const handleFillFromOriginal = useCallback(() => {
     if (originalFills.size === 0) {
@@ -831,7 +834,6 @@ const EditorScreen = ({
     }
     applyBulkWithUndo(originalFills, {
       unconfirm: true,
-      overwrite: false,
       doneMessage: (count) => `Заповнено з оригіналу рядків: ${count}.`,
     });
   }, [originalFills, toast, applyBulkWithUndo]);
@@ -844,8 +846,13 @@ const EditorScreen = ({
       const item = filtered[i];
       if (item.pinned || !translationMatches(item, queryRe)) continue;
       const replaced = replaceInTranslation(item.translated, query, replaceValue, replaceOptions);
+      // Written like a manual edit so a synced group stays in step, but a
+      // replacement keeps the confirmation, as "Replace all" does.
       setTranslations((prev) =>
-        prev.map((t) => (t.key === item.key ? { ...t, translated: replaced } : t))
+        updateTranslation(prev, item.originalIndex, replaced, {
+          syncIdenticalTranslations,
+          unconfirmOnEdit: false,
+        })
       );
       // Move the selection to the next row whose translation also matches.
       for (let ahead = 1; ahead < filtered.length; ahead++) {
@@ -858,7 +865,7 @@ const EditorScreen = ({
       return;
     }
     toast("Збігів у перекладах не знайдено.", "info");
-  }, [queryRe, filtered, activeIndex, query, replaceValue, replaceOptions, toast]);
+  }, [queryRe, filtered, activeIndex, query, replaceValue, replaceOptions, syncIdenticalTranslations, toast]);
 
   const handleCopy = (text) => {
     navigator.clipboard?.writeText(text);

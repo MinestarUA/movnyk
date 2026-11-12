@@ -69,30 +69,38 @@ export const applyAutoTranslations = (translations, result) =>
 
 
 
-// Writes bulk results by key and records what each changed row held before,
-// so the whole edit can be undone in one step. A synced group follows its
-// edited member even where the group's other rows are filtered out of view,
-// as it does for a manual edit. With `overwrite` off (a fill), followers are
-// written only where they are still empty.
-export const applyBulkEdit = (
+// Plans a bulk action over the rows the list shows, then over the rows
+// outside it that share a synced group with an edited row. Each follower is
+// planned from its own text, so a group filtered partly out of view still
+// follows its edited member, as on a manual edit, without copying one
+// member's text over another's.
+export const planWithSyncedFollowers = (
+  shownRows,
   translations,
-  edits,
-  { unconfirm = false, overwrite = true, syncIdenticalTranslations = true } = {}
+  plan,
+  { syncIdenticalTranslations = true } = {}
 ) => {
-  const byOriginal = new Map();
-  for (const t of translations) {
-    if (edits.has(t.key) && isGroupSynced(t, syncIdenticalTranslations) && !byOriginal.has(t.original)) {
-      byOriginal.set(t.original, edits.get(t.key));
-    }
-  }
+  const shown = plan(shownRows);
+  const planned = new Set(shownRows.map((row) => row.key));
+  const editedOriginals = new Set(
+    translations
+      .filter((t) => shown.has(t.key) && isGroupSynced(t, syncIdenticalTranslations))
+      .map((t) => t.original)
+  );
+  const followers = translations.filter(
+    (t) => !planned.has(t.key) && editedOriginals.has(t.original) && isGroupSynced(t, syncIdenticalTranslations)
+  );
+  return followers.length > 0 ? new Map([...shown, ...plan(followers)]) : shown;
+};
+
+// Writes bulk results by key and records what each changed row held before,
+// so the whole edit can be undone in one step.
+export const applyBulkEdit = (translations, edits, { unconfirm = false } = {}) => {
   const undo = [];
   const next = translations.map((t) => {
-    const translated = edits.has(t.key)
-      ? edits.get(t.key)
-      : isGroupSynced(t, syncIdenticalTranslations) && (overwrite || !t.translated.trim())
-        ? byOriginal.get(t.original)
-        : undefined;
-    if (translated === undefined || translated === t.translated) return t;
+    if (!edits.has(t.key)) return t;
+    const translated = edits.get(t.key);
+    if (translated === t.translated) return t;
     const confirmed = unconfirm ? false : t.confirmed;
     undo.push({ key: t.key, translated: t.translated, confirmed: t.confirmed, applied: translated, appliedConfirmed: confirmed });
     return { ...t, translated, confirmed };

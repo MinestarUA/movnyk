@@ -8,6 +8,7 @@ import {
   applyAutoTranslations,
   applyBulkEdit,
   revertBulkEdit,
+  planWithSyncedFollowers,
 } from "./translations";
 
 const row = (key, original, translated = "", confirmed = false, unsynced = false) => ({
@@ -193,22 +194,32 @@ describe("applyBulkEdit / revertBulkEdit", () => {
     const editedSince = next.map((t) => (t.key === "a" ? { ...t, ...since } : t));
     expect(revertBulkEdit(editedSince, undo)).toEqual([editedSince[0], rows[1], rows[2]]);
   });
+});
 
-  describe("synced groups", () => {
-    const group = [
-      { key: "shown", original: "Oak", translated: "", confirmed: false },
-      { key: "hidden", original: "Oak", translated: "", confirmed: false },
-      { key: "hiddenFilled", original: "Oak", translated: "дуб", confirmed: true },
-      { key: "unsynced", original: "Oak", translated: "", confirmed: false, unsynced: true },
-    ];
-    const edit = new Map([["shown", "ясен"]]);
+describe("planWithSyncedFollowers", () => {
+  const rows = [
+    { key: "shown", original: "Oak", translated: "дуб світлий" },
+    { key: "differs", original: "Oak", translated: "дубова світлина" },
+    { key: "noMatch", original: "Oak", translated: "дуб" },
+    { key: "unsynced", original: "Oak", translated: "дуб світлий", unsynced: true },
+    { key: "other", original: "Birch", translated: "світлий" },
+    { key: "pinned", original: "Oak", translated: "дуб світлий" },
+  ];
+  const shownRows = [rows[0], { ...rows[5], pinned: true }];
+  // Stands in for a planner: rewrites "світл" and skips the pinned row.
+  const plan = (planRows) =>
+    new Map(
+      planRows
+        .filter((row) => !row.pinned && row.translated.includes("світл"))
+        .map((row) => [row.key, row.translated.replace("світл", "темн")])
+    );
 
-    it.each([
-      ["a replace overwrites every synced member", { overwrite: true }, ["ясен", "ясен", "ясен", ""]],
-      ["a fill writes only empty synced members", { overwrite: false }, ["ясен", "ясен", "дуб", ""]],
-      ["sync off edits only the given key", { syncIdenticalTranslations: false }, ["ясен", "", "дуб", ""]],
-    ])("%s", (_, options, expected) => {
-      expect(applyBulkEdit(group, edit, options).next.map((t) => t.translated)).toEqual(expected);
-    });
+  it.each([
+    ["plans each synced follower from its own text", {}, ["shown", "differs"]],
+    ["plans no followers with sync off", { syncIdenticalTranslations: false }, ["shown"]],
+  ])("%s", (_, options, keys) => {
+    const edits = planWithSyncedFollowers(shownRows, rows, plan, options);
+    expect([...edits.keys()]).toEqual(keys);
+    if (edits.has("differs")) expect(edits.get("differs")).toBe("дубова темнина");
   });
 });

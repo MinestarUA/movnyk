@@ -131,7 +131,8 @@ const FormattedText = ({
     if (run.token) {
       // A token is drawn whole, so a deletion inside it is marked at its start.
       const markers = markersIn(run.start, run.end);
-      const range = changes ? rangeAt(matches, run.start) : null;
+      // A change that rewrites any part of a token reads as changing the token.
+      const range = changes ? matches.find(([from, to]) => from < run.end && to > run.start) : null;
       const token = renderToken(run, css, runIdx);
       if (!markers && !range) return token;
       return (

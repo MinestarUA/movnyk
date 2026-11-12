@@ -583,6 +583,7 @@ const TranslationRow = ({
   // What "Replace" would make of this row's translation or, for an empty row
   // with the fill preview on, what "Fill from original" would write into it.
   // Bulk actions leave the pinned row out, so it gets no preview.
+  const fillable = isFillable(item);
   const preview = useMemo(() => {
     if (!replacePreview || item.pinned) return null;
     const { query, replacement, options, showFill } = replacePreview;
@@ -590,10 +591,10 @@ const TranslationRow = ({
       const replaced = previewReplacement(item.translated, query, replacement, options);
       return replaced && { ...replaced, kind: "replace" };
     }
-    if (!showFill || !isFillable(item)) return null;
+    if (!showFill || !fillable) return null;
     const filled = previewReplacement(String(item.original), query, replacement, options);
     return filled && { ...filled, kind: "fill" };
-  }, [replacePreview, hasDraft, item]);
+  }, [replacePreview, hasDraft, fillable, item.pinned, item.translated, item.original]);
   const expanded = isSelected;
   const stop = (e) => e.stopPropagation();
 
