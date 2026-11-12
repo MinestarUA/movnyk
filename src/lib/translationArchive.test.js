@@ -23,6 +23,14 @@ describe("translationsFromArchive", () => {
   const row = (key) => ({ key, original: "x", translated: "", confirmed: false });
   const run = (files, rows) => translationsFromArchive({ files, language: "uk_ua", rows: rows.map(row) });
 
+  it("merges the lang files of several namespaces", async () => {
+    const files = {
+      "assets/a/lang/uk_ua.json": JSON.stringify({ "item.a": "А" }),
+      "assets/b/lang/uk_ua.json": JSON.stringify({ "item.b": "Б" }),
+    };
+    expect((await run(files, [])).values).toEqual({ "item.a": "А", "item.b": "Б" });
+  });
+
   it("reads Patchouli values at the pointers of the en_us rows", async () => {
     const translated = JSON.stringify({ name: "Назва", pages: [{ text: "Текст" }] });
     const result = await run({ "assets/a/patchouli_books/g/uk_ua/entries/e.json": translated }, [

@@ -92,6 +92,10 @@ describe("rewriteGuidePage", () => {
     expect(hasSameStructure(PAGE, out)).toBe(true);
   });
 
+  it("treats output that no longer parses as a different structure", () => {
+    expect(hasSameStructure("Text\n", "Text <Unclosed")).toBe(false);
+  });
+
   it("detects a translation that turns a paragraph into a list", () => {
     const out = rewrite(PAGE, [[keyOf("Body text."), "- Список"]]);
     expect(hasSameStructure(PAGE, out)).toBe(false);

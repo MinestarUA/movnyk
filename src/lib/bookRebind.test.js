@@ -52,4 +52,27 @@ describe("rebindBookRows", () => {
     expect(actual).toEqual(stats);
     expect(removed).toHaveLength(stats.removed);
   });
+
+  it("returns the saved rows themselves when nothing changed", () => {
+    const saved = savedRows(OLD_PATH, TEXTS).map((row) => ({ ...row, unsynced: true }));
+    expect(rebindBookRows(saved, unitsOf(OLD_PATH, TEXTS)).next).toEqual(saved);
+  });
+
+  it("counts a changed text as added when its old row had no translation", () => {
+    const saved = savedRows(OLD_PATH, TEXTS);
+    saved[1].translated = "";
+    const { next, stats } = rebindBookRows(saved, unitsOf(OLD_PATH, ["alpha", "beta 2", "gamma", "delta"]));
+    expect(next[1]).toMatchObject({ original: "beta 2", translated: "", confirmed: false });
+    expect(stats).toMatchObject({ added: 1, changed: 0, removed: 0 });
+  });
+
+  it("resolves a text moved within its file as renamed", () => {
+    const { next, removed, stats } = rebindBookRows(
+      savedRows(OLD_PATH, TEXTS),
+      unitsOf(OLD_PATH, ["beta", "gamma", "delta", "alpha"])
+    );
+    expect(next.map((row) => row.translated)).toEqual(["T beta", "T gamma", "T delta", "T alpha"]);
+    expect(removed).toEqual([]);
+    expect(stats).toEqual({ unchanged: 3, changed: 0, renamed: 1, added: 0, removed: 0 });
+  });
 });
