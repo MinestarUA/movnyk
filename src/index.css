@@ -34,7 +34,8 @@
   /* Signature pink/purple accents used across primary actions. */
   --accent-pink: #ff5fa2;
   --accent-purple: #b25ef0;
-  --accent-gradient: linear-gradient(135deg, #ff5fa2, #b25ef0);
+  /* Darker than the pink/purple text accents so white labels on it pass 4.5:1. */
+  --accent-gradient: linear-gradient(135deg, #d6337a, #9a3fd6);
   --accent-glow: 0 4px 14px rgba(255, 95, 162, 0.28);
   --status-confirmed: #63d68a;
   --status-pending: #f0be5a;

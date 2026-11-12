@@ -56,7 +56,7 @@ const InteractiveOriginal = ({ text, onInsertToken, queryRe, syntax }) => {
         const rawColor =
           token.type === "mc-code" ? colorOfCode(token.value) : (extension?.colorOf?.(token.value) ?? null);
         const codeColor = rawColor && displayColor(rawColor);
-        let badgeStyle = "bg-primary/20 text-primary border-primary/30";
+        let badgeStyle = "bg-primary/20 text-accent-pink border-primary/30";
         let customStyle = {};
 
         if (token.type === "mc-code" || codeColor) {
@@ -640,7 +640,7 @@ const TranslationRow = ({
                 aria-selected={index === selectedWordSuggestionIndex}
                 className={`cursor-pointer px-3 py-1 text-sm ${
                   index === selectedWordSuggestionIndex
-                    ? "bg-primary/20 text-primary"
+                    ? "bg-primary/20 text-accent-pink"
                     : "text-base-content hover:bg-base-300"
                 }`}
                 onMouseEnter={() => setActiveWordSuggestionIndex(index)}
@@ -915,8 +915,7 @@ const TranslationRow = ({
             <div
               style={{
                 fontSize: "13px",
-                color: hasDraft ? "var(--color-neutral-200)" : "var(--color-neutral-600)",
-                fontStyle: hasDraft ? "normal" : "italic",
+                color: hasDraft ? "var(--color-neutral-200)" : "var(--color-neutral-500)",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -950,12 +949,14 @@ const TranslationRow = ({
           {onSuggest && (
             <button
               type="button"
-              className={`btn btn-sm btn-outline btn-primary text-xs ${isSuggesting ? "loading" : ""}`}
+              className={`btn btn-sm btn-ghost border-base-content/20 text-xs ${isSuggesting ? "loading" : ""}`}
               onClick={() => onSuggest(item)}
               disabled={isSuggesting}
               title="Запропонувати автоматичний переклад через ШІ"
             >
-              <SparklesIcon size={14} />
+              <span className="text-accent-pink">
+                <SparklesIcon size={14} />
+              </span>
               {isSuggesting ? "Переклад..." : "ШІ-переклад"}
             </button>
           )}
@@ -963,7 +964,7 @@ const TranslationRow = ({
           <button
             type="button"
             className={`btn btn-sm text-xs ${
-              item.confirmed ? "btn-success" : "btn-neutral"
+              item.confirmed ? "btn-success" : "btn-primary"
             }`}
             onClick={onConfirmToggle}
             disabled={!hasDraft}
@@ -996,11 +997,11 @@ const TranslationRow = ({
           )}
         </div>
       ) : (
-        <div onClick={stop} style={{ display: "flex", gap: "4px", justifyContent: "flex-end" }}>
+        <div onClick={stop} className="flex justify-end gap-2">
           {onSuggest && (
             <button
               type="button"
-              className="btn btn-xs btn-ghost text-primary"
+              className="btn btn-xs btn-ghost text-accent-pink"
               onClick={() => onSuggest(item)}
               disabled={isSuggesting}
               title="Запропонувати ШІ-переклад"

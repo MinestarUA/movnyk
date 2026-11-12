@@ -19,7 +19,7 @@ const LangSelectionScreen = ({ langFiles, onLangSelect }) => {
               <span className="flex-shrink-0 text-primary text-lg">📄</span>
               <span className="flex flex-col min-w-0">
                 <span className="font-semibold truncate">{shortName(langFile.name)}</span>
-                <span className="text-xs text-base-content/50 truncate">{langFile.name}</span>
+                <span className="text-xs text-base-content/60 truncate">{langFile.name}</span>
               </span>
             </button>
           ))}

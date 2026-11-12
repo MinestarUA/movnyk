@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import CloseButton from "./CloseButton";
+import useModalDialog from "./useModalDialog";
 import {
   bookSourcesWarning,
   invalidGuidePagesWarning,
@@ -16,36 +18,10 @@ const ExportPackModal = ({ pack, summary, onConfirm, onClose }) => {
 
   const dialogRef = useRef(null);
 
-  // The dialog opens from a button; closing hands focus back to it. Read
-  // during the first render, before autoFocus moves focus into the dialog.
-  const [opener] = useState(() => document.activeElement);
-  useEffect(() => () => opener?.focus?.(), [opener]);
+  useModalDialog(dialogRef, onClose);
 
   const errors = validatePack({ namespace, language });
   const isValid = Object.keys(errors).length === 0;
-
-  // Listens on the window so Esc and Tab also work when a click left focus on the page body.
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        onClose();
-      } else if (e.key === "Tab") {
-        const focusable = dialogRef.current.querySelectorAll("button:not([disabled]), input, select");
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        const focusIsInside = dialogRef.current.contains(document.activeElement);
-        if (!focusIsInside || (e.shiftKey && document.activeElement === first)) {
-          e.preventDefault();
-          (e.shiftKey ? last : first).focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
 
   const sourcesWarning = bookSourcesWarning(summary);
   const guideWarning = invalidGuidePagesWarning(summary);
@@ -60,14 +36,13 @@ const ExportPackModal = ({ pack, summary, onConfirm, onClose }) => {
     >
       <div
         ref={dialogRef}
-        className="w-full max-w-md rounded-2xl border-2 border-neutral bg-base-200 p-7 shadow-2xl my-auto"
+        tabIndex={-1}
+        className="w-full max-w-md rounded-box border border-neutral bg-base-200 p-7 shadow-2xl my-auto focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-black">Ресурспак</h2>
-          <button className="btn btn-sm btn-circle btn-ghost" onClick={onClose} aria-label="Закрити">
-            ✕
-          </button>
+          <h2 className="text-xl font-bold">Ресурспак</h2>
+          <CloseButton onClick={onClose} />
         </div>
 
         <div className="flex flex-col gap-4">

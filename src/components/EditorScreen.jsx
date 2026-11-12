@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { Fragment, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import JSZip from "jszip";
 import { List } from "react-window";
 import TranslationRow, { ROW_COLLAPSED, ROW_EXPANDED } from "./TranslationRow";
@@ -60,15 +60,52 @@ const getSelectedText = (active) => {
   return selected.trim();
 };
 
-const COLUMN_HEADER_STYLE = {
-  fontFamily: "var(--font-heading)",
-  fontSize: "10px",
-  fontWeight: 500,
-  letterSpacing: "0.08em",
-  color: "var(--color-neutral-600)",
+const COLUMN_HEADER = "text-[10px] font-medium tracking-widest text-gray-500";
+const PROGRESS_COUNTER = "whitespace-nowrap text-xs tabular-nums text-gray-400";
+const HEADER_ICON_BTN =
+  "flex shrink-0 items-center justify-center rounded-lg border border-base-content/15 text-gray-400";
+const TEXT_INPUT =
+  "h-9 w-full rounded-l-lg border border-r-0 bg-base-200 text-[13px] text-base-content outline-none";
+// The lighter accent shade keeps small active text above 4:1 on the tinted background.
+const ACCENT_TEXT = "text-[color:var(--color-accent-400)]";
+
+// Segmented search toggles: the last one closes the group with a right edge.
+const toggleBtnClass = (active, isLast = false) =>
+  [
+    "h-9 border-y border-l px-2.5 text-xs font-medium",
+    isLast ? "rounded-r-lg border-r" : "border-r-0",
+    active ? `border-accent bg-accent/10 ${ACCENT_TEXT}` : "border-base-content/15 bg-base-200 text-gray-400",
+  ].join(" ");
+
+const CHIP_BASE =
+  "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold";
+const chipClass = (active, tint) => `${CHIP_BASE} ${active ? tint.on : tint.off}`;
+const CHIP_DOT = "size-1.5 shrink-0 rounded-full";
+const SKY_CHIP = {
+  on: "border-blue-400 bg-blue-400/20 text-blue-300",
+  off: "border-blue-400/30 bg-blue-400/10 text-blue-300",
+};
+// Pink stays reserved for actions, so the untranslated filter uses the accent.
+const ACCENT_CHIP = {
+  on: `border-accent bg-accent/20 ${ACCENT_TEXT}`,
+  off: `border-accent/30 bg-accent/10 ${ACCENT_TEXT}`,
+  dot: "bg-accent",
+};
+const AMBER_CHIP = {
+  on: "border-warning bg-warning/20 text-warning",
+  off: "border-warning/30 bg-warning/10 text-warning",
+  dot: "bg-warning",
 };
 
-const GRID_COLUMNS_HEADER = "26px minmax(240px,1.3fr) minmax(240px,1.4fr) 140px";
+const SHORTCUTS = [
+  ["Enter", "наступний"],
+  ["Ctrl+↑/↓", "навігація"],
+  ["Ctrl+F", "пошук"],
+  ["Alt+Z/X/C", "регістр"],
+  ["Alt+Q", "попередження"],
+  ["Alt+1…9", "токен з оригіналу"],
+  ["Esc", "до рядка"],
+];
 
 const EditorScreen = ({
   initialTranslations,
@@ -140,6 +177,8 @@ const EditorScreen = ({
   const [selectedKey, setSelectedKey] = useState(() => translations[0]?.key ?? null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const shortcutsRef = useRef(null);
   const [referenceQuery, setReferenceQuery] = useState("");
   // Rows dropped from the editor by an original update. Not editable, but the
   // reference panel still finds their translations.
@@ -254,12 +293,6 @@ const EditorScreen = ({
     [translations]
   );
   const charProgress = charTotal ? Math.floor((confirmedChars / charTotal) * 100) : 0;
-  const progressCounterStyle = {
-    fontSize: "12px",
-    color: "var(--color-neutral-400)",
-    whiteSpace: "nowrap",
-    fontVariantNumeric: "tabular-nums",
-  };
 
   // Derive the effective selection so it stays valid when the filtered set
   // changes, without needing an effect to reconcile state.
@@ -322,6 +355,14 @@ const EditorScreen = ({
       // The editor listens in the capture phase, before the level-up screen dismisses on Enter.
       if (celebratingLevel && e.key === "Enter") {
         e.preventDefault();
+        return;
+      }
+
+      // Escape closes the shortcut popover and goes no further, so it does not also run the editor's Esc handling.
+      if (shortcutsOpen && e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setShortcutsOpen(false);
         return;
       }
 
@@ -627,6 +668,7 @@ const EditorScreen = ({
     modalOpen,
     settingsOpen,
     celebratingLevel,
+    shortcutsOpen,
     activeKey,
     activeIndex,
     filtered,
@@ -640,6 +682,15 @@ const EditorScreen = ({
     qaDetailsVisible,
     qaDetails,
   ]);
+
+  useEffect(() => {
+    if (!shortcutsOpen) return;
+    const closeOnOutsidePress = (e) => {
+      if (!shortcutsRef.current?.contains(e.target)) setShortcutsOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePress, true);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePress, true);
+  }, [shortcutsOpen]);
 
   // Manual edits optionally drop the confirmed mark.
   // If syncIdenticalTranslations is enabled and the group is synced, updates all synced rows with identical original text.
@@ -937,65 +988,6 @@ const EditorScreen = ({
     [activeIndex, expandedRowHeight]
   );
 
-
-  const toggleBtnStyle = (active, isLast = false) => ({
-    height: "34px",
-    padding: "0 10px",
-    borderRadius: isLast ? "0 var(--radius-md) var(--radius-md) 0" : 0,
-    fontSize: "12px",
-    fontFamily: "var(--font-heading)",
-    fontWeight: 500,
-    cursor: "pointer",
-    background: active ? "color-mix(in srgb, var(--color-accent) 12%, transparent)" : "var(--color-surface)",
-    borderTop: active ? "1px solid var(--color-accent)" : "1px solid var(--color-divider)",
-    borderBottom: active ? "1px solid var(--color-accent)" : "1px solid var(--color-divider)",
-    borderLeft: "1px solid var(--color-divider)",
-    borderRight: isLast
-      ? active
-        ? "1px solid var(--color-accent)"
-        : "1px solid var(--color-divider)"
-      : "none",
-    color: active ? "var(--color-accent)" : "var(--color-neutral-400)",
-  });
-  const chipStyle = (active, tint) => ({
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    padding: "5px 11px",
-    borderRadius: "999px",
-    fontFamily: "var(--font-heading)",
-    fontSize: "12px",
-    fontWeight: 600,
-    cursor: "pointer",
-    background: active ? tint.bgOn : tint.bgOff,
-    border: `1px solid ${active ? tint.borderOn : tint.borderOff}`,
-    color: tint.color,
-  });
-  const pinkTint = {
-    bgOn: "rgba(255,95,162,0.22)",
-    bgOff: "rgba(255,95,162,0.1)",
-    borderOn: "#ff5fa2",
-    borderOff: "rgba(255,95,162,0.35)",
-    color: "#ff9dc6",
-    dot: "#ff5fa2",
-  };
-  const amberTint = {
-    bgOn: "rgba(240,190,90,0.22)",
-    bgOff: "rgba(240,190,90,0.08)",
-    borderOn: "#f0be5a",
-    borderOff: "rgba(240,190,90,0.3)",
-    color: "#f2cd85",
-    dot: "#f0be5a",
-  };
-
-  const skyTint = {
-    bgOn: "rgba(100,170,240,0.22)",
-    bgOff: "rgba(100,170,240,0.08)",
-    borderOn: "#64aaf0",
-    borderOff: "rgba(100,170,240,0.3)",
-    color: "#9cc7f5",
-    dot: "#64aaf0",
-  };
   const scopeChips = [
     { id: "all", label: "Усе" },
     { id: "lang", label: "Мовний файл" },
@@ -1004,78 +996,34 @@ const EditorScreen = ({
 
   return (
     <div
-      className={`animate-fade-in ${rewardClasses}`}
-      style={{
-        height: "100vh",
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-        background: "var(--color-bg)",
-        color: "var(--color-text)",
-        overflow: "hidden",
-      }}
+      className={`flex h-screen w-full animate-fade-in flex-col overflow-hidden bg-base-100 text-base-content ${rewardClasses}`}
     >
-      <div
-        style={{
-          flexShrink: 0,
-          padding: "var(--space-4) var(--space-6) var(--space-3)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--space-3)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
+      <div className="flex shrink-0 flex-col gap-2 px-4 pb-2 pt-3">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onHome}
             title="На головну"
             aria-label="На головну"
-            style={{
-              width: "34px",
-              height: "34px",
-              borderRadius: "var(--radius-md)",
-              background: "transparent",
-              border: "1px solid var(--color-divider)",
-              color: "var(--color-neutral-400)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
+            className={`${HEADER_ICON_BTN} h-9 w-9`}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 10.5L12 3l9 7.5" />
               <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5" />
             </svg>
           </button>
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexShrink: 0 }}>
-            <div
-              className="rw-title"
-              style={{
-                fontFamily: "var(--font-heading)",
-                fontWeight: 500,
-                fontSize: "19px",
-                letterSpacing: "-0.015em",
-              }}
-            >
-              Мовник
-            </div>
-            <div style={{ fontSize: "10.5px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
-              Enter — наступний · Ctrl+↑/↓ — навігація · Ctrl+F — пошук · Alt+Z/X/C — регістр · Alt+Q — попередження · Alt+1…9 — токен з оригіналу · Esc — до рядка
-            </div>
-          </div>
+          <div className="rw-title shrink-0 text-xl font-medium tracking-tight">Мовник</div>
 
-          <div style={{ flex: 1 }} />
+          <div className="flex-1" />
 
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+          <div className="flex shrink-0 items-center gap-4">
+            <div className="flex min-w-0 items-center gap-2">
               <WalkingCat progress={progress} confirmedCount={confirmedCount} total={total} />
-              <span style={progressCounterStyle}>
-                {confirmedCount} / {total} · {progress}%
+              <span className={PROGRESS_COUNTER}>
+                <span className="text-gray-500">рядки</span> {confirmedCount} / {total} · {progress}%
               </span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+            <div className="flex min-w-0 items-center gap-2">
               <WalkingCat
                 tone="teal"
                 label="Прогрес за символами"
@@ -1083,8 +1031,8 @@ const EditorScreen = ({
                 confirmedCount={confirmedChars}
                 total={charTotal}
               />
-              <span style={progressCounterStyle}>
-                {confirmedChars} / {charTotal} · {charProgress}%
+              <span className={PROGRESS_COUNTER}>
+                <span className="text-gray-500">символи</span> {confirmedChars} / {charTotal} · {charProgress}%
               </span>
             </div>
           </div>
@@ -1093,38 +1041,53 @@ const EditorScreen = ({
             type="button"
             onClick={() => setReferenceDrawerOpen((v) => !v)}
             title="Довідник проєкту / Швидкий пошук (Ctrl+Shift+F)"
-            className={`btn btn-sm ${referenceDrawerOpen ? "btn-primary" : "btn-neutral"}`}
-            style={{
-              height: "30px",
-              fontSize: "12px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "0 10px",
-            }}
+            className={`btn btn-sm gap-1.5 px-2.5 text-xs ${referenceDrawerOpen ? "btn-primary" : "btn-neutral"}`}
           >
             <span>📖</span>
             <span className="hidden sm:inline">Довідник</span>
           </button>
+
+          <div ref={shortcutsRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setShortcutsOpen((v) => !v)}
+              title="Комбінації клавіш"
+              aria-label="Комбінації клавіш"
+              aria-expanded={shortcutsOpen}
+              className={`${HEADER_ICON_BTN} h-8 w-8`}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" />
+                <line x1="12" y1="17" x2="12" y2="17.01" />
+              </svg>
+            </button>
+            {shortcutsOpen && (
+              <div
+                role="dialog"
+                aria-label="Комбінації клавіш"
+                className="absolute right-0 top-full z-30 mt-2 w-64 rounded-box border border-base-content/15 bg-base-300 p-3 shadow-xl"
+              >
+                <dl className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-xs">
+                  {SHORTCUTS.map(([keys, description]) => (
+                    <Fragment key={keys}>
+                      <dt>
+                        <kbd className="kbd kbd-sm">{keys}</kbd>
+                      </dt>
+                      <dd className="text-gray-400">{description}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
             onClick={() => setSidebarOpen((v) => !v)}
             title={sidebarOpen ? "Сховати панель дій" : "Показати панель дій"}
             aria-pressed={sidebarOpen}
-            style={{
-              width: "30px",
-              height: "30px",
-              borderRadius: "var(--radius-md)",
-              background: "transparent",
-              border: "1px solid var(--color-divider)",
-              color: "var(--color-neutral-400)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
+            className={`${HEADER_ICON_BTN} h-8 w-8`}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -1133,18 +1096,18 @@ const EditorScreen = ({
           </button>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", flex: "0 0 560px", maxWidth: "100%" }}>
-            <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", minWidth: "260px" }}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="max-w-full shrink-0 basis-[560px]">
+            <div className="relative flex min-w-[260px] flex-1 items-center">
               <svg
                 width="14"
                 height="14"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="var(--color-neutral-500)"
+                stroke="currentColor"
                 strokeWidth="1.8"
                 strokeLinecap="round"
-                style={{ position: "absolute", left: "12px", pointerEvents: "none" }}
+                className="pointer-events-none absolute left-3 text-gray-500"
                 aria-hidden="true"
               >
                 <circle cx="10" cy="10" r="7" />
@@ -1158,24 +1121,11 @@ const EditorScreen = ({
                 placeholder="Пошук за ключем, оригіналом або перекладом…"
                 aria-label="Пошук перекладів"
                 aria-invalid={Boolean(queryError)}
-                style={{
-                  width: "100%",
-                  height: "34px",
-                  background: "var(--color-surface)",
-                  border: queryError ? "1px solid var(--color-error, #ff5f6d)" : "1px solid var(--color-divider)",
-                  borderRadius: "var(--radius-md) 0 0 var(--radius-md)",
-                  borderRight: "none",
-                  padding: "0 12px 0 32px",
-                  color: "var(--color-text)",
-                  fontSize: "13.5px",
-                  fontFamily: "var(--font-body)",
-                  outline: "none",
-                }}
+                className={`${TEXT_INPUT} pl-8 pr-3 ${queryError ? "border-error" : "border-base-content/15"}`}
               />
               <button
                 type="button"
-                className="mono"
-                style={toggleBtnStyle(caseSensitive)}
+                className={`mono ${toggleBtnClass(caseSensitive)}`}
                 onClick={() => setCaseSensitive((v) => !v)}
                 title="Враховувати регістр"
                 aria-pressed={caseSensitive}
@@ -1184,8 +1134,7 @@ const EditorScreen = ({
               </button>
               <button
                 type="button"
-                className="mono"
-                style={toggleBtnStyle(wholeWord)}
+                className={`mono ${toggleBtnClass(wholeWord)}`}
                 onClick={() => setWholeWord((v) => !v)}
                 title="Цілі слова"
                 aria-pressed={wholeWord}
@@ -1194,8 +1143,7 @@ const EditorScreen = ({
               </button>
               <button
                 type="button"
-                className="mono"
-                style={toggleBtnStyle(regexMode)}
+                className={`mono ${toggleBtnClass(regexMode)}`}
                 onClick={() => setRegexMode((v) => !v)}
                 title="Пошук за регулярним виразом"
                 aria-pressed={regexMode}
@@ -1204,7 +1152,7 @@ const EditorScreen = ({
               </button>
               <button
                 type="button"
-                style={toggleBtnStyle(replaceMode, true)}
+                className={toggleBtnClass(replaceMode, true)}
                 onClick={() => setReplaceMode((v) => !v)}
                 title="Режим заміни"
                 aria-pressed={replaceMode}
@@ -1215,11 +1163,10 @@ const EditorScreen = ({
           </div>
 
             {replaceMode && (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "8px", flexShrink: 0 }}>
+              <div className="ml-2 flex shrink-0 items-center gap-1.5">
                 <button
                   type="button"
-                  className="btn btn-sm btn-neutral"
-                  style={{ height: "34px", padding: "0 12px", borderRadius: "var(--radius-md)", fontSize: "12.5px" }}
+                  className="btn btn-sm btn-neutral h-9 px-3 text-xs"
                   onClick={handleReplaceOne}
                   disabled={!queryRe}
                 >
@@ -1227,8 +1174,7 @@ const EditorScreen = ({
                 </button>
                 <button
                   type="button"
-                  className="btn btn-sm btn-neutral"
-                  style={{ height: "34px", padding: "0 12px", borderRadius: "var(--radius-md)", fontSize: "12.5px" }}
+                  className="btn btn-sm btn-neutral h-9 px-3 text-xs"
                   onClick={handleReplaceAll}
                   disabled={!queryRe}
                 >
@@ -1251,58 +1197,52 @@ const EditorScreen = ({
               </button>
             )}
 
-          <div style={{ flex: 1 }} />
+          <div className="flex-1" />
 
-          <span style={{ fontSize: "12px", color: "var(--color-neutral-500)", whiteSpace: "nowrap" }}>
-            Показано: {filtered.length}
-          </span>
+          <span className="whitespace-nowrap text-xs text-gray-500">Показано: {filtered.length}</span>
 
           {books.length > 0 && (
-            <div
-              role="group"
-              aria-label="Область"
-              style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}
-            >
+            <div role="group" aria-label="Область" className="flex shrink-0 items-center gap-1.5">
               {scopeChips.map(({ id, label }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setScope(id)}
                   aria-pressed={scope === id}
-                  style={chipStyle(scope === id, skyTint)}
+                  className={chipClass(scope === id, SKY_CHIP)}
                 >
-                  <span style={{ whiteSpace: "nowrap" }}>{label}</span>
+                  {label}
                 </button>
               ))}
             </div>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={() => setFilterUntranslated((v) => !v)}
               title="Показати лише неперекладені"
               aria-pressed={filterUntranslated}
-              style={chipStyle(filterUntranslated, pinkTint)}
+              className={chipClass(filterUntranslated, ACCENT_CHIP)}
             >
-              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: pinkTint.dot, flexShrink: 0 }} />
-              <span style={{ whiteSpace: "nowrap" }}>Неперекладені {untranslatedCount}</span>
+              <span className={`${CHIP_DOT} ${ACCENT_CHIP.dot}`} />
+              Неперекладені {untranslatedCount}
             </button>
             <button
               type="button"
               onClick={() => setFilterUnconfirmed((v) => !v)}
               title="Показати лише незатверджені"
               aria-pressed={filterUnconfirmed}
-              style={chipStyle(filterUnconfirmed, amberTint)}
+              className={chipClass(filterUnconfirmed, AMBER_CHIP)}
             >
-              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: amberTint.dot, flexShrink: 0 }} />
-              <span style={{ whiteSpace: "nowrap" }}>Незатверджені {unconfirmedCount}</span>
+              <span className={`${CHIP_DOT} ${AMBER_CHIP.dot}`} />
+              Незатверджені {unconfirmedCount}
             </button>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", maxWidth: "560px" }}>
-          <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
+        {replaceMode && (
+          <div className="flex max-w-[560px] items-center">
             <input
               type="text"
               value={replaceValue}
@@ -1319,24 +1259,11 @@ const EditorScreen = ({
               }}
               placeholder="Замінити на… (у перекладах)"
               aria-label="Текст заміни"
-              style={{
-                width: "100%",
-                height: "34px",
-                background: "var(--color-surface)",
-                border: "1px solid var(--color-divider)",
-                borderRadius: "var(--radius-md) 0 0 var(--radius-md)",
-                borderRight: "none",
-                padding: "0 12px",
-                color: "var(--color-text)",
-                fontSize: "13.5px",
-                fontFamily: "var(--font-body)",
-                outline: "none",
-              }}
+              className={`${TEXT_INPUT} border-base-content/15 px-3`}
             />
             <button
               type="button"
-              className="mono"
-              style={toggleBtnStyle(preserveCase, true)}
+              className={`mono ${toggleBtnClass(preserveCase, true)}`}
               onClick={() => setPreserveCase((v) => !v)}
               title="Зберігати регістр при заміні"
               aria-pressed={preserveCase}
@@ -1344,41 +1271,22 @@ const EditorScreen = ({
               AB
             </button>
           </div>
-        </div>
+        )}
 
-        <div
-          style={{
-            height: "1px",
-            background:
-              "linear-gradient(to right, transparent, var(--color-divider) 48px, var(--color-divider) calc(100% - 48px), transparent)",
-          }}
-        />
+        <div className="h-px bg-base-content/15" />
       </div>
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-          <div
-            style={{
-              flexShrink: 0,
-              display: "grid",
-              gridTemplateColumns: GRID_COLUMNS_HEADER,
-              gap: "var(--space-6)",
-              padding: "0 var(--space-6)",
-              height: "28px",
-              alignItems: "center",
-            }}
-          >
+      <div className="relative flex flex-1 overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="grid h-7 shrink-0 grid-cols-[26px_minmax(240px,1.3fr)_minmax(240px,1.4fr)_140px] items-center gap-4 px-4">
             <div />
-            <div style={COLUMN_HEADER_STYLE}>ОРИГІНАЛ ТА КЛЮЧ</div>
-            <div style={COLUMN_HEADER_STYLE}>ПЕРЕКЛАД</div>
-            <div style={{ ...COLUMN_HEADER_STYLE, textAlign: "right" }}>ДІЇ</div>
+            <div className={COLUMN_HEADER}>ОРИГІНАЛ ТА КЛЮЧ</div>
+            <div className={COLUMN_HEADER}>ПЕРЕКЛАД</div>
+            <div className={`${COLUMN_HEADER} text-right`}>ДІЇ</div>
           </div>
 
           {hiddenMatches > 0 && (
-            <div
-              style={{ margin: "0 var(--space-6) var(--space-3)" }}
-              className="flex items-center justify-center gap-3 rounded-lg border border-warning/40 bg-base-200 px-4 py-2 text-sm"
-            >
+            <div className="mx-4 mb-2 flex items-center justify-center gap-3 rounded-lg border border-warning/40 bg-base-200 px-4 py-2 text-sm">
               <span>
                 Фільтр приховує збігів: <span className="font-semibold tabular-nums">{hiddenMatches}</span>
               </span>
@@ -1396,17 +1304,17 @@ const EditorScreen = ({
           )}
 
           {filtered.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-center" style={{ color: "var(--color-neutral-500)" }}>
+            <div className="flex flex-1 items-center justify-center text-center text-gray-500">
               <p>Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр.</p>
             </div>
           ) : (
-            <div style={{ flex: 1, minHeight: 0, padding: "0 var(--space-6)", display: "flex" }}>
+            <div className="flex min-h-0 flex-1 px-4">
               <List
                 listRef={listRef}
                 rowComponent={Row}
                 rowCount={filtered.length}
                 rowHeight={getRowHeight}
-                style={{ width: "100%", height: "100%" }}
+                className="h-full w-full"
                 rowProps={{
                   filtered,
                   selectedKey: activeKey,

@@ -9,6 +9,16 @@ export default {
         sans: ["Inter", "system-ui", "sans-serif"],
         heading: ["Inter", "system-ui", "sans-serif"],
       },
+      // The neutral scale and signature pink live as CSS variables in index.css.
+      // daisyUI's `neutral` is a single colour, so the scale is exposed as `gray`.
+      colors: {
+        gray: Object.fromEntries(
+          [100, 200, 300, 400, 500, 600, 700, 800, 900].map((step) => [step, `var(--color-neutral-${step})`])
+        ),
+        // Text-safe pink: `primary` is darkened for white-on-fill contrast and is
+        // too dark for text on the dark background.
+        "accent-pink": "#ff5fa2",
+      },
       keyframes: {
         "slide-in-top": {
           "0%": { transform: "translateY(-50px)", opacity: "0" },
@@ -54,7 +64,7 @@ export default {
     themes: [
       {
         movnyk: {
-          primary: "#ff5fa2",
+          primary: "#d6337a",
           "primary-content": "#ffffff",
           secondary: "#b25ef0",
           "secondary-content": "#ffffff",

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { compileQuery, itemMatches } from "../lib/searching";
+import CloseButton from "./CloseButton";
 import FormattedText from "./FormattedText";
 
 const ProjectReferenceDrawer = ({
@@ -65,15 +66,7 @@ const ProjectReferenceDrawer = ({
             Шукайте терміни без втрати позиції в редакторі
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-xs btn-circle btn-ghost"
-          onClick={onClose}
-          aria-label="Сховати довідник"
-          title="Сховати довідник"
-        >
-          ✕
-        </button>
+        <CloseButton onClick={onClose} label="Сховати довідник" />
       </div>
 
       {/* Search Input */}
@@ -100,8 +93,9 @@ const ProjectReferenceDrawer = ({
           {query && (
             <button
               type="button"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content text-xs"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-base-content/60 hover:text-base-content text-xs"
               onClick={() => onQueryChange("")}
+              aria-label="Очистити пошук"
             >
               ✕
             </button>
@@ -111,7 +105,7 @@ const ProjectReferenceDrawer = ({
           <div className="text-[11px] text-base-content/60 mt-1.5 flex justify-between">
             <span>Знайдено: {results.length >= 100 ? "100+" : results.length}</span>
             {activeKey && (
-              <span className="text-primary font-mono text-[10px] truncate max-w-[180px]" title={activeKey}>
+              <span className="text-accent-pink font-mono text-[10px] truncate max-w-[180px]" title={activeKey}>
                 Рядок: {activeKey}
               </span>
             )}
@@ -122,11 +116,11 @@ const ProjectReferenceDrawer = ({
       {/* Results List */}
       <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
         {!query.trim() ? (
-          <div className="text-center py-12 text-base-content/40 text-xs">
+          <div className="text-center py-12 text-base-content/60 text-xs">
             Введіть запит, щоб знайти терміни у проєкті.
           </div>
         ) : results.length === 0 ? (
-          <div className="text-center py-12 text-base-content/40 text-xs">
+          <div className="text-center py-12 text-base-content/60 text-xs">
             Нічого не знайдено за цим запитом.
           </div>
         ) : (
@@ -185,7 +179,7 @@ const ProjectReferenceDrawer = ({
                   <FormattedText text={item.translated} queryRe={queryRe} />
                 </div>
               ) : (
-                <div className="text-[10px] text-base-content/30 italic">
+                <div className="text-[10px] text-base-content/60">
                   Ще не перекладено
                 </div>
               )}

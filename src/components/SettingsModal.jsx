@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import CloseButton from "./CloseButton";
+import useModalDialog from "./useModalDialog";
 import { GEMINI_MODELS, DEFAULT_MODEL, AI_PROVIDERS, DEFAULT_SEARCH_PROMPTS } from "../lib/settings";
 import { testGeminiConnection, fetchAvailableGeminiModels } from "../lib/gemini";
 import { testDeeplConnection, CORS_EXTENSION_URL } from "../lib/deepl";
@@ -86,24 +88,38 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
     }
   };
 
+  const draft = {
+    aiProvider,
+    apiKey: apiKey.trim(),
+    model,
+    deeplApiKey: deeplApiKey.trim(),
+    syncIdenticalTranslations,
+    qaChecksEnabled,
+    unconfirmOnEdit,
+    focusSearchOnFind,
+    wordAutocompleteEnabled,
+    rewardsEnabled,
+    syntaxExtensions,
+    syntaxAutoDetect,
+    searchPrompts,
+  };
+  const draftJson = JSON.stringify(draft);
+  const [initialDraftJson] = useState(draftJson);
+  const isDirty = draftJson !== initialDraftJson;
+
   const handleSave = () => {
-    onSave({
-      aiProvider,
-      apiKey: apiKey.trim(),
-      model,
-      deeplApiKey: deeplApiKey.trim(),
-      syncIdenticalTranslations,
-      qaChecksEnabled,
-      unconfirmOnEdit,
-      focusSearchOnFind,
-      wordAutocompleteEnabled,
-      rewardsEnabled,
-      syntaxExtensions,
-      syntaxAutoDetect,
-      searchPrompts,
-    });
+    onSave(draft);
     onClose();
   };
+
+  // Esc, the backdrop and the close icon are easy to hit by accident, unlike
+  // the explicit "Скасувати" button, so they ask before dropping edits.
+  const requestClose = useCallback(() => {
+    if (!isDirty || window.confirm("Закрити налаштування без збереження змін?")) onClose();
+  }, [isDirty, onClose]);
+
+  const dialogRef = useRef(null);
+  useModalDialog(dialogRef, requestClose);
 
   const isDeeplFree = deeplApiKey.trim().endsWith(":fx");
 
@@ -113,17 +129,17 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
       role="dialog"
       aria-modal="true"
       aria-label="Налаштування"
-      onClick={onClose}
+      onClick={requestClose}
     >
       <div
-        className="w-full max-w-xl rounded-2xl border-2 border-neutral bg-base-200 p-7 shadow-2xl my-auto"
+        ref={dialogRef}
+        tabIndex={-1}
+        className="w-full max-w-xl rounded-box border border-neutral bg-base-200 p-7 shadow-2xl my-auto focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-black">Налаштування</h2>
-          <button className="btn btn-sm btn-circle btn-ghost" onClick={onClose} aria-label="Закрити">
-            ✕
-          </button>
+          <h2 className="text-xl font-bold">Налаштування</h2>
+          <CloseButton onClick={requestClose} />
         </div>
 
         {/* AI Provider Switcher */}
@@ -186,7 +202,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
                   href="https://aistudio.google.com/apikey"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="link link-primary"
+                  className="link text-accent-pink"
                 >
                   Google AI Studio
                 </a>
@@ -292,7 +308,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
                   href="https://www.deepl.com/pro-api"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="link link-primary"
+                  className="link text-accent-pink"
                 >
                   DeepL API Portal
                 </a>
@@ -310,7 +326,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
                   href={CORS_EXTENSION_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="link link-primary font-bold inline-flex items-center gap-1"
+                  className="link text-accent-pink font-bold inline-flex items-center gap-1"
                 >
                   CORS Unblock ↗
                 </a>{" "}

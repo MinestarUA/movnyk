@@ -4,6 +4,15 @@ import { hasApiKey } from "../lib/settings";
 import { parseLangContent } from "../lib/importing";
 import { describeOriginalUpdate } from "../lib/originalUpdate";
 
+const DIVIDER = "h-px shrink-0 bg-base-content/15";
+const SECTION_LABEL = "text-[10px] uppercase tracking-widest text-gray-500";
+const IMPORT_BTN =
+  "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-base-content/15 px-2.5 py-1.5 text-center text-xs font-medium leading-snug text-base-content disabled:cursor-not-allowed disabled:opacity-50";
+const CHECKBOX_LABEL = "flex cursor-pointer items-start gap-2 text-xs leading-snug text-gray-400";
+const CHECKBOX = "mt-0.5 size-3.5 shrink-0 accent-accent";
+const EXPORT_BTN =
+  "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-primary/40 text-xs font-semibold text-accent-pink";
+
 const Sidebar = ({
   open = true,
   confirmedCount,
@@ -139,116 +148,22 @@ const Sidebar = ({
   const running = aiState?.running;
   const aiProgress = running && aiState.total ? Math.floor((aiState.done / aiState.total) * 100) : 0;
 
-  const dividerStyle = {
-    height: "1px",
-    background:
-      "linear-gradient(to right, transparent, var(--color-divider) 20%, var(--color-divider) 80%, transparent)",
-  };
-  const sectionLabelStyle = {
-    fontSize: "10.5px",
-    letterSpacing: "0.08em",
-    color: "var(--color-neutral-600)",
-    textTransform: "uppercase",
-  };
-  const outlineBtnStyle = {
-    minHeight: "32px",
-    padding: "6px 10px",
-    borderRadius: "var(--radius-md)",
-    background: "transparent",
-    border: "1px solid var(--color-divider)",
-    color: "var(--color-text)",
-    fontFamily: "var(--font-heading)",
-    fontWeight: 500,
-    fontSize: "12.5px",
-    lineHeight: 1.3,
-    textAlign: "center",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "6px",
-  };
-  const importBtnStyle = {
-    ...outlineBtnStyle,
-    opacity: running ? 0.5 : 1,
-    cursor: running ? "not-allowed" : "pointer",
-  };
-  const checkboxLabelStyle = {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "8px",
-    fontSize: "12px",
-    color: "var(--color-neutral-400)",
-    cursor: "pointer",
-    lineHeight: 1.4,
-  };
-  const checkboxStyle = {
-    accentColor: "var(--color-accent)",
-    width: "13px",
-    height: "13px",
-    marginTop: "2px",
-    flexShrink: 0,
-  };
-  const exportBtnStyle = (filled) => ({
-    height: "32px",
-    borderRadius: "var(--radius-md)",
-    background: filled ? "rgba(255,95,162,0.14)" : "transparent",
-    border: "1px solid rgba(255,95,162,0.4)",
-    color: "#ff9dc6",
-    fontFamily: "var(--font-heading)",
-    fontWeight: 600,
-    fontSize: "12.5px",
-    cursor: "pointer",
-  });
-
   return (
     <aside
-      style={{
-        position: "relative",
-        width: open ? "260px" : "0",
-        minWidth: open ? "260px" : "0",
-        transition: "width 0.2s ease, min-width 0.2s ease",
-        background: "color-mix(in srgb, var(--color-surface) 72%, transparent)",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        borderLeft: open ? "1px solid var(--color-divider)" : "none",
-        boxShadow: open ? "-4px 0 16px rgba(0,0,0,0.25)" : "none",
-        overflow: "hidden",
-        height: "100%",
-        flexShrink: 0,
-        zIndex: 10,
-      }}
+      className={`relative z-10 h-full shrink-0 overflow-hidden bg-base-200/70 backdrop-blur-[14px] transition-[width,min-width] duration-200 ${
+        open
+          ? "w-[260px] min-w-[260px] border-l border-base-content/15 shadow-[-4px_0_16px_rgba(0,0,0,0.25)]"
+          : "w-0 min-w-0"
+      }`}
     >
-      <div
-        style={{
-          width: "260px",
-          padding: "var(--space-4) var(--space-4) var(--space-6)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--space-4)",
-          height: "100%",
-          overflowY: "auto",
-          boxSizing: "border-box",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: "16px" }}>Дії</div>
+      <div className="flex h-full w-[260px] flex-col gap-3 overflow-y-auto px-3 pb-4 pt-3">
+        <div className="flex items-center justify-between">
+          <div className="text-base font-medium">Дії</div>
           <button
             onClick={onOpenSettings}
             title="Налаштування"
             aria-label="Налаштування"
-            style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "var(--radius-md)",
-              background: "transparent",
-              border: "1px solid var(--color-divider)",
-              color: "var(--color-neutral-400)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-base-content/15 text-gray-400"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
               <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
@@ -258,32 +173,33 @@ const Sidebar = ({
           </button>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "2px", padding: "var(--space-3) 0" }}>
-          <div style={{ fontSize: "26px", fontWeight: 700, fontFamily: "var(--font-heading)", lineHeight: 1.1 }}>
+        <div className="flex flex-col gap-0.5 py-2">
+          <div className="text-2xl font-bold leading-[1.1]">
             {confirmedCount}{" "}
-            <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--color-neutral-500)" }}>/ {total}</span>
+            <span className="text-sm font-medium text-gray-500">/ {total}</span>
           </div>
-          <div style={{ fontSize: "10.5px", letterSpacing: "0.08em", color: "var(--color-neutral-500)", textTransform: "uppercase" }}>
-            Затверджено
-          </div>
+          <div className="text-[10px] uppercase tracking-widest text-gray-500">Затверджено</div>
         </div>
 
         {keyReady &&
           (running ? (
-            <div style={{ borderRadius: "var(--radius-md)", border: "1px solid rgba(255,95,162,0.4)", background: "var(--color-bg)", padding: "var(--space-4)" }}>
-              <div className="flex items-center gap-2" style={{ fontSize: "13px", fontWeight: 600 }}>
-                <span className="loading loading-spinner loading-sm" style={{ color: "var(--accent-pink)" }} />
+            <div className="rounded-lg border border-primary/40 bg-base-100 p-3">
+              <div className="flex items-center gap-2 text-[13px] font-semibold">
+                <span className="loading loading-spinner loading-sm text-accent-pink" />
                 Перекладаю через ШІ…
               </div>
-              <div style={{ height: "5px", borderRadius: "3px", background: "var(--color-neutral-800)", overflow: "hidden", marginTop: "10px" }}>
-                <div style={{ height: "100%", width: `${aiProgress}%`, background: "linear-gradient(90deg,#ff5fa2,#c860e8)", borderRadius: "3px", transition: "width 0.2s ease" }} />
+              <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-800">
+                <div
+                  className="h-full rounded-full bg-[image:var(--accent-gradient)] transition-[width] duration-200"
+                  style={{ width: `${aiProgress}%` }}
+                />
               </div>
-              <div style={{ marginTop: "4px", fontSize: "11px", color: "var(--color-neutral-500)", fontVariantNumeric: "tabular-nums" }}>
+              <div className="mt-1 text-[11px] tabular-nums text-gray-500">
                 {aiState.done} / {aiState.total} ({aiProgress}%)
               </div>
               <button
                 onClick={onCancelAutoTranslate}
-                style={{ width: "100%", height: "32px", marginTop: "10px", borderRadius: "var(--radius-md)", background: "transparent", border: "1px solid var(--color-error, #ff5f6d)", color: "var(--color-error, #ff5f6d)", fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: "12.5px", cursor: "pointer" }}
+                className="mt-2.5 h-8 w-full rounded-lg border border-error text-xs font-semibold text-error"
               >
                 Скасувати
               </button>
@@ -291,22 +207,7 @@ const Sidebar = ({
           ) : (
             <button
               onClick={onAutoTranslate}
-              style={{
-                height: "36px",
-                borderRadius: "var(--radius-md)",
-                background: "var(--accent-gradient)",
-                border: "none",
-                color: "#fff",
-                fontFamily: "var(--font-heading)",
-                fontWeight: 700,
-                fontSize: "13px",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
-                boxShadow: "var(--accent-glow)",
-              }}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[image:var(--accent-gradient)] text-[13px] font-bold text-white shadow-[shadow:var(--accent-glow)]"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
@@ -315,12 +216,12 @@ const Sidebar = ({
             </button>
           ))}
 
-        <div style={dividerStyle} />
+        <div className={DIVIDER} />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={sectionLabelStyle}>Імпорт</div>
+        <div className="flex flex-col gap-2">
+          <div className={SECTION_LABEL}>Імпорт</div>
           <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept=".json,.lang,.zip,.jar" />
-          <button style={importBtnStyle} onClick={handleLoadClick} disabled={running}>
+          <button className={IMPORT_BTN} onClick={handleLoadClick} disabled={running}>
             <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 3v12" />
               <path d="M7 8l5-5 5 5" />
@@ -328,64 +229,68 @@ const Sidebar = ({
             </svg>
             Приєднати Lang файл
           </button>
-          <button style={importBtnStyle} onClick={handlePasteLangClipboard} disabled={running}>
+          <button className={IMPORT_BTN} onClick={handlePasteLangClipboard} disabled={running}>
             <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="9" y="9" width="11" height="11" rx="2" />
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
             Приєднати Lang з буфера
           </button>
-          <button style={importBtnStyle} onClick={handlePasteOriginalClipboard} disabled={running} title="Вставте новий оригінал (en_us.json) в буфер. Затвердження зі змінених рядків знімається, видалені лишаються в довіднику.">
+          <div className={DIVIDER} />
+          <button className={IMPORT_BTN} onClick={handlePasteOriginalClipboard} disabled={running}>
             <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M21 12a9 9 0 1 1-2.64-6.36" />
               <path d="M21 4v5h-5" />
             </svg>
             Приєднати та оновити оригінал (з буфера)
           </button>
+          <p className="text-xs leading-snug text-gray-500">
+            Вставте новий оригінал (en_us.json) в буфер. Затвердження зі змінених рядків знімається, видалені лишаються в довіднику.
+          </p>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={sectionLabelStyle}>Під час імпорту</div>
-          <label style={checkboxLabelStyle}>
+        <div className="flex flex-col gap-2">
+          <div className={SECTION_LABEL}>Під час імпорту</div>
+          <label className={CHECKBOX_LABEL}>
             <input
               type="checkbox"
               checked={skipApproved}
               onChange={(e) => onSkipApprovedChange(e.target.checked)}
-              style={checkboxStyle}
+              className={CHECKBOX}
             />
             Пропускати вже затверджені переклади
           </label>
-          <label style={checkboxLabelStyle}>
+          <label className={CHECKBOX_LABEL}>
             <input
               type="checkbox"
               checked={skipIdentical}
               onChange={(e) => onSkipIdenticalChange(e.target.checked)}
-              style={checkboxStyle}
+              className={CHECKBOX}
             />
             Пропускати переклади, що збігаються з оригіналом
           </label>
-          <label style={checkboxLabelStyle}>
+          <label className={CHECKBOX_LABEL}>
             <input
               type="checkbox"
               checked={confirmImport}
               onChange={(e) => onConfirmImportChange(e.target.checked)}
-              style={checkboxStyle}
+              className={CHECKBOX}
             />
             Позначати імпортовані рядки як затверджені
           </label>
         </div>
 
-        <div style={dividerStyle} />
+        <div className={DIVIDER} />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={sectionLabelStyle}>Експорт</div>
-          <button style={exportBtnStyle(true)} onClick={onExportJson}>
+        <div className="flex flex-col gap-2">
+          <div className={SECTION_LABEL}>Експорт</div>
+          <button className={`${EXPORT_BTN} bg-primary/15`} onClick={onExportJson}>
             Експортувати як JSON
           </button>
-          <button style={exportBtnStyle(false)} onClick={onExportResourcePack}>
+          <button className={EXPORT_BTN} onClick={onExportResourcePack}>
             Експортувати як ресурспак
           </button>
-          <button style={{ ...exportBtnStyle(false), display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }} onClick={onExportClipboard}>
+          <button className={EXPORT_BTN} onClick={onExportClipboard}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="9" y="9" width="11" height="11" rx="2" />
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
@@ -397,14 +302,14 @@ const Sidebar = ({
         {!keyReady && (
           <button
             onClick={onOpenSettings}
-            style={{ fontSize: "12px", color: "var(--color-neutral-500)", textDecoration: "underline dotted", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}
+            className="p-0 text-left text-xs text-gray-500 underline decoration-dotted"
           >
             Додайте ключ API ШІ, щоб перекладати автоматично
           </button>
         )}
 
-        <div style={{ flex: 1 }} />
-        <div style={{ fontSize: "10.5px", color: "var(--color-neutral-600)", lineHeight: 1.5 }}>
+        <div className="flex-1" />
+        <div className="text-[11px] leading-normal text-gray-500">
           Порожні переклади не потрапляють до експорту.
         </div>
       </div>
