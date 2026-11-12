@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
 import LangSelectionScreen from "./components/LangSelectionScreen";
 import EditorScreen from "./components/EditorScreen";
@@ -42,6 +42,9 @@ const App = () => {
     pruneBookSources(loadSessions().map(({ id }) => id));
   }, []);
 
+  // Bumped by every open, so a slower earlier open can tell it was superseded.
+  const openRequestRef = useRef(0);
+
   const openEditor = async (
     content,
     name,
@@ -55,6 +58,7 @@ const App = () => {
       translationFiles = {},
     } = {}
   ) => {
+    const request = ++openRequestRef.current;
     const {
       existing,
       next,
@@ -70,8 +74,6 @@ const App = () => {
       bookJson,
       guideUnits,
     });
-    const changedCount = stats.changed + stats.renamed + stats.added + stats.removed;
-    if (existing && changedCount > 0) toast(describeOriginalUpdate(stats), "success");
     // A version inferred from the jar wins over the remembered one.
     const pack = {
       ...defaultPack(name, Object.keys(content)),
@@ -79,6 +81,31 @@ const App = () => {
       ...(mcVersion && { mcVersion }),
     };
     const id = existing?.id ?? newSessionId();
+
+    // Everything that needs the await happens before any state is set, so a
+    // file dropped meanwhile cannot interleave with this one.
+    let rows = next;
+    let prefill = null; // { applied, skippedPageCount } or { failed: true }
+    const hasOwnTranslation = Object.keys(translationFiles).length > 0;
+    if (hasOwnTranslation && !existing) {
+      try {
+        const { values, skippedPageCount } = await translationsFromArchive({
+          files: translationFiles,
+          language: DEFAULT_LANGUAGE,
+          rows,
+        });
+        const merged = mergeLangFile(rows, values, { skipIdentical: true, confirmImported: false, skipApproved: true });
+        rows = merged.next;
+        prefill = { applied: merged.applied, skippedPageCount };
+      } catch (error) {
+        console.error("Could not pre-fill from the mod's translation:", error);
+        prefill = { failed: true };
+      }
+    }
+    if (request !== openRequestRef.current) return;
+
+    const changedCount = stats.changed + stats.renamed + stats.added + stats.removed;
+    if (existing && changedCount > 0) toast(describeOriginalUpdate(stats), "success");
     setSession({ id, name, pack, books: sessionBooks.map(({ root, name }) => ({ root, name })) });
     setBookSources(sessionBooks.length > 0 ? bookFiles : null);
     if (sessionBooks.length > 0) {
@@ -93,21 +120,21 @@ const App = () => {
       const summary = sessionBooks.map((book) => `«${book.name}» (рядків: ${book.rowCount})`).join(", ");
       toast(`Додано книги: ${summary}.`, "success");
     }
-    let rows = next;
-    if (Object.keys(translationFiles).length > 0) {
-      if (existing) {
-        toast(
-          "У моді є власний переклад uk_ua. Щоб підставити його, імпортуйте цей .jar на бічній панелі (Імпорт).",
-          "info"
-        );
-      } else {
-        const { values } = await translationsFromArchive({ files: translationFiles, language: DEFAULT_LANGUAGE, rows });
-        const merged = mergeLangFile(rows, values, { skipIdentical: true, confirmImported: false, skipApproved: true });
-        rows = merged.next;
-        if (merged.applied > 0) {
-          toast(`У моді вже є переклад uk_ua: підставлено рядків — ${merged.applied}, їх не затверджено.`, "info");
-        }
-      }
+    if (hasOwnTranslation && existing) {
+      toast(
+        "У моді є власний переклад uk_ua. Щоб підставити його, імпортуйте цей .jar на бічній панелі (Імпорт).",
+        "info"
+      );
+    } else if (prefill?.failed) {
+      toast("Не вдалося підставити переклад uk_ua з моду. Редактор відкрито без нього.", "warning");
+    } else if (prefill?.applied > 0) {
+      toast(
+        `У моді вже є переклад uk_ua: підставлено рядків — ${prefill.applied}, їх не затверджено.` +
+          (prefill.skippedPageCount > 0
+            ? ` Сторінок посібника з іншою структурою пропущено: ${prefill.skippedPageCount}.`
+            : ""),
+        "info"
+      );
     }
     setInitialTranslations(rows);
     setInitialRemovedRows(removed);
@@ -115,6 +142,7 @@ const App = () => {
   };
 
   const handleResume = (saved) => {
+    openRequestRef.current += 1;
     const keys = saved.translations.map((row) => row.key);
     setSession({
       id: saved.id,
