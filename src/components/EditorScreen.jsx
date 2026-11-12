@@ -172,6 +172,7 @@ const EditorScreen = ({
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
   const [replaceMode, setReplaceMode] = useState(false);
+  const [showFillPreview, setShowFillPreview] = useState(false);
   const [replaceValue, setReplaceValue] = useState("");
   const [preserveCase, setPreserveCase] = useState(false);
   const [filterUntranslated, setFilterUntranslated] = useState(false);
@@ -787,6 +788,14 @@ const EditorScreen = ({
     [replaceMode, queryRe, visibleRows, query, replaceValue, replaceOptions]
   );
 
+  const replacePreview = useMemo(
+    () =>
+      replaceMode && queryRe
+        ? { query, replacement: replaceValue, options: replaceOptions, showFill: showFillPreview }
+        : null,
+    [replaceMode, queryRe, query, replaceValue, replaceOptions, showFillPreview]
+  );
+
   const applyBulkWithUndo = useCallback(
     (edits, { unconfirm, doneMessage }) => {
       const { next, undo } = applyBulkEdit(translations, edits, { unconfirm });
@@ -1315,12 +1324,21 @@ const EditorScreen = ({
             />
             <button
               type="button"
-              className={`mono ${toggleBtnClass(preserveCase, true)}`}
+              className={`mono ${toggleBtnClass(preserveCase)}`}
               onClick={() => setPreserveCase((v) => !v)}
               title="Зберігати регістр при заміні"
               aria-pressed={preserveCase}
             >
               AB
+            </button>
+            <button
+              type="button"
+              className={`whitespace-nowrap ${toggleBtnClass(showFillPreview, true)}`}
+              onClick={() => setShowFillPreview((v) => !v)}
+              title="Показувати в порожніх рядках, чим їх заповнить «З оригіналу»"
+              aria-pressed={showFillPreview}
+            >
+              Заповнення
             </button>
           </div>
         )}
@@ -1375,6 +1393,7 @@ const EditorScreen = ({
                   selectedKey: activeKey,
                   qaDetailsVisible,
                   queryRe,
+                  replacePreview,
                   syntaxFor,
                   qaEnabled: settings.qaChecksEnabled !== false,
                   wordAutocompleteEnabled,
@@ -1467,6 +1486,7 @@ const Row = ({
   selectedKey,
   qaDetailsVisible,
   queryRe,
+  replacePreview,
   syntaxFor,
   qaEnabled,
   wordAutocompleteEnabled,
@@ -1499,6 +1519,7 @@ const Row = ({
       isSelected={isSelected}
       showQaDetails={isSelected && qaDetailsVisible}
       queryRe={queryRe}
+      replacePreview={replacePreview}
       syntax={syntaxFor(item.key)}
       qaEnabled={qaEnabled}
       wordAutocompleteEnabled={wordAutocompleteEnabled}

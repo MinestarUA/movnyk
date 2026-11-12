@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } fr
 import { createPortal } from "react-dom";
 import { checkTranslationQA } from "../lib/qa";
 import { bookRowLabel, isBookKey } from "../lib/patchouli";
-import { splitMatches } from "../lib/searching";
+import { previewReplacement, splitMatches } from "../lib/searching";
 import { tokenizeString } from "../lib/tokens";
 import {
   findWordAutocompleteSuggestions,
@@ -17,6 +17,9 @@ const WORD_AUTOCOMPLETE_CLOSING_KEYS = new Set(["Enter", "Tab", "Escape"]);
 
 const ROW_RULE =
   "linear-gradient(to right, transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px, color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px";
+
+// A fill preview is not a translation yet, so it must not read as one.
+const FILL_GHOST_STYLE = { opacity: 0.6, fontStyle: "italic" };
 
 export const GRID_COLUMNS = "26px minmax(240px,1.3fr) minmax(240px,1.4fr) 140px";
 
@@ -181,6 +184,7 @@ const TranslationRow = ({
   focusRequestRef,
   cursorPositionRef,
   queryRe,
+  replacePreview = null,
   syntax,
   qaEnabled = true,
   wordAutocompleteEnabled = true,
@@ -575,6 +579,22 @@ const TranslationRow = ({
     [item.translated, syntax]
   );
   const status = item.confirmed ? "confirmed" : hasDraft ? "pending" : "empty";
+
+  // What "Replace" would make of this row's translation or, for an empty row
+  // with the fill preview on, what "Fill from original" would write into it.
+  // The pinned row is outside the result set, so a fill would skip it.
+  const preview = useMemo(() => {
+    if (!replacePreview) return null;
+    const { query, replacement, options, showFill } = replacePreview;
+    if (hasDraft) {
+      const replaced = previewReplacement(item.translated, query, replacement, options);
+      return replaced && { ...replaced, kind: "replace" };
+    }
+    if (!showFill || item.pinned) return null;
+    const original = String(item.original ?? "");
+    const filled = previewReplacement(original, query, replacement, options);
+    return filled && filled.text !== original ? { ...filled, kind: "fill" } : null;
+  }, [replacePreview, hasDraft, item.translated, item.original, item.pinned]);
   const expanded = isSelected;
   const stop = (e) => e.stopPropagation();
 
@@ -582,7 +602,7 @@ const TranslationRow = ({
   // been sized above, so the list never lays out a stale height for this row.
   useLayoutEffect(() => {
     if (expanded && rowRef.current && onHeight) onHeight(rowRef.current.offsetHeight);
-  }, [expanded, item.translated, onHeight]);
+  }, [expanded, item.translated, preview, onHeight]);
 
   // Run QA checks
   const qaIssues = useMemo(() => {
@@ -909,6 +929,19 @@ const TranslationRow = ({
                 </div>
               )}
             </div>
+            {preview && (
+              <div
+                className="mt-1.5 text-neutral-400"
+                style={{ fontSize: "13px", lineHeight: 1.4, whiteSpace: "pre-wrap", overflowWrap: "break-word" }}
+              >
+                <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                  {preview.kind === "fill" ? "Заповнення:" : "Після заміни:"}
+                </span>
+                <span style={preview.kind === "fill" ? FILL_GHOST_STYLE : undefined}>
+                  <FormattedText text={preview.text} changes={preview.changes} syntax={syntax} />
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-1.5 min-w-0">
@@ -921,7 +954,11 @@ const TranslationRow = ({
                 textOverflow: "ellipsis",
               }}
             >
-              {hasDraft ? (
+              {preview ? (
+                <span style={preview.kind === "fill" ? FILL_GHOST_STYLE : undefined}>
+                  <FormattedText text={preview.text} changes={preview.changes} syntax={syntax} />
+                </span>
+              ) : hasDraft ? (
                 <FormattedText text={item.translated} queryRe={queryRe} syntax={syntax} />
               ) : (
                 "Переклади…"

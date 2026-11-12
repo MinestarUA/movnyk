@@ -8,6 +8,7 @@ import {
   replaceInTranslation,
   splitMatches,
   planOriginalFill,
+  previewReplacement,
 } from "./searching";
 
 const item = { key: "block.mod.copper_door", original: "Copper Door", translated: "Мідні двері" };
@@ -337,5 +338,38 @@ describe("planOriginalFill", () => {
 
   it("skips a match whose replacement leaves the original unchanged", () => {
     expect(planOriginalFill([row("a", "Oak")], "Oak", "Oak", {}).size).toBe(0);
+  });
+});
+
+describe("previewReplacement", () => {
+  it.each([
+    ["literal", "Oak oak OAK", "oak", "дуб", {}],
+    ["preserve case", "Oak oak OAK", "oak", "дуб", { preserveCase: true }],
+    ["regex groups and case operators", "Oak Planks, Birch Planks", "(\\w+) Planks", "\\U$1\\E дошки", { regex: true }],
+    ["regex $` and $'", "a-b", "-", "[$`|$']", { regex: true }],
+    ["whole word", "cat category cat", "cat", "кіт", { wholeWord: true }],
+    ["zero-length matches", "ab", "(?=b)", "|", { regex: true }],
+  ])("produces exactly what replaceInTranslation does (%s)", (_, text, query, replacement, options) => {
+    expect(previewReplacement(text, query, replacement, options).text).toBe(
+      replaceInTranslation(text, query, replacement, options)
+    );
+  });
+
+  it("locates each replacement in the new text with the source it replaced", () => {
+    const { text, changes } = previewReplacement("Oak Planks, Birch", "(\\w+) Planks", "$1 дошки", { regex: true });
+    expect(changes).toEqual([{ from: 0, to: 9, original: "Oak Planks" }]);
+    expect(text.slice(0, 9)).toBe("Oak дошки");
+  });
+
+  it("reports a deletion as an empty range at its position", () => {
+    expect(previewReplacement("a, b", ", ", "", {}).changes).toEqual([{ from: 1, to: 1, original: ", " }]);
+  });
+
+  it.each([
+    ["no match", "Oak", "Birch", {}],
+    ["invalid regex", "Oak", "(", { regex: true }],
+    ["empty query", "Oak", "", {}],
+  ])("returns null for %s", (_, text, query, options) => {
+    expect(previewReplacement(text, query, "x", options)).toBeNull();
   });
 });

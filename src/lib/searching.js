@@ -150,12 +150,18 @@ const applyCaseOperators = (text) => {
 
 const HAS_CASE_OPERATOR = /\\[ULEul]/;
 
+// A String#replace callback receives (match, ...groups, offset, string[, namedGroups]).
+const matchOffset = (args) => {
+  const hasNamed = typeof args[args.length - 1] === "object" && args[args.length - 1] !== null;
+  return hasNamed ? args[args.length - 3] : args[args.length - 2];
+};
+
 const expandReplacement = (args, replacement) => {
   const match = args[0];
   const hasNamed = typeof args[args.length - 1] === "object" && args[args.length - 1] !== null;
   const groupsObj = hasNamed ? args[args.length - 1] : undefined;
   const fullStr = hasNamed ? args[args.length - 2] : args[args.length - 1];
-  const offset = hasNamed ? args[args.length - 3] : args[args.length - 2];
+  const offset = matchOffset(args);
   const numGroups = hasNamed ? args.length - 4 : args.length - 3;
   const expanded = replacement.replace(/\$([$&`']|\d+|<([^>]+)>)/g, (m, token, groupName) => {
     if (token === "$") return "$";
@@ -170,36 +176,53 @@ const expandReplacement = (args, replacement) => {
   return HAS_CASE_OPERATOR.test(replacement) ? applyCaseOperators(expanded) : expanded;
 };
 
-// Replace occurrences of the query inside a translation.
-// Supports caseSensitive, wholeWord, preserveCase, and regex.
-export const replaceInTranslation = (
-  text,
+const compileReplacer = (
   query,
   replacement,
   { regex = false, caseSensitive = false, wholeWord = false, preserveCase = false } = {}
 ) => {
-  if (query == null || query === "") return text;
+  if (query == null || query === "") return null;
   let re;
   try {
     re = buildMatcher(query, { regex, wholeWord }, caseSensitive ? "g" : "gi");
   } catch {
-    return text;
+    return null;
   }
+  const replaceMatch = (...args) => {
+    const substituted = regex ? expandReplacement(args, replacement) : replacement;
+    return preserveCase ? applyCase(args[0], substituted) : substituted;
+  };
+  return { re, replaceMatch };
+};
 
-  if (preserveCase) {
-    if (regex) {
-      return text.replace(re, (...args) => {
-        const substituted = expandReplacement(args, replacement);
-        return applyCase(args[0], substituted);
-      });
-    }
-    return text.replace(re, (match) => applyCase(match, replacement));
-  }
+// Replace occurrences of the query inside a translation.
+// Supports caseSensitive, wholeWord, preserveCase, and regex.
+export const replaceInTranslation = (text, query, replacement, options) => {
+  const replacer = compileReplacer(query, replacement, options);
+  return replacer ? text.replace(replacer.re, replacer.replaceMatch) : text;
+};
 
-  if (!regex) return text.replace(re, () => replacement);
-  return HAS_CASE_OPERATOR.test(replacement)
-    ? text.replace(re, (...args) => expandReplacement(args, replacement))
-    : text.replace(re, replacement);
+// The text replaceInTranslation would produce, plus where each replacement
+// landed in it: `changes` holds [from, to) in the new text and the source
+// fragment it replaced (from === to for a deletion). Null when nothing matches.
+export const previewReplacement = (text, query, replacement, options) => {
+  const replacer = compileReplacer(query, replacement, options);
+  if (!replacer) return null;
+  const changes = [];
+  let out = "";
+  let last = 0;
+  text.replace(replacer.re, (...args) => {
+    const match = args[0];
+    const offset = matchOffset(args);
+    const replaced = replacer.replaceMatch(...args);
+    out += text.slice(last, offset);
+    if (match || replaced) changes.push({ from: out.length, to: out.length + replaced.length, original: match });
+    out += replaced;
+    last = offset + match.length;
+    return replaced;
+  });
+  if (changes.length === 0) return null;
+  return { text: out + text.slice(last), changes };
 };
 
 // Splits text into chunks with `isMatch: boolean` flags for UI search highlighting.

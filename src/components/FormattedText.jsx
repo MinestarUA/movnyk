@@ -53,7 +53,22 @@ const splitAtBoundaries = (start, end, boundaries) => {
   return pieces;
 };
 
-const isInside = (ranges, position) => ranges.some(([from, to]) => position >= from && position < to);
+const rangeAt = (ranges, position) => ranges.find(([from, to]) => position >= from && position < to);
+
+const SEARCH_MARK = "bg-yellow-400/35 text-yellow-200 px-0.5 rounded font-semibold";
+const REPLACED_MARK = "bg-success/25 text-success px-0.5 rounded font-semibold";
+
+// A deletion leaves nothing to highlight, so its position gets a marker that
+// names what was removed.
+const DeletionMarkers = ({ deletions }) =>
+  deletions.map(({ original }, i) => (
+    <span
+      key={i}
+      title={`Видалено: ${original}`}
+      aria-label={`Видалено: ${original}`}
+      className="mx-px inline-block h-[1em] w-0.5 rounded bg-error align-text-bottom"
+    />
+  ));
 
 const renderDefaultToken = (run, css, key) => {
   const tokenColor = run.token.type === "mc-code" ? colorOfCode(run.token.value) : null;
@@ -78,6 +93,7 @@ const renderDefaultToken = (run, css, key) => {
 const FormattedText = ({
   text,
   queryRe = null,
+  changes = null,
   showWhitespace = false,
   widthNeutral = false,
   renderToken = renderDefaultToken,
@@ -85,12 +101,36 @@ const FormattedText = ({
 }) => {
   const str = String(text ?? "");
   const runs = useMemo(() => formatRuns(str, syntax), [str, syntax]);
-  const matches = useMemo(() => matchRanges(str, queryRe), [str, queryRe]);
-  const matchBoundaries = matches.flat();
+  // Replacement previews highlight what the replacement inserted, with the
+  // replaced source in a tooltip, instead of what the query matched.
+  const matches = useMemo(
+    () =>
+      changes
+        ? changes.filter(({ from, to }) => to > from).map(({ from, to, original }) => [from, to, original])
+        : matchRanges(str, queryRe),
+    [str, queryRe, changes]
+  );
+  const deletionsAt = useMemo(() => {
+    const byPosition = new Map();
+    for (const change of changes ?? []) {
+      if (change.to > change.from) continue;
+      byPosition.set(change.from, [...(byPosition.get(change.from) ?? []), change]);
+    }
+    return byPosition;
+  }, [changes]);
+  const matchBoundaries = [...matches.flatMap(([from, to]) => [from, to]), ...deletionsAt.keys()];
+  const markersAt = (position) => {
+    const deletions = deletionsAt.get(position);
+    return deletions ? <DeletionMarkers key={`del-${position}`} deletions={deletions} /> : null;
+  };
 
-  return runs.map((run, runIdx) => {
+  const rendered = runs.map((run, runIdx) => {
     const css = mcStyleToCss(run.style, { widthNeutral });
-    if (run.token) return renderToken(run, css, runIdx);
+    if (run.token) {
+      const markers = markersAt(run.start);
+      const token = renderToken(run, css, runIdx);
+      return markers ? <span key={runIdx}>{markers}{token}</span> : token;
+    }
 
     const runText = str.slice(run.start, run.end);
     const lead = showWhitespace ? (runText.match(/^\s+/) || [""])[0].length : 0;
@@ -104,21 +144,34 @@ const FormattedText = ({
         {pieces.map(([from, to]) => {
           const piece = str.slice(from, to);
           const key = `${runIdx}-${from}`;
-          if (from < coreStart || from >= coreEnd) return <span key={key}>{renderWhitespaceRun(piece, key)}</span>;
-          if (!isInside(matches, from)) return <span key={key}>{piece}</span>;
+          const markers = markersAt(from);
+          if (from < coreStart || from >= coreEnd) {
+            return <span key={key}>{markers}{renderWhitespaceRun(piece, key)}</span>;
+          }
+          const range = rangeAt(matches, from);
+          if (!range) return <span key={key}>{markers}{piece}</span>;
           return (
-            <mark
-              key={key}
-              className="bg-yellow-400/35 text-yellow-200 px-0.5 rounded font-semibold"
-              style={css.color ? { color: "inherit" } : undefined}
-            >
-              {piece}
-            </mark>
+            <span key={key}>
+              {markers}
+              <mark
+                className={changes ? REPLACED_MARK : SEARCH_MARK}
+                style={css.color ? { color: "inherit" } : undefined}
+                title={changes ? `Було: ${range[2]}` : undefined}
+              >
+                {piece}
+              </mark>
+            </span>
           );
         })}
       </span>
     );
   });
+  return (
+    <>
+      {rendered}
+      {markersAt(str.length)}
+    </>
+  );
 };
 
 export default FormattedText;
