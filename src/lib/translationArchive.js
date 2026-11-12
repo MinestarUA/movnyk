@@ -24,6 +24,8 @@ export const collectTranslationFiles = (paths, language) => {
 
 const valueAtPointer = (json, pointer) => pointer.slice(1).split("/").reduce((node, part) => node?.[part], json);
 
+const kindSequence = (units) => units.map(({ kind }) => kind).join();
+
 const parseJsonOrNull = (text) => {
   try {
     return JSON.parse(text);
@@ -33,10 +35,12 @@ const parseJsonOrNull = (text) => {
 };
 
 // files: { path: text } for the paths collectTranslationFiles picked; rows: the
-// editor rows. A Patchouli value is read at each row's pointer in the file's
-// en_us twin. A GuideME page is bound only when it has as many units as the
-// source page has rows, otherwise it is counted in skippedPageCount.
-export const translationsFromArchive = async ({ files, language, rows }) => {
+// editor rows; sources: { path: text } of the source guide pages, when known.
+// A Patchouli value is read at each row's pointer in the file's en_us twin. A
+// GuideME page is bound only when it has as many units as the source page has
+// rows and, when the source page is known, the same unit kinds in the same
+// order; otherwise it is counted in skippedPageCount.
+export const translationsFromArchive = async ({ files, language, rows, sources = null }) => {
   const { lang, patchouli, guide } = patterns(language);
   const values = {};
   let skippedPageCount = 0;
@@ -75,12 +79,16 @@ export const translationsFromArchive = async ({ files, language, rows }) => {
     if (!pageRows) continue;
     const { extractGuideUnits } = await import("./guidemeMarkdown");
     let units = null;
+    let sourceUnits = null;
     try {
       units = extractGuideUnits(sourcePath, text);
+      if (sources?.[sourcePath]) sourceUnits = extractGuideUnits(sourcePath, sources[sourcePath]);
     } catch (error) {
       console.warn(`Could not parse ${path}, skipping.`, error);
     }
-    if (units?.length === pageRows.length) {
+    const sameShape =
+      units?.length === pageRows.length && (!sourceUnits || kindSequence(units) === kindSequence(sourceUnits));
+    if (sameShape) {
       for (const { key, original } of units) values[key] = original;
     } else {
       skippedPageCount += 1;

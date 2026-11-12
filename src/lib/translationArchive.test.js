@@ -40,4 +40,15 @@ describe("translationsFromArchive", () => {
     const mismatching = await run(files, [`book:${page}#0`, `book:${page}#1`, `book:${page}#2`]);
     expect(mismatching).toEqual({ values: {}, skippedPageCount: 1 });
   });
+
+  it("skips a guide page whose unit kinds differ from the source page's", async () => {
+    // Same unit count, but the translation turned the second paragraph into a heading.
+    const files = { "assets/a/guide/_uk_ua/index.md": "Перший.\n\n# Другий\n" };
+    const rows = [`book:${page}#0`, `book:${page}#1`];
+    const sources = { [page]: "First.\n\nSecond.\n" };
+    expect(await translationsFromArchive({ files, language: "uk_ua", rows: rows.map(row), sources })).toEqual({
+      values: {},
+      skippedPageCount: 1,
+    });
+  });
 });

@@ -13,6 +13,7 @@ import { translateAll, translateSingle } from "../lib/ai";
 import { mergeLangFile } from "../lib/importing";
 import { collectTranslationFiles, translationsFromArchive } from "../lib/translationArchive";
 import { saveSession } from "../lib/sessions";
+import { loadBookSources } from "../lib/bookSources";
 import { levelForProgress } from "../lib/rewards";
 import { useLevelUps } from "../lib/useLevelUps";
 import { GOOSE_MIN_LEVEL, useGooseEvent } from "../lib/useGooseEvent";
@@ -794,7 +795,13 @@ const EditorScreen = ({
     const files = Object.fromEntries(
       await Promise.all(paths.map(async (path) => [path, await zip.file(path).async("string")]))
     );
-    const { values, skippedPageCount } = await translationsFromArchive({ files, language, rows: translations });
+    const sources = await loadBookSources(session.id);
+    const { values, skippedPageCount } = await translationsFromArchive({
+      files,
+      language,
+      rows: latestTranslationsRef.current,
+      sources,
+    });
     return { ...handleLoadLangFile(values), skippedPageCount };
   };
 
