@@ -21,9 +21,9 @@ export const ToastProvider = ({ children }) => {
   }, []);
 
   const notify = useCallback(
-    (message, type = "info", duration = 4000) => {
+    (message, type = "info", duration = 4000, action = null) => {
       const id = (idRef.current += 1);
-      setToasts((current) => [...current, { id, message, type }]);
+      setToasts((current) => [...current, { id, message, type, action }]);
       window.setTimeout(() => remove(id), duration);
       return id;
     },
@@ -43,6 +43,19 @@ export const ToastProvider = ({ children }) => {
             onClick={() => remove(toast.id)}
           >
             <span className="text-sm">{toast.message}</span>
+            {toast.action && (
+              <button
+                type="button"
+                className="btn btn-xs btn-ghost border-current"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toast.action.onClick();
+                  remove(toast.id);
+                }}
+              >
+                {toast.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

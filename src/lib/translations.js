@@ -68,3 +68,28 @@ export const applyAutoTranslations = (translations, result) =>
   );
 
 
+
+// Writes bulk results by key and records what each changed row held before,
+// so the whole edit can be undone in one step.
+export const applyBulkEdit = (translations, edits, { unconfirm = false } = {}) => {
+  const undo = [];
+  const next = translations.map((t) => {
+    if (!edits.has(t.key)) return t;
+    const translated = edits.get(t.key);
+    if (translated === t.translated) return t;
+    undo.push({ key: t.key, translated: t.translated, confirmed: t.confirmed, applied: translated });
+    return { ...t, translated, confirmed: unconfirm ? false : t.confirmed };
+  });
+  return { next, undo };
+};
+
+// Rows edited after the bulk edit keep the newer text: undo must not throw
+// away work done in the meantime.
+export const revertBulkEdit = (translations, undo) => {
+  const byKey = new Map(undo.map((entry) => [entry.key, entry]));
+  return translations.map((t) => {
+    const entry = byKey.get(t.key);
+    if (!entry || t.translated !== entry.applied) return t;
+    return { ...t, translated: entry.translated, confirmed: entry.confirmed };
+  });
+};

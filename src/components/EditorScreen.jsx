@@ -26,6 +26,8 @@ import {
   updateTranslation,
   confirmTranslation,
   applyAutoTranslations,
+  applyBulkEdit,
+  revertBulkEdit,
 } from "../lib/translations";
 import ProjectReferenceDrawer from "./ProjectReferenceDrawer";
 import { applyNewLangOriginal } from "../lib/originalUpdate";
@@ -36,6 +38,7 @@ import {
   itemMatches,
   translationMatches,
   replaceInTranslation,
+  planOriginalFill,
 } from "../lib/searching";
 import { getCaseShortcutAction, applyCaseShortcut } from "../lib/caseConversion";
 import { getTokenShortcutIndex, isQaShortcut } from "../lib/keyboardShortcuts";
@@ -766,27 +769,64 @@ const EditorScreen = ({
     focusRequestRef.current = true;
   }, []);
 
+  const replaceOptions = useMemo(
+    () => ({ regex: regexMode, caseSensitive, wholeWord, preserveCase }),
+    [regexMode, caseSensitive, wholeWord, preserveCase]
+  );
+
+  // Bulk replacements touch only the rows the list shows: a scope or status
+  // filter the user set narrows the edit too. The pinned row is shown only
+  // to keep it in view, so it is not part of the result set.
+  const visibleRows = useMemo(() => filtered.filter((item) => !item.pinned), [filtered]);
+
+  const originalFills = useMemo(
+    () =>
+      replaceMode && queryRe
+        ? planOriginalFill(visibleRows, query, replaceValue, replaceOptions)
+        : new Map(),
+    [replaceMode, queryRe, visibleRows, query, replaceValue, replaceOptions]
+  );
+
+  const applyBulkWithUndo = useCallback(
+    (edits, { unconfirm, doneMessage }) => {
+      const { next, undo } = applyBulkEdit(translations, edits, { unconfirm });
+      setTranslations(next);
+      toast(doneMessage(undo.length), "success", 10000, {
+        label: "Скасувати",
+        onClick: () => setTranslations((prev) => revertBulkEdit(prev, undo)),
+      });
+    },
+    [translations, toast]
+  );
+
   const handleReplaceAll = useCallback(() => {
     if (!queryRe) return;
-    let changed = 0;
-    const next = translations.map((t) => {
-      if (!translationMatches(t, queryRe)) return t;
-      const replaced = replaceInTranslation(t.translated, query, replaceValue, {
-        regex: regexMode,
-        caseSensitive,
-        wholeWord,
-        preserveCase,
-      });
-      if (replaced === t.translated) return t;
-      changed += 1;
-      return { ...t, translated: replaced };
+    const edits = new Map();
+    for (const item of visibleRows) {
+      if (!translationMatches(item, queryRe)) continue;
+      const replaced = replaceInTranslation(item.translated, query, replaceValue, replaceOptions);
+      if (replaced !== item.translated) edits.set(item.key, replaced);
+    }
+    if (edits.size === 0) {
+      toast("Збігів у перекладах не знайдено.", "info");
+      return;
+    }
+    applyBulkWithUndo(edits, {
+      unconfirm: false,
+      doneMessage: (count) => `Замінено у рядках: ${count}.`,
     });
-    if (changed > 0) setTranslations(next);
-    toast(
-      changed > 0 ? `Замінено у рядках: ${changed}.` : "Збігів у перекладах не знайдено.",
-      changed > 0 ? "success" : "info"
-    );
-  }, [queryRe, translations, query, replaceValue, regexMode, caseSensitive, wholeWord, preserveCase, toast]);
+  }, [queryRe, visibleRows, query, replaceValue, replaceOptions, toast, applyBulkWithUndo]);
+
+  const handleFillFromOriginal = useCallback(() => {
+    if (originalFills.size === 0) {
+      toast("Порожніх рядків зі збігом в оригіналі не знайдено.", "info");
+      return;
+    }
+    applyBulkWithUndo(originalFills, {
+      unconfirm: true,
+      doneMessage: (count) => `Заповнено з оригіналу рядків: ${count}.`,
+    });
+  }, [originalFills, toast, applyBulkWithUndo]);
 
   const handleReplaceOne = useCallback(() => {
     if (!queryRe || filtered.length === 0) return;
@@ -795,12 +835,7 @@ const EditorScreen = ({
       const i = (start + step) % filtered.length;
       const item = filtered[i];
       if (!translationMatches(item, queryRe)) continue;
-      const replaced = replaceInTranslation(item.translated, query, replaceValue, {
-        regex: regexMode,
-        caseSensitive,
-        wholeWord,
-        preserveCase,
-      });
+      const replaced = replaceInTranslation(item.translated, query, replaceValue, replaceOptions);
       setTranslations((prev) =>
         prev.map((t) => (t.key === item.key ? { ...t, translated: replaced } : t))
       );
@@ -815,7 +850,7 @@ const EditorScreen = ({
       return;
     }
     toast("Збігів у перекладах не знайдено.", "info");
-  }, [queryRe, filtered, activeIndex, query, replaceValue, regexMode, caseSensitive, wholeWord, preserveCase, toast]);
+  }, [queryRe, filtered, activeIndex, query, replaceValue, replaceOptions, toast]);
 
   const handleCopy = (text) => {
     navigator.clipboard?.writeText(text);
@@ -1188,6 +1223,15 @@ const EditorScreen = ({
               >
                 Замінити все
               </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-neutral h-9 px-3 text-xs"
+                onClick={handleFillFromOriginal}
+                disabled={!queryRe}
+                title="Застосувати заміну до оригіналу й записати результат у порожні переклади"
+              >
+                З оригіналу ({originalFills.size})
+              </button>
             </div>
           )}
 
@@ -1265,7 +1309,7 @@ const EditorScreen = ({
                   }
                 }
               }}
-              placeholder="Замінити на… (у перекладах)"
+              placeholder="Замінити на…"
               aria-label="Текст заміни"
               className={`${TEXT_INPUT} border-base-content/15 px-3`}
             />

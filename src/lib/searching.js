@@ -251,3 +251,18 @@ export const splitMatches = (text, queryRe) => {
   return chunks.length > 0 ? chunks : [{ text: str, isMatch: false }];
 };
 
+
+// "Fill from original": runs the replacement over the source text of rows
+// whose translation is still empty, as if each had been pre-filled with its
+// original. Rows the replacement leaves untouched stay empty rather than
+// receiving untranslated source text.
+export const planOriginalFill = (rows, query, replacement, options) => {
+  const fills = new Map();
+  for (const row of rows) {
+    if (row.translated.trim()) continue;
+    const original = String(row.original ?? "");
+    const filled = replaceInTranslation(original, query, replacement, options);
+    if (filled !== original) fills.set(row.key, filled);
+  }
+  return fills;
+};

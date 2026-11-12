@@ -6,6 +6,8 @@ import {
   updateTranslation,
   confirmTranslation,
   applyAutoTranslations,
+  applyBulkEdit,
+  revertBulkEdit,
 } from "./translations";
 
 const row = (key, original, translated = "", confirmed = false, unsynced = false) => ({
@@ -156,6 +158,40 @@ describe("applyAutoTranslations", () => {
     expect(next).toEqual([
       row("a", "Apple", "Яблуко", false),
       row("b", "Bread", "Паляниця", true),
+    ]);
+  });
+});
+
+describe("applyBulkEdit / revertBulkEdit", () => {
+  const rows = [
+    { key: "a", original: "A", translated: "", confirmed: false },
+    { key: "b", original: "B", translated: "бе", confirmed: true },
+    { key: "c", original: "C", translated: "це", confirmed: true },
+  ];
+  const edits = new Map([
+    ["a", "а"],
+    ["b", "бі"],
+    ["c", "це"],
+  ]);
+
+  it("keeps confirmation unless asked to drop it and records only changed rows", () => {
+    expect(applyBulkEdit(rows, edits).next.map((t) => t.confirmed)).toEqual([false, true, true]);
+    const { next, undo } = applyBulkEdit(rows, edits, { unconfirm: true });
+    expect(next.map((t) => [t.translated, t.confirmed])).toEqual([
+      ["а", false],
+      ["бі", false],
+      ["це", true],
+    ]);
+    expect(undo.map((u) => u.key)).toEqual(["a", "b"]);
+  });
+
+  it("restores changed rows but keeps rows edited after the bulk edit", () => {
+    const { next, undo } = applyBulkEdit(rows, edits, { unconfirm: true });
+    const editedSince = next.map((t) => (t.key === "a" ? { ...t, translated: "ая" } : t));
+    expect(revertBulkEdit(editedSince, undo)).toEqual([
+      { ...rows[0], translated: "ая" },
+      rows[1],
+      rows[2],
     ]);
   });
 });

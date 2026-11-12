@@ -7,6 +7,7 @@ import {
   translationMatches,
   replaceInTranslation,
   splitMatches,
+  planOriginalFill,
 } from "./searching";
 
 const item = { key: "block.mod.copper_door", original: "Copper Door", translated: "Мідні двері" };
@@ -314,5 +315,27 @@ describe("replaceInTranslation case operators", () => {
 
   it("works together with preserve case", () => {
     expect(replaceInTranslation("Foo", "(foo)", "\\U$1", { regex: true, preserveCase: true })).toBe("FOO");
+  });
+});
+
+describe("planOriginalFill", () => {
+  const row = (key, original, translated = "") => ({ key, original, translated });
+
+  it("replaces in the original of empty rows only, skipping rows the query misses", () => {
+    const rows = [
+      row("a", "Oak Planks"),
+      row("b", "Birch Planks", "Березові дошки"),
+      row("c", "Oak Planks", "  "),
+      row("d", "Stone"),
+    ];
+    const fills = planOriginalFill(rows, "^(.+) Planks$", "$1 дошки", { regex: true });
+    expect([...fills]).toEqual([
+      ["a", "Oak дошки"],
+      ["c", "Oak дошки"],
+    ]);
+  });
+
+  it("skips a match whose replacement leaves the original unchanged", () => {
+    expect(planOriginalFill([row("a", "Oak")], "Oak", "Oak", {}).size).toBe(0);
   });
 });
