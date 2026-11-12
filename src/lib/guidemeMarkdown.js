@@ -18,6 +18,10 @@ import { bookKey } from "./patchouli";
 import { getSyntax } from "./syntaxExtensions";
 import { tokenizeString } from "./tokens";
 
+// micromark skips a leading BOM, so offsets are relative to the text without it.
+const BOM = "\uFEFF";
+const withoutBom = (text) => (text.startsWith(BOM) ? text.slice(1) : text);
+
 const parse = (text) =>
   fromMarkdown(text, {
     extensions: [mdxJsx(), mdxMd(), frontmatter(["yaml"]), gfmTable(), gfmStrikethrough()],
@@ -104,7 +108,8 @@ const unquoteYaml = (scalar) => {
 
 // Every segment in document order, with the navigation title first, including
 // letterless ones: the sequence of kinds and contexts fingerprints a page's structure.
-export const locateSegments = (text) => {
+export const locateSegments = (rawText) => {
+  const text = withoutBom(rawText);
   const root = parse(text);
   const segments = [];
   const yaml = root.children[0]?.type === "yaml" ? root.children[0] : null;
@@ -120,8 +125,9 @@ const hasLettersOutsideTokens = (original) =>
 
 const SOFT_BREAK = /[ \t]*\r?\n[ \t>]*/g;
 
-// → [{ key, original, kind, start, end }] with offsets into `text`. Throws when the page does not parse.
-export const extractGuideUnits = (path, text) => {
+// → [{ key, original, kind, start, end }] with offsets into `text` without its BOM. Throws when the page does not parse.
+export const extractGuideUnits = (path, rawText) => {
+  const text = withoutBom(rawText);
   const units = [];
   let ordinal = 0;
   for (const { kind, start, end } of locateSegments(text)) {
@@ -141,13 +147,14 @@ const printed = (kind, translated) => {
 };
 
 // translatedByKey: Map<key, translated text>. Units without a translation stay as written.
-export const rewriteGuidePage = (path, text, translatedByKey) => {
+export const rewriteGuidePage = (path, rawText, translatedByKey) => {
+  const text = withoutBom(rawText);
   let out = text;
   for (const { key, kind, start, end } of extractGuideUnits(path, text).reverse()) {
     const translated = translatedByKey.get(key);
     if (translated?.trim()) out = out.slice(0, start) + printed(kind, translated) + out.slice(end);
   }
-  return out;
+  return rawText.slice(0, rawText.length - text.length) + out;
 };
 
 // A translation that changes the block structure (a paragraph turning into a

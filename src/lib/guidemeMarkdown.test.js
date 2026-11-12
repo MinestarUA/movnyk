@@ -83,6 +83,18 @@ describe("rewriteGuidePage", () => {
   });
 });
 
+describe("a page with a byte order mark", () => {
+  const PAGE = "\uFEFF---\nnavigation:\n  title: Inscriber\n---\n\n# Head\n\nBody text.\n";
+
+  it("extracts the same units and rewrites without shifting offsets", () => {
+    expect(pairs(PAGE)).toEqual([["title", "Inscriber"], ["heading", "Head"], ["paragraph", "Body text."]]);
+    expect(rewriteGuidePage(PATH, PAGE, new Map())).toBe(PAGE);
+    const out = rewriteGuidePage(PATH, PAGE, new Map([[`book:${PATH}#0`, "Голова"], [`book:${PATH}#1`, "Текст."]]));
+    expect(out).toBe("\uFEFF---\nnavigation:\n  title: Inscriber\n---\n\n# Голова\n\nТекст.\n");
+    expect(hasSameStructure(PAGE, out)).toBe(true);
+  });
+});
+
 describe.skipIf(!process.env.MOVNYK_GUIDE_CORPUS)("local GuideME corpus", () => {
   const pages = [];
   const collect = (dir) => {

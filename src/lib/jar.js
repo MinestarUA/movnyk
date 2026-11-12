@@ -15,7 +15,7 @@ const parseJson = (text, path) => {
 
 // A guide's pages carry navigation metadata in their frontmatter; other
 // Markdown under assets/ (readmes, docs) does not.
-const hasGuideFrontmatter = (text) => /^navigation:/m.test(text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "");
+const hasGuideFrontmatter = (text) => /^navigation:/m.test(text.match(/^\uFEFF?---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "");
 
 const readText = async (zip, path) => (await zip.file(path)?.async("string")) ?? null;
 
