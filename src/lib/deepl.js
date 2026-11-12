@@ -4,6 +4,7 @@
 // so DeepL does not touch, strip, or corrupt them.
 // Communicates directly with DeepL API (requires CORS Unblock extension in browser).
 
+import { ApiKeyError } from "./apiErrors";
 import { CORE_SYNTAX, tokenizeString } from "./tokens";
 
 export const CORS_EXTENSION_URL =
@@ -191,7 +192,8 @@ export const translateAllDeepL = async (
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(parseDeepLError(response.status, errText));
+        const message = parseDeepLError(response.status, errText);
+        throw response.status === 403 ? new ApiKeyError(message) : new Error(message);
       }
 
       const data = await response.json();

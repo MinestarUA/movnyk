@@ -2,6 +2,7 @@
 // Runs entirely from the browser against the Generative Language REST API,
 // which supports CORS with an API key passed as a query parameter.
 
+import { ApiKeyError } from "./apiErrors";
 import { DEFAULT_MODEL } from "./settings";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -212,7 +213,9 @@ const translateBatch = async (entries, { apiKey, model, signal, syntax }, attemp
 
   if (!response.ok) {
     const rawBody = await response.text();
-    throw new Error(parseErrorMessage(response.status, rawBody));
+    const message = parseErrorMessage(response.status, rawBody);
+    const keyRefused = response.status === 403 || (response.status === 400 && /API key not valid/i.test(rawBody));
+    throw keyRefused ? new ApiKeyError(message) : new Error(message);
   }
 
   const data = await response.json();

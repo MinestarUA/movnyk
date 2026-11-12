@@ -10,6 +10,7 @@ import LevelUpScreen from "./LevelUpScreen";
 import { useToast } from "./Toast";
 import { loadSettings, saveSettings, hasApiKey, buildSearchPrompt } from "../lib/settings";
 import { translateAll, translateSingle } from "../lib/ai";
+import { ApiKeyError } from "../lib/apiErrors";
 import { mergeLangFile } from "../lib/importing";
 import { collectTranslationFiles, translationsFromArchive } from "../lib/translationArchive";
 import { saveSession } from "../lib/sessions";
@@ -881,24 +882,34 @@ const EditorScreen = ({
     setAiState({ running: true, done: 0, total: targets.length });
 
     try {
+      let succeeded = 0;
       let failed = 0;
-      let hadErrors = false;
+      let firstError = null;
       for (const [syntax, group] of groups) {
-        const result = await translateAll(group, settings, {
-          signal: controller.signal,
-          syntax,
-          onBatch: (batchResult, batch) => {
-            // Fill only rows that are still empty, so manual edits made while the
-            // run is in flight are never overwritten.
-            setTranslations((prev) => applyAutoTranslations(prev, batchResult));
-            setAiState((s) => ({ ...s, done: Math.min(s.done + batch.length, s.total) }));
-          },
-        });
-        failed += result.failed;
-        hadErrors ||= result.hadErrors;
+        try {
+          const result = await translateAll(group, settings, {
+            signal: controller.signal,
+            syntax,
+            onBatch: (batchResult, batch) => {
+              // Fill only rows that are still empty, so manual edits made while the
+              // run is in flight are never overwritten.
+              setTranslations((prev) => applyAutoTranslations(prev, batchResult));
+              setAiState((s) => ({ ...s, done: Math.min(s.done + batch.length, s.total) }));
+            },
+          });
+          succeeded += result.succeeded;
+          failed += result.failed;
+        } catch (error) {
+          // A refused key fails every group the same way; any other failure
+          // belongs to this group's rows only.
+          if (controller.signal.aborted || error instanceof ApiKeyError) throw error;
+          failed += group.length;
+          firstError ??= error;
+        }
       }
+      if (succeeded === 0 && firstError) throw firstError;
 
-      if (hadErrors) {
+      if (failed > 0) {
         toast(`Переклад завершено, але деякі рядки не вдалося обробити (${failed}).`, "warning");
       } else {
         toast("Автопереклад завершено.", "success");
