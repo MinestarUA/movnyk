@@ -94,8 +94,13 @@ const findNavigationTitle = (text, yaml) => {
   return null;
 };
 
+// Words, numbers and dates that a plain YAML scalar would turn into non-strings.
+const NON_STRING_SCALAR = /^(?:null|true|false|yes|no|on|off|y|n|[\d_.,]+(?:e[-+]?\d+)?|0[xob][\da-f_]+|\d{4}-\d\d?-\d\d?)$/i;
+
 const yamlScalar = (value) =>
-  /^[\p{L}\p{N}][^:#"'\n]*$/u.test(value) && !/\s$/.test(value) ? value : JSON.stringify(value);
+  /^[\p{L}\p{N}][^:#"'\n]*$/u.test(value) && !/\s$/.test(value) && !NON_STRING_SCALAR.test(value)
+    ? value
+    : JSON.stringify(value);
 
 const unquoteYaml = (scalar) => {
   if (scalar.startsWith('"')) {

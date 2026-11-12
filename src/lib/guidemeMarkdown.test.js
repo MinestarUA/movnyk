@@ -76,6 +76,16 @@ describe("rewriteGuidePage", () => {
     expect(pairs(out)[0]).toEqual(["title", "Інскрайбер: основи"]);
   });
 
+  it.each([
+    ["a number", "2024", '"2024"'],
+    ["a date", "2024-01-31", '"2024-01-31"'],
+    ["a YAML boolean", "Yes", '"Yes"'],
+    ["plain text starting with a digit", "3 способи", "3 способи"],
+  ])("writes %s as a title that stays a string", (_name, title, written) => {
+    const out = rewrite(PAGE, [[keyOf("Inscriber"), title]]);
+    expect(out).toContain(`title: ${written}\r\n`);
+  });
+
   it("collapses newlines in a translation without changing the structure", () => {
     const out = rewrite(PAGE, [[keyOf("Body text."), "Перший.\n\nДругий."]]);
     expect(out).toContain("Перший. Другий.");
