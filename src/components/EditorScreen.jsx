@@ -857,6 +857,7 @@ const EditorScreen = ({
       // Planned like "Replace all", so each synced follower is replaced in its own text.
       setTranslations((prev) => {
         const row = prev.find((t) => t.key === item.key);
+        if (!row) return prev;
         const replaceRows = (rows) => planReplaceAll(rows, query, replaceValue, replaceOptions);
         const edits = planWithSyncedFollowers([row], prev, replaceRows, {
           syncIdenticalTranslations,
