@@ -73,15 +73,15 @@ export const applyAutoTranslations = (translations, result) =>
 // outside it that share a synced group with an edited row. Each follower is
 // planned from its own text, so a group filtered partly out of view still
 // follows its edited member, as on a manual edit, without copying one
-// member's text over another's.
+// member's text over another's. Rows in `excludeKeys` are never followers.
 export const planWithSyncedFollowers = (
   shownRows,
   translations,
   plan,
-  { syncIdenticalTranslations = true } = {}
+  { syncIdenticalTranslations = true, excludeKeys = [] } = {}
 ) => {
   const shown = plan(shownRows);
-  const planned = new Set(shownRows.map((row) => row.key));
+  const planned = new Set([...shownRows.map((row) => row.key), ...excludeKeys]);
   const editedOriginals = new Set(
     translations
       .filter((t) => shown.has(t.key) && isGroupSynced(t, syncIdenticalTranslations))

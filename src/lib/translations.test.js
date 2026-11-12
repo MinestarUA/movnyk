@@ -215,11 +215,10 @@ describe("planWithSyncedFollowers", () => {
     );
 
   it.each([
-    ["plans each synced follower from its own text", {}, ["shown", "differs"]],
-    ["plans no followers with sync off", { syncIdenticalTranslations: false }, ["shown"]],
-  ])("%s", (_, options, keys) => {
-    const edits = planWithSyncedFollowers(shownRows, rows, plan, options);
-    expect([...edits.keys()]).toEqual(keys);
-    if (edits.has("differs")) expect(edits.get("differs")).toBe("дубова темнина");
+    ["plans each synced follower from its own text", {}, [["shown", "дуб темний"], ["differs", "дубова темнина"]]],
+    ["plans no followers with sync off", { syncIdenticalTranslations: false }, [["shown", "дуб темний"]]],
+    ["never plans an excluded row", { excludeKeys: ["differs"] }, [["shown", "дуб темний"]]],
+  ])("%s", (_, options, expected) => {
+    expect([...planWithSyncedFollowers(shownRows, rows, plan, options)]).toEqual(expected);
   });
 });

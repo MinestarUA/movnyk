@@ -38,7 +38,6 @@ import {
   isReferenceSearchShortcut,
   itemMatches,
   translationMatches,
-  replaceInTranslation,
   planOriginalFill,
   planReplaceAll,
 } from "../lib/searching";
@@ -781,9 +780,19 @@ const EditorScreen = ({
 
   // Bulk replacements touch the rows the list shows (a scope or status filter
   // the user set narrows the edit too) and the synced groups they reach.
+  // The pinned row is the one being edited and gets no preview, and the
+  // goose's row is off the list, so neither changes as a follower.
+  const bulkExcludedKeys = useMemo(
+    () => [...filtered.filter((item) => item.pinned).map((item) => item.key), ...(stolenKey ? [stolenKey] : [])],
+    [filtered, stolenKey]
+  );
   const planBulk = useCallback(
-    (plan) => planWithSyncedFollowers(filtered, translations, plan, { syncIdenticalTranslations }),
-    [filtered, translations, syncIdenticalTranslations]
+    (plan) =>
+      planWithSyncedFollowers(filtered, translations, plan, {
+        syncIdenticalTranslations,
+        excludeKeys: bulkExcludedKeys,
+      }),
+    [filtered, translations, syncIdenticalTranslations, bulkExcludedKeys]
   );
 
   const originalFills = useMemo(
@@ -845,15 +854,16 @@ const EditorScreen = ({
       const i = (start + step) % filtered.length;
       const item = filtered[i];
       if (item.pinned || !translationMatches(item, queryRe)) continue;
-      const replaced = replaceInTranslation(item.translated, query, replaceValue, replaceOptions);
-      // Written like a manual edit so a synced group stays in step, but a
-      // replacement keeps the confirmation, as "Replace all" does.
-      setTranslations((prev) =>
-        updateTranslation(prev, item.originalIndex, replaced, {
+      // Planned like "Replace all", so each synced follower is replaced in its own text.
+      setTranslations((prev) => {
+        const row = prev.find((t) => t.key === item.key);
+        const replaceRows = (rows) => planReplaceAll(rows, query, replaceValue, replaceOptions);
+        const edits = planWithSyncedFollowers([row], prev, replaceRows, {
           syncIdenticalTranslations,
-          unconfirmOnEdit: false,
-        })
-      );
+          excludeKeys: bulkExcludedKeys,
+        });
+        return applyBulkEdit(prev, edits).next;
+      });
       // Move the selection to the next row whose translation also matches.
       for (let ahead = 1; ahead < filtered.length; ahead++) {
         const j = (i + ahead) % filtered.length;
@@ -865,7 +875,7 @@ const EditorScreen = ({
       return;
     }
     toast("Збігів у перекладах не знайдено.", "info");
-  }, [queryRe, filtered, activeIndex, query, replaceValue, replaceOptions, syncIdenticalTranslations, toast]);
+  }, [queryRe, filtered, activeIndex, query, replaceValue, replaceOptions, syncIdenticalTranslations, bulkExcludedKeys, toast]);
 
   const handleCopy = (text) => {
     navigator.clipboard?.writeText(text);
