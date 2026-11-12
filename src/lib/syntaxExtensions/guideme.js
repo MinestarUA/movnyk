@@ -24,9 +24,12 @@ const ESCAPE = String.raw`\\[\\\x60*_{}\[\]()#+\-.!|<>~]`;
 const COLOR_OPEN = /^<Color\s[^>]*\bcolor=["']#([0-9A-Fa-f]{6})["']/;
 const BREAK_TAG = /^<br[\s/>]/i;
 
-// A translation that starts like a Markdown block turns the paragraph into a
-// heading, list or quote.
-const BLOCK_START = /^\s{0,3}(?:#{1,6}(?:\s|$)|[-+*](?:\s|$)|\d{1,9}[.)](?:\s|$)|>|```|~~~)/;
+// A translation that starts like a Markdown block (heading, list, quote, code
+// fence, thematic break, setext underline or link definition) changes what a
+// paragraph is. Titles and table cells are not block content.
+const BLOCK_START =
+  /^\s{0,3}(?:#{1,6}(?:\s|$)|[-+*](?:\s|$)|\d{1,9}[.)](?:\s|$)|>|```|~~~|([-*_])(?:[ \t]*\1){2,}[ \t]*$|[=-]+[ \t]*$|\[[^\]\n]+\]:\s)/;
+const NOT_A_PARAGRAPH = /#title$/;
 
 export default {
   id: "guideme",
@@ -67,8 +70,8 @@ export default {
   },
   isLineBreak: (code) => BREAK_TAG.test(code),
   detect: () => false,
-  checks: (original, translated) =>
-    BLOCK_START.test(translated) && !BLOCK_START.test(original)
+  checks: (original, translated, key) =>
+    !NOT_A_PARAGRAPH.test(key ?? "") && BLOCK_START.test(translated) && !BLOCK_START.test(original)
       ? [
           {
             id: "markdown-block-start",

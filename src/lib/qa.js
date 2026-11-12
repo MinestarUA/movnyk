@@ -137,7 +137,7 @@ const syntaxCodeIssues = (origStr, transStr, syntax) => {
   return issues;
 };
 
-export const checkTranslationQA = (original, translated, syntax = CORE_SYNTAX) => {
+export const checkTranslationQA = (original, translated, syntax = CORE_SYNTAX, key = null) => {
   if (!original || !translated || !translated.trim()) {
     return [];
   }
@@ -262,7 +262,7 @@ export const checkTranslationQA = (original, translated, syntax = CORE_SYNTAX) =
 
   // 5b. Extension codes added or, for paired markers, unbalanced
   issues.push(...syntaxCodeIssues(origStr, transStr, syntax));
-  issues.push(...syntax.extensions.flatMap((extension) => extension.checks?.(origStr, transStr) ?? []));
+  issues.push(...syntax.extensions.flatMap((extension) => extension.checks?.(origStr, transStr, key) ?? []));
 
   // 6. Special characters from the original missing in the translation
   for (const ch of specialCharsOf(origText)) {

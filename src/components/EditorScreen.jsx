@@ -386,7 +386,7 @@ const EditorScreen = ({
         e.preventDefault();
         const item = activeItem;
         if (!item || settings.qaChecksEnabled === false) return;
-        const issues = checkTranslationQA(item.original, item.translated, syntaxFor(item.key));
+        const issues = checkTranslationQA(item.original, item.translated, syntaxFor(item.key), item.key);
         if (issues.length === 0) return;
         if (!qaDetailsVisible) {
           setQaDetails({ key: item.key, text: item.translated });

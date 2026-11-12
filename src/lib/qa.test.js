@@ -172,12 +172,18 @@ describe("extension codes", () => {
 });
 
 describe("GuideME block start", () => {
+  const PARAGRAPH = "book:assets/a/guide/x.md#3";
   it.each([
-    ["- Список", "Plain text", true],
-    ["# Заголовок", "Plain text", true],
-    ["- Список", "- List", false],
-  ])("%j against %j warns: %s", (translated, original, warns) => {
-    const issues = checkTranslationQA(original, translated, getSyntax(["guideme"]));
+    ["- Список", "Plain text", PARAGRAPH, true],
+    ["# Заголовок", "Plain text", PARAGRAPH, true],
+    ["---", "Plain text", PARAGRAPH, true],
+    ["* * *", "Plain text", PARAGRAPH, true],
+    ["[ref]: page.md", "Plain text", PARAGRAPH, true],
+    ["- Список", "- List", PARAGRAPH, false],
+    ["- Назва", "Plain text", "book:assets/a/guide/x.md#title", false],
+    ["Звичайний -- текст", "Plain text", PARAGRAPH, false],
+  ])("%j against %j for %s warns: %s", (translated, original, key, warns) => {
+    const issues = checkTranslationQA(original, translated, getSyntax(["guideme"]), key);
     expect(issues.some((i) => i.id === "markdown-block-start")).toBe(warns);
   });
 });

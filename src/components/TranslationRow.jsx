@@ -587,8 +587,8 @@ const TranslationRow = ({
   // Run QA checks
   const qaIssues = useMemo(() => {
     if (!qaEnabled || !hasDraft) return [];
-    return checkTranslationQA(item.original, item.translated, syntax);
-  }, [qaEnabled, hasDraft, item.original, item.translated, syntax]);
+    return checkTranslationQA(item.original, item.translated, syntax, item.key);
+  }, [qaEnabled, hasDraft, item.original, item.translated, item.key, syntax]);
 
   const outerStyle = {
     ...rowStyle,
