@@ -38,6 +38,11 @@ describe("extractGuideUnits", () => {
       ],
     ],
     ["backslash hard break splits units", "First line\\\nSecond line\n", [["paragraph", "First line"], ["paragraph", "Second line"]]],
+    [
+      "a reference link stays inside its paragraph and its definition is not a unit",
+      "See [the label][ref] now.\n\n[ref]: page.md\n",
+      [["paragraph", "See [the label][ref] now."]],
+    ],
     ["fenced code", "```\ncode here\n```\n", []],
     ["letterless units", "---\n\n12 34\n\n![alt](a.png)\n", []],
   ])("%s", (_, text, expected) => {

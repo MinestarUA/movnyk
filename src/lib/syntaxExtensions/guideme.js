@@ -10,6 +10,13 @@ const IMAGE = String.raw`!\[[^\]\n]*\]\([^)\n]*\)`;
 const TARGET = String.raw`[^)\s]+(?:\s+"[^"\n]*")?`;
 const LINK_OPEN = String.raw`\[(?=[^\]\n]*\]\(${TARGET}\))`;
 const LINK_CLOSE = String.raw`\]\(${TARGET}\)`;
+// "[label][ref]" keeps its label translatable. "[label][]" uses the label as
+// the reference id, so translating it would break the link: it stays whole,
+// like images.
+const IMAGE_REF = String.raw`!\[[^\]\n]*\]\[[^\]\n]*\]`;
+const COLLAPSED_REF = String.raw`\[[^\]\n]*\]\[\]`;
+const REF_OPEN = String.raw`\[(?=[^\]\n]*\]\[[^\]\n]+\])`;
+const REF_CLOSE = String.raw`\]\[[^\]\n]+\]`;
 const CODE = "`[^`\\n]+`";
 // \x60 is a backtick: a backslash before a bare backtick is an invalid escape under the u flag.
 const ESCAPE = String.raw`\\[\\\x60*_{}\[\]()#+\-.!|<>~]`;
@@ -31,9 +38,13 @@ export default {
   pattern: [
     COMMENT,
     IMAGE,
+    IMAGE_REF,
     TAG,
+    COLLAPSED_REF,
     LINK_OPEN,
+    REF_OPEN,
     LINK_CLOSE,
+    REF_CLOSE,
     CODE,
     ESCAPE,
     emphasis(String.raw`\*{1,3}`, "*"),
