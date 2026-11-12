@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import JSZip from "jszip";
 import { List } from "react-window";
-import TranslationRow, { ROW_COLLAPSED, ROW_EXPANDED } from "./TranslationRow";
+import TranslationRow, { GRID_COLUMNS, ROW_COLLAPSED, ROW_EXPANDED } from "./TranslationRow";
 import Sidebar from "./Sidebar";
 import SettingsModal from "./SettingsModal";
 import WalkingCat from "./WalkingCat.jsx";
@@ -1047,13 +1047,22 @@ const EditorScreen = ({
             <span className="hidden sm:inline">Довідник</span>
           </button>
 
-          <div ref={shortcutsRef} className="relative shrink-0">
+          <div
+            ref={shortcutsRef}
+            className="relative shrink-0"
+            // Keyboard users can tab away to a control that opens a modal; the
+            // pointerdown listener alone would leave the popover open behind it.
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) setShortcutsOpen(false);
+            }}
+          >
             <button
               type="button"
               onClick={() => setShortcutsOpen((v) => !v)}
               title="Комбінації клавіш"
               aria-label="Комбінації клавіш"
               aria-expanded={shortcutsOpen}
+              aria-controls="editor-shortcuts"
               className={`${HEADER_ICON_BTN} h-8 w-8`}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1064,8 +1073,7 @@ const EditorScreen = ({
             </button>
             {shortcutsOpen && (
               <div
-                role="dialog"
-                aria-label="Комбінації клавіш"
+                id="editor-shortcuts"
                 className="absolute right-0 top-full z-30 mt-2 w-64 rounded-box border border-base-content/15 bg-base-300 p-3 shadow-xl"
               >
                 <dl className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-xs">
@@ -1098,7 +1106,7 @@ const EditorScreen = ({
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="max-w-full shrink-0 basis-[560px]">
-            <div className="relative flex min-w-[260px] flex-1 items-center">
+            <div className="relative flex min-w-[260px] items-center">
               <svg
                 width="14"
                 height="14"
@@ -1162,40 +1170,40 @@ const EditorScreen = ({
             </div>
           </div>
 
-            {replaceMode && (
-              <div className="ml-2 flex shrink-0 items-center gap-1.5">
-                <button
-                  type="button"
-                  className="btn btn-sm btn-neutral h-9 px-3 text-xs"
-                  onClick={handleReplaceOne}
-                  disabled={!queryRe}
-                >
-                  Замінити
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-neutral h-9 px-3 text-xs"
-                  onClick={handleReplaceAll}
-                  disabled={!queryRe}
-                >
-                  Замінити все
-                </button>
-              </div>
-            )}
-
-            {query && activeKey && (
+          {replaceMode && (
+            <div className="ml-2 flex shrink-0 items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => {
-                  setQuery("");
-                  focusRequestRef.current = true;
-                }}
-                className="btn btn-xs btn-outline btn-warning ml-3 shrink-0"
-                title="Очистити пошук та повернутися до робочого рядка"
+                className="btn btn-sm btn-neutral h-9 px-3 text-xs"
+                onClick={handleReplaceOne}
+                disabled={!queryRe}
               >
-                📌 До рядка ({activeKey.length > 20 ? activeKey.slice(0, 20) + "…" : activeKey})
+                Замінити
               </button>
-            )}
+              <button
+                type="button"
+                className="btn btn-sm btn-neutral h-9 px-3 text-xs"
+                onClick={handleReplaceAll}
+                disabled={!queryRe}
+              >
+                Замінити все
+              </button>
+            </div>
+          )}
+
+          {query && activeKey && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                focusRequestRef.current = true;
+              }}
+              className="btn btn-xs btn-outline btn-warning ml-3 shrink-0"
+              title="Очистити пошук та повернутися до робочого рядка"
+            >
+              📌 До рядка ({activeKey.length > 20 ? activeKey.slice(0, 20) + "…" : activeKey})
+            </button>
+          )}
 
           <div className="flex-1" />
 
@@ -1278,7 +1286,10 @@ const EditorScreen = ({
 
       <div className="relative flex flex-1 overflow-hidden">
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="grid h-7 shrink-0 grid-cols-[26px_minmax(240px,1.3fr)_minmax(240px,1.4fr)_140px] items-center gap-4 px-4">
+          <div
+            className="grid h-7 shrink-0 items-center gap-[var(--space-6)] px-4"
+            style={{ gridTemplateColumns: GRID_COLUMNS }}
+          >
             <div />
             <div className={COLUMN_HEADER}>ОРИГІНАЛ ТА КЛЮЧ</div>
             <div className={COLUMN_HEADER}>ПЕРЕКЛАД</div>

@@ -18,17 +18,22 @@ const useModalDialog = (dialogRef, onRequestClose) => {
   // Listens on the window so Esc and Tab also work when a click left focus on the page body.
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (e.isComposing) return;
       if (e.key === "Escape") {
         onRequestClose();
       } else if (e.key === "Tab") {
         const focusable = dialogRef.current.querySelectorAll(FOCUSABLE);
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
-        const focusIsInside = dialogRef.current.contains(document.activeElement);
-        if (!focusIsInside || (e.shiftKey && document.activeElement === first)) {
+        const active = document.activeElement;
+        const focusIsInside = dialogRef.current.contains(active);
+        // The dialog itself holds focus right after opening; Shift+Tab from
+        // there would otherwise leave for the page behind the backdrop.
+        const atStart = active === first || active === dialogRef.current;
+        if (!focusIsInside || (e.shiftKey && atStart)) {
           e.preventDefault();
           (e.shiftKey ? last : first).focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
+        } else if (!e.shiftKey && active === last) {
           e.preventDefault();
           first.focus();
         }

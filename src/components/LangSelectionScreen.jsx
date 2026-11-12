@@ -13,7 +13,7 @@ const LangSelectionScreen = ({ langFiles, onLangSelect }) => {
           {langFiles.map((langFile) => (
             <button
               key={langFile.name}
-              className="group flex items-center gap-3 bg-neutral text-base-content rounded-lg py-3 px-5 text-left cursor-pointer transition-all duration-200 border-2 border-transparent hover:brightness-125 hover:border-primary focus:outline-none focus-visible:border-primary"
+              className="group flex items-center gap-3 bg-neutral text-base-content rounded-lg py-3 px-5 text-left cursor-pointer transition-all duration-200 border-2 border-transparent hover:brightness-125 hover:border-primary focus:outline-none focus-visible:border-accent-pink"
               onClick={() => onLangSelect(langFile)}
             >
               <span className="flex-shrink-0 text-primary text-lg">📄</span>

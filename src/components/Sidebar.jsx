@@ -190,7 +190,7 @@ const Sidebar = ({
               </div>
               <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-800">
                 <div
-                  className="h-full rounded-full bg-[image:var(--accent-gradient)] transition-[width] duration-200"
+                  className="h-full rounded-full bg-gradient-to-r from-accent-pink to-secondary transition-[width] duration-200"
                   style={{ width: `${aiProgress}%` }}
                 />
               </div>
@@ -237,14 +237,19 @@ const Sidebar = ({
             Приєднати Lang з буфера
           </button>
           <div className={DIVIDER} />
-          <button className={IMPORT_BTN} onClick={handlePasteOriginalClipboard} disabled={running}>
+          <button
+            className={IMPORT_BTN}
+            onClick={handlePasteOriginalClipboard}
+            disabled={running}
+            aria-describedby="update-original-help"
+          >
             <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M21 12a9 9 0 1 1-2.64-6.36" />
               <path d="M21 4v5h-5" />
             </svg>
             Приєднати та оновити оригінал (з буфера)
           </button>
-          <p className="text-xs leading-snug text-gray-500">
+          <p id="update-original-help" className="text-xs leading-snug text-gray-500">
             Вставте новий оригінал (en_us.json) в буфер. Затвердження зі змінених рядків знімається, видалені лишаються в довіднику.
           </p>
         </div>

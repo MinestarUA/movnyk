@@ -949,7 +949,7 @@ const TranslationRow = ({
           {onSuggest && (
             <button
               type="button"
-              className={`btn btn-sm btn-ghost border-base-content/20 text-xs ${isSuggesting ? "loading" : ""}`}
+              className={`btn btn-sm btn-ghost border-base-content/20 hover:border-base-content/20 text-xs ${isSuggesting ? "loading" : ""}`}
               onClick={() => onSuggest(item)}
               disabled={isSuggesting}
               title="Запропонувати автоматичний переклад через ШІ"

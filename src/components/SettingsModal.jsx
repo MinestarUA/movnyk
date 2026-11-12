@@ -103,7 +103,13 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
     syntaxAutoDetect,
     searchPrompts,
   };
-  const draftJson = JSON.stringify(draft);
+  // Compared in a canonical form: an extension ticked and unticked again
+  // leaves `false` behind, and stored prompts may list keys in another order.
+  const draftJson = JSON.stringify({
+    ...draft,
+    syntaxExtensions: Object.keys(syntaxExtensions).filter((id) => syntaxExtensions[id]).sort(),
+    searchPrompts: Object.entries(searchPrompts).sort(([a], [b]) => a.localeCompare(b)),
+  });
   const [initialDraftJson] = useState(draftJson);
   const isDirty = draftJson !== initialDraftJson;
 
@@ -372,7 +378,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
               Автоматично синхронізувати однакові рядки
             </span>
           </label>
-          <p className="text-xs text-base-content/50 pl-7">
+          <p className="text-xs text-base-content/60 pl-7">
             Зміни в перекладі автоматично застосовуються до всіх інших рядків із тотожним вихідним текстом.
           </p>
 
@@ -387,7 +393,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
               Перевірка пунктуації, пробілів та змінних (QA)
             </span>
           </label>
-          <p className="text-xs text-base-content/50 pl-7">
+          <p className="text-xs text-base-content/60 pl-7">
             Попереджати про пропущені знаки в кінці, великі літери, невідповідні пробіли або відсутні змінні Minecraft.
           </p>
 
@@ -424,7 +430,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
             />
             <span className="label-text text-sm font-medium">Автопідказки слів у перекладах</span>
           </label>
-          <p className="text-xs text-base-content/50 pl-7">
+          <p className="text-xs text-base-content/60 pl-7">
             Підказувати слова з інших заповнених перекладів проєкту.
           </p>
 
@@ -444,7 +450,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
         {/* Optional mod markup */}
         <div className="mt-6 space-y-3 border-t border-neutral pt-4">
           <span className="text-sm font-semibold">Розширення синтаксису</span>
-          <p className="text-xs text-base-content/50">
+          <p className="text-xs text-base-content/60">
             Підсвічування та перевірка розмітки окремих модів. Вимкнені, доки ви їх не ввімкнете.
           </p>
 
@@ -477,7 +483,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
                   <span className="label-text text-sm font-medium">{extension.label}</span>
                   {autoEnabled && <span className="badge badge-sm badge-accent badge-outline">Виявлено у файлі</span>}
                 </label>
-                <p className="text-xs text-base-content/50 pl-7">{extension.description}</p>
+                <p className="text-xs text-base-content/60 pl-7">{extension.description}</p>
               </div>
             );
           })}
@@ -495,7 +501,7 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
               Скинути
             </button>
           </div>
-          <p className="text-xs text-base-content/50">
+          <p className="text-xs text-base-content/60">
             Використовуйте <code>{"{original}"}</code> для вихідного тексту та <code>{"{translation}"}</code> для перекладу.
           </p>
 

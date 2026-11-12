@@ -127,14 +127,14 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           aria-label="Завантажити файл .jar або .json"
-          className={`w-full block border-2 border-dashed rounded-box ${hasSessions ? "py-8" : "py-16"} px-8 cursor-pointer transition-all duration-300 ease-in-out animate-scale-in-center [animation-delay:0.4s] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+          className={`w-full block border-2 border-dashed rounded-box ${hasSessions ? "py-8" : "py-16"} px-8 cursor-pointer transition-all duration-300 ease-in-out animate-scale-in-center [animation-delay:0.4s] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-pink ${
             isDragging
               ? "border-primary bg-base-300 scale-[1.02]"
               : "border-neutral bg-base-200 hover:bg-base-300 hover:border-primary hover:scale-[1.02]"
           }`}
         >
           <svg
-            className={`w-12 h-12 mx-auto mb-4 transition-colors ${isDragging ? "text-primary" : "text-base-content/40"}`}
+            className={`w-12 h-12 mx-auto mb-4 transition-colors ${isDragging ? "text-accent-pink" : "text-base-content/40"}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

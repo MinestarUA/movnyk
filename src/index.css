@@ -32,7 +32,7 @@
   --color-accent-900: #2b2741;
 
   /* Signature pink/purple accents used across primary actions. */
-  --accent-pink: #ff5fa2;
+  --accent-pink: theme("colors.accent-pink");
   --accent-purple: #b25ef0;
   /* Darker than the pink/purple text accents so white labels on it pass 4.5:1. */
   --accent-gradient: linear-gradient(135deg, #d6337a, #9a3fd6);
@@ -40,13 +40,10 @@
   --status-confirmed: #63d68a;
   --status-pending: #f0be5a;
 
-  --font-heading: "Inter", system-ui, sans-serif;
   --font-body: "Inter", system-ui, sans-serif;
 
   --space-1: 2.8px;
   --space-2: 5.6px;
-  --space-3: 8.4px;
-  --space-4: 11.2px;
   --space-6: 16.8px;
   --space-8: 22.4px;
 
@@ -63,6 +60,12 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-body);
+}
+
+/* daisy draws the focus ring in the button colour; the darkened primary is
+   too faint against the background for a focus indicator. */
+.btn-primary:focus-visible {
+  outline-color: var(--accent-pink);
 }
 
 .mono {
