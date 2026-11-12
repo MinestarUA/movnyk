@@ -1,16 +1,48 @@
-# React + Vite
+# Мовник
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Браузерний редактор для перекладу модифікацій Minecraft українською. Завантажуєте `.jar` мода або мовний `.json` — перекладаєте рядки з підказками, перевіркою якості й машинним перекладом — експортуєте готовий ресурспак.
 
-Currently, two official plugins are available:
+Працює повністю в браузері: сервера немає, файли й ключі API нікуди не надсилаються, крім обраного сервісу машинного перекладу.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**Відкрити:** https://minestarua.github.io/movnyk/
 
-## React Compiler
+## Що вміє
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Джерела тексту.** Мовні файли з `.jar` або окремий `.json`; посібники Patchouli та GuideME з `.jar` перекладаються разом із мовними рядками.
+- **Імпорт наявних перекладів** з `.json`, `.lang`, `.zip` ресурспаку, `.jar` або буфера обміну — лише ключі, що збігаються з проєктом.
+- **Оновлення оригіналу.** Повторне відкриття нової версії мода зберігає переклади: змінені рядки втрачають затвердження, перейменовані ключі розпізнаються за текстом.
+- **Розмітка.** Коди форматування (`§a`), плейсхолдери (`%s`, `{0}`) і розмітка модів (Patchouli, Create, Malum, Modonomicon, GuideME) підсвічуються, вставляються в один клік і захищені від машинного перекладу. Рядок показано так, як він виглядатиме в грі.
+- **Перевірка якості:** пропущені токени, пробіли, розділові знаки, регістр, латинські літери в українських словах; однозначні виправлення застосовуються одним натисканням.
+- **Машинний переклад** через Google Gemini або DeepL — для рядка чи всього проєкту.
+- **Пошук і заміна** з регулярними виразами, фільтри неперекладених і незатверджених рядків, автопідказки слів із власних перекладів.
+- **Сесії.** Прогрес автоматично зберігається в браузері; нещодавні проєкти відкриваються з головного екрана.
+- **Експорт ресурспаку** з потрібним `pack_format` для обраної версії Minecraft.
 
-## Expanding the ESLint configuration
+Перелік комбінацій клавіш — у редакторі, кнопка «Комбінації клавіш».
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Машинний переклад
+
+Ключі вводяться в «Налаштуваннях» і зберігаються лише в `localStorage` браузера.
+
+- **Gemini** — ключ з [Google AI Studio](https://aistudio.google.com/apikey). Працює одразу.
+- **DeepL** — ключ Free (`…:fx`) або Pro. API DeepL не дозволяє запити з браузера (CORS), тому потрібне розширення, що знімає це обмеження; посилання на нього є в налаштуваннях.
+
+## Розробка
+
+Потрібен [Bun](https://bun.sh).
+
+```sh
+bun install
+bun run dev      # http://localhost:5173/movnyk/
+bun run test     # Vitest
+bun run lint     # ESLint
+bun run build    # збірка в dist/
+```
+
+Стек: React, Vite, Tailwind CSS + daisyUI. Логіка без UI лежить у `src/lib/` і покрита тестами поруч (`*.test.js`); компоненти — у `src/components/`.
+
+Розмітка конкретного мода додається як розширення синтаксису в `src/lib/syntaxExtensions/` (формат описано в `index.js`).
+
+## Розгортання
+
+Кожен push у `master` збирає й публікує сайт на GitHub Pages ([workflow](.github/workflows/deploy.yml)). Шлях `/movnyk/` задано в `vite.config.js` як `base` — змініть його, якщо сайт переїде.
