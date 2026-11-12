@@ -93,6 +93,12 @@ const EditorScreen = ({
     }))
   );
   const openedTranslationsRef = useRef(translations);
+  // An archive import awaits file reads, so it merges into the rows as they are
+  // when the read finishes, not as they were when it started.
+  const latestTranslationsRef = useRef(translations);
+  useEffect(() => {
+    latestTranslationsRef.current = translations;
+  }, [translations]);
 
   // Detected from the current lang originals, so applying a new original re-detects.
   const [detectedSyntaxIds, setDetectedSyntaxIds] = useState(() =>
@@ -771,11 +777,12 @@ const EditorScreen = ({
   };
 
   const handleLoadLangFile = (loaded) => {
-    const { next, applied, skipped } = mergeLangFile(translations, loaded, {
+    const { next, applied, skipped } = mergeLangFile(latestTranslationsRef.current, loaded, {
       skipIdentical: settings.skipIdenticalImport,
       confirmImported: settings.confirmImport,
       skipApproved: settings.skipApprovedImport,
     });
+    latestTranslationsRef.current = next;
     setTranslations(next);
     return { applied, skipped };
   };
