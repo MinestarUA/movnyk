@@ -17,7 +17,7 @@ const IMAGE_REF = String.raw`!\[[^\]\n]*\]\[[^\]\n]*\]`;
 const COLLAPSED_REF = String.raw`\[[^\]\n]*\]\[\]`;
 const REF_OPEN = String.raw`\[(?=[^\]\n]*\]\[[^\]\n]+\])`;
 const REF_CLOSE = String.raw`\]\[[^\]\n]+\]`;
-const CODE = "`[^`\\n]+`";
+const CODE = "``(?:[^`\\n]|`(?!`))+``|`[^`\\n]+`";
 // \x60 is a backtick: a backslash before a bare backtick is an invalid escape under the u flag.
 const ESCAPE = String.raw`\\[\\\x60*_{}\[\]()#+\-.!|<>~]`;
 
@@ -51,12 +51,16 @@ export default {
     CODE,
     ESCAPE,
     emphasis(String.raw`\*{1,3}`, "*"),
+    emphasis("_{1,3}", "_"),
     emphasis("~~", "~"),
   ].join("|"),
   toggles: {
     "***": { bold: true, italic: true },
     "**": { bold: true },
     "*": { italic: true },
+    "___": { bold: true, italic: true },
+    "__": { bold: true },
+    _: { italic: true },
     "~~": { strikethrough: true },
   },
   applyStyle: (style, code) => {

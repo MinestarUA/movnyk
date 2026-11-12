@@ -161,6 +161,9 @@ describe("GuideME", () => {
     ["see [Label][] now", ["[Label][]"]],
     ["![alt][img] shown", ["![alt][img]"]],
     ["2 * 3", []],
+    ["a _word_ and __bold__", ["_", "_", "__", "__"]],
+    ["snake_case_name here", []],
+    ["``a`b`` and `c`", ["``a`b``", "`c`"]],
     ["a \\| b", ["\\|"]],
     ['<GameScene zoom="4" interactive={true}>', ['<GameScene zoom="4" interactive={true}>']],
   ])("tokenizes %j", (text, expected) => {
