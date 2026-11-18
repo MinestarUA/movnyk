@@ -1190,6 +1190,7 @@ const EditorScreen = ({
                 placeholder="Пошук за ключем, оригіналом або перекладом…"
                 aria-label="Пошук перекладів"
                 aria-invalid={Boolean(queryError)}
+                aria-describedby={queryError ? "translation-search-error" : undefined}
                 className={`${TEXT_INPUT} pl-8 pr-3 ${queryError ? "border-error" : "border-base-content/15"}`}
               />
               <button
@@ -1319,6 +1320,12 @@ const EditorScreen = ({
           </div>
         </div>
 
+        {queryError && (
+          <p id="translation-search-error" role="alert" className="text-xs text-error">
+            Некоректний регулярний вираз: {queryError}
+          </p>
+        )}
+
         {replaceMode && (
           <div className="flex max-w-[560px] items-center">
             <input
@@ -1395,7 +1402,11 @@ const EditorScreen = ({
 
           {filtered.length === 0 ? (
             <div className="flex flex-1 items-center justify-center text-center text-gray-500">
-              <p>Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр.</p>
+              <p>
+                {queryError
+                  ? "Виправте синтаксис регулярного виразу в полі пошуку."
+                  : "Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр."}
+              </p>
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 px-4">

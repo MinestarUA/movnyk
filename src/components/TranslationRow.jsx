@@ -502,12 +502,23 @@ const TranslationRow = ({
     }
   }, [isSelected, item.key, focusRequestRef, cursorPositionRef]);
 
+  const hasDraft = Boolean(item.translated.trim());
+
+  // Run QA checks
+  const qaIssues = useMemo(() => {
+    if (!qaEnabled || !hasDraft) return [];
+    return checkTranslationQA(item.original, item.translated, syntax, item.key);
+  }, [qaEnabled, hasDraft, item.original, item.translated, item.key, syntax]);
+
+  const minTextareaHeight = qaIssues.length > 0 ? TEXTAREA_WITH_QA_HEIGHT : ACTION_STACK_HEIGHT;
+  const qaDetailsListId = `qa-details-${encodeURIComponent(item.key)}`;
+
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!isSelected || !el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.max(el.scrollHeight, ACTION_STACK_HEIGHT)}px`;
-  }, [isSelected, item.translated]);
+    el.style.height = `${Math.max(el.scrollHeight, minTextareaHeight)}px`;
+  }, [isSelected, item.key, item.translated, minTextareaHeight]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -573,7 +584,6 @@ const TranslationRow = ({
     });
   };
 
-  const hasDraft = Boolean(item.translated.trim());
   const hasCodes = useMemo(
     () => tokenizeString(item.translated || "", syntax).some((t) => t.type === "mc-code" && t.value[0] === "§"),
     [item.translated, syntax]
@@ -602,13 +612,7 @@ const TranslationRow = ({
   // been sized above, so the list never lays out a stale height for this row.
   useLayoutEffect(() => {
     if (expanded && rowRef.current && onHeight) onHeight(rowRef.current.offsetHeight);
-  }, [expanded, item.translated, preview, onHeight]);
-
-  // Run QA checks
-  const qaIssues = useMemo(() => {
-    if (!qaEnabled || !hasDraft) return [];
-    return checkTranslationQA(item.original, item.translated, syntax, item.key);
-  }, [qaEnabled, hasDraft, item.original, item.translated, item.key, syntax]);
+  }, [expanded, item.key, item.original, item.translated, preview, qaIssues, showQaDetails, onHeight]);
 
   const outerStyle = {
     ...rowStyle,
@@ -623,8 +627,14 @@ const TranslationRow = ({
     minHeight: expanded ? ROW_EXPANDED : ROW_COLLAPSED,
     background: expanded ? "var(--color-surface)" : ROW_RULE,
     borderRadius: expanded ? "var(--radius-md)" : "0",
-    borderLeft: expanded ? "2px solid var(--accent-pink)" : "2px solid transparent",
-    boxShadow: expanded ? "var(--shadow-sm)" : "none",
+    borderStyle: "solid",
+    borderTopWidth: "1px",
+    borderRightWidth: "1px",
+    borderBottomWidth: "1px",
+    borderLeftWidth: "2px",
+    borderColor: expanded
+      ? "var(--color-neutral-800) var(--color-neutral-800) var(--color-neutral-800) var(--accent-pink)"
+      : "transparent",
     cursor: "pointer",
     boxSizing: "border-box",
   };
@@ -751,10 +761,9 @@ const TranslationRow = ({
         {expanded ? (
           <div>
             <div
-              className="relative transition-colors"
+              className="transition-colors"
               style={{
                 width: "100%",
-                minHeight: `${ACTION_STACK_HEIGHT}px`,
                 background: "var(--color-bg)",
                 border: "1px solid var(--color-divider)",
                 borderRadius: "var(--radius-md)",
@@ -762,170 +771,191 @@ const TranslationRow = ({
               onFocusCapture={(e) => (e.currentTarget.style.borderColor = "var(--color-accent)")}
               onBlurCapture={(e) => (e.currentTarget.style.borderColor = "var(--color-divider)")}
             >
-              {/* Mirror overlay displaying formatted preview while editing */}
-              {hasCodes && (
-                <div
-                  aria-hidden="true"
+              <div className="relative" style={{ minHeight: `${minTextareaHeight}px` }}>
+                {/* Mirror overlay displaying formatted preview while editing */}
+                {hasCodes && (
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      padding: "8px 10px",
+                      color: "var(--color-text)",
+                      fontSize: "13px",
+                      fontFamily: "var(--font-body)",
+                      lineHeight: 1.4,
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "break-word",
+                      wordBreak: "break-word",
+                      overflow: "hidden",
+                      pointerEvents: "none",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <FormattedText text={item.translated} widthNeutral={true} syntax={syntax} />
+                    {item.translated.endsWith("\n") && "\u200b"}
+                  </div>
+                )}
+
+                <textarea
+                  ref={textareaRef}
+                  data-role="translation"
+                  data-key={item.key}
+                  value={item.translated}
+                  lang="uk"
+                  spellCheck={true}
+                  aria-autocomplete={wordAutocompleteEnabled ? "list" : undefined}
+                  aria-controls={wordAutocompleteOpen ? wordAutocompleteListId : undefined}
+                  aria-expanded={wordAutocompleteOpen}
+                  aria-activedescendant={
+                    wordAutocompleteOpen
+                      ? `${wordAutocompleteListId}-option-${selectedWordSuggestionIndex}`
+                      : undefined
+                  }
+                  onKeyDown={handleTextareaKeyDown}
+                  onChange={(e) => {
+                    onTranslate(e.target.value);
+                    if (cursorPositionRef) {
+                      cursorPositionRef.current = {
+                        key: item.key,
+                        start: e.target.selectionStart,
+                        end: e.target.selectionEnd,
+                      };
+                    }
+                    refreshWordAutocomplete(e.target);
+                  }}
+                  onSelect={(e) => {
+                    if (cursorPositionRef) {
+                      cursorPositionRef.current = {
+                        key: item.key,
+                        start: e.target.selectionStart,
+                        end: e.target.selectionEnd,
+                      };
+                    }
+                    refreshWordAutocomplete(e.target);
+                  }}
+                  onKeyUp={(e) => {
+                    if (cursorPositionRef) {
+                      cursorPositionRef.current = {
+                        key: item.key,
+                        start: e.target.selectionStart,
+                        end: e.target.selectionEnd,
+                      };
+                    }
+                    // Enter confirms the row, Tab accepts a hint and Escape closes the
+                    // popup on keydown; refreshing here would reopen it.
+                    if (!WORD_AUTOCOMPLETE_CLOSING_KEYS.has(e.key)) {
+                      refreshWordAutocomplete(e.target);
+                    }
+                  }}
+                  onMouseUp={(e) => {
+                    if (cursorPositionRef) {
+                      cursorPositionRef.current = {
+                        key: item.key,
+                        start: e.target.selectionStart,
+                        end: e.target.selectionEnd,
+                      };
+                    }
+                    refreshWordAutocomplete(e.target);
+                  }}
+                  onFocus={(e) => {
+                    onSelect();
+                    if (cursorPositionRef) {
+                      cursorPositionRef.current = {
+                        key: item.key,
+                        start: e.target.selectionStart,
+                        end: e.target.selectionEnd,
+                      };
+                    }
+                    refreshWordAutocomplete(e.target);
+                  }}
+                  onBlur={() => setWordAutocompleteContext(null)}
+                  onCompositionStart={() => {
+                    composingRef.current = true;
+                    setWordAutocompleteContext(null);
+                  }}
+                  onCompositionEnd={(e) => {
+                    composingRef.current = false;
+                    refreshWordAutocomplete(e.target);
+                  }}
+                  onClick={stop}
+                  placeholder="Введіть український переклад…"
+                  aria-label={`Переклад для ${item.key}`}
+                  aria-describedby={showQaDetails && qaIssues.length > 0 ? qaDetailsListId : undefined}
                   style={{
-                    position: "absolute",
-                    inset: 0,
+                    position: "relative",
+                    display: "block",
+                    width: "100%",
+                    minHeight: `${minTextareaHeight}px`,
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: "var(--radius-md)",
                     padding: "8px 10px",
-                    color: "var(--color-text)",
+                    color: hasCodes ? "transparent" : "var(--color-text)",
+                    caretColor: "var(--color-text)",
                     fontSize: "13px",
                     fontFamily: "var(--font-body)",
                     lineHeight: 1.4,
-                    whiteSpace: "pre-wrap",
-                    overflowWrap: "break-word",
-                    wordBreak: "break-word",
+                    resize: "none",
                     overflow: "hidden",
-                    pointerEvents: "none",
+                    outline: "none",
                     boxSizing: "border-box",
                   }}
-                >
-                  <FormattedText text={item.translated} widthNeutral={true} syntax={syntax} />
-                  {item.translated.endsWith("\n") && "\u200b"}
-                </div>
-              )}
-
-              <textarea
-                ref={textareaRef}
-                data-role="translation"
-                data-key={item.key}
-                value={item.translated}
-                lang="uk"
-                spellCheck={true}
-                aria-autocomplete={wordAutocompleteEnabled ? "list" : undefined}
-                aria-controls={wordAutocompleteOpen ? wordAutocompleteListId : undefined}
-                aria-expanded={wordAutocompleteOpen}
-                aria-activedescendant={
-                  wordAutocompleteOpen
-                    ? `${wordAutocompleteListId}-option-${selectedWordSuggestionIndex}`
-                    : undefined
-                }
-                onKeyDown={handleTextareaKeyDown}
-                onChange={(e) => {
-                  onTranslate(e.target.value);
-                  if (cursorPositionRef) {
-                    cursorPositionRef.current = {
-                      key: item.key,
-                      start: e.target.selectionStart,
-                      end: e.target.selectionEnd,
-                    };
-                  }
-                  refreshWordAutocomplete(e.target);
-                }}
-                onSelect={(e) => {
-                  if (cursorPositionRef) {
-                    cursorPositionRef.current = {
-                      key: item.key,
-                      start: e.target.selectionStart,
-                      end: e.target.selectionEnd,
-                    };
-                  }
-                  refreshWordAutocomplete(e.target);
-                }}
-                onKeyUp={(e) => {
-                  if (cursorPositionRef) {
-                    cursorPositionRef.current = {
-                      key: item.key,
-                      start: e.target.selectionStart,
-                      end: e.target.selectionEnd,
-                    };
-                  }
-                  // Enter confirms the row, Tab accepts a hint and Escape closes the
-                  // popup on keydown; refreshing here would reopen it.
-                  if (!WORD_AUTOCOMPLETE_CLOSING_KEYS.has(e.key)) {
-                    refreshWordAutocomplete(e.target);
-                  }
-                }}
-                onMouseUp={(e) => {
-                  if (cursorPositionRef) {
-                    cursorPositionRef.current = {
-                      key: item.key,
-                      start: e.target.selectionStart,
-                      end: e.target.selectionEnd,
-                    };
-                  }
-                  refreshWordAutocomplete(e.target);
-                }}
-                onFocus={(e) => {
-                  onSelect();
-                  if (cursorPositionRef) {
-                    cursorPositionRef.current = {
-                      key: item.key,
-                      start: e.target.selectionStart,
-                      end: e.target.selectionEnd,
-                    };
-                  }
-                  refreshWordAutocomplete(e.target);
-                }}
-                onBlur={() => setWordAutocompleteContext(null)}
-                onCompositionStart={() => {
-                  composingRef.current = true;
-                  setWordAutocompleteContext(null);
-                }}
-                onCompositionEnd={(e) => {
-                  composingRef.current = false;
-                  refreshWordAutocomplete(e.target);
-                }}
-                onClick={stop}
-                placeholder="Введіть український переклад…"
-                aria-label={`Переклад для ${item.key}`}
-                style={{
-                  position: "relative",
-                  width: "100%",
-                  minHeight: `${ACTION_STACK_HEIGHT}px`,
-                  background: "transparent",
-                  border: "none",
-                  borderRadius: "var(--radius-md)",
-                  padding: "8px 10px",
-                  color: hasCodes ? "transparent" : "var(--color-text)",
-                  caretColor: "var(--color-text)",
-                  fontSize: "13px",
-                  fontFamily: "var(--font-body)",
-                  lineHeight: 1.4,
-                  resize: "none",
-                  overflow: "hidden",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
+                />
+              </div>
 
               {/* QA Warnings with Quick Fix buttons */}
               {qaIssues.length > 0 && (
-                <div className="absolute left-2 z-10 flex gap-1.5" style={{ bottom: "6px" }}>
-                  {qaIssues.map((issue, idx) => {
-                    const isInfo = issue.severity === "info";
-                    const badgeClass = isInfo
-                      ? "bg-info/15 text-info border-info/30"
-                      : "bg-warning/15 text-warning border-warning/30";
-                    const icon = isInfo ? "ℹ️" : "⚠️";
-  
-                    return (
-                      <span
-                        key={idx}
-                        className={`qa-tip ${showQaDetails ? "qa-tip-open" : ""} inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] pl-2 pr-1.5 py-0.5 rounded border font-medium bg-base-200 ${badgeClass}`}
-                        data-tip={issue.message}
-                      >
-                        <span>{icon}</span>
-                        {typeof issue.fix === "function" && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const fixed = issue.fix(item.translated);
-                              if (fixed !== item.translated) {
-                                onTranslate(fixed);
-                              }
-                            }}
-                            className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-base-100/70 hover:bg-base-100 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-current/20 shadow-xs"
-                          >
-                            Виправити ⚡
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
+                <div className="flex flex-col gap-1.5 border-t border-base-content/10 px-2 py-1.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {qaIssues.map((issue, idx) => {
+                      const isInfo = issue.severity === "info";
+                      const badgeClass = isInfo
+                        ? "bg-info/15 text-info border-info/30"
+                        : "bg-warning/15 text-warning border-warning/30";
+                      const icon = isInfo ? "ℹ️" : "⚠️";
+
+                      return (
+                        <span
+                          key={idx}
+                          className={`${!showQaDetails ? "qa-tip" : ""} inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] pl-2 pr-1.5 py-0.5 rounded border font-medium bg-base-200 ${badgeClass}`}
+                          data-tip={!showQaDetails ? issue.message : undefined}
+                        >
+                          <span aria-hidden="true">{icon}</span>
+                          {!showQaDetails && <span className="sr-only">{issue.message}</span>}
+                          {typeof issue.fix === "function" && (
+                            <button
+                              type="button"
+                              aria-label={`Виправити: ${issue.message}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const fixed = issue.fix(item.translated);
+                                if (fixed !== item.translated) {
+                                  onTranslate(fixed);
+                                }
+                              }}
+                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-base-100/70 hover:bg-base-100 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-current/20 shadow-xs"
+                            >
+                              Виправити ⚡
+                            </button>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  {showQaDetails && (
+                    <ul id={qaDetailsListId} role="status" aria-live="polite" className="space-y-1 text-[11px] leading-snug">
+                      {qaIssues.map((issue, idx) => (
+                        <li
+                          key={idx}
+                          className={`flex items-start gap-1.5 ${issue.severity === "info" ? "text-info" : "text-warning"}`}
+                        >
+                          <span aria-hidden="true">{issue.severity === "info" ? "ℹ️" : "⚠️"}</span>
+                          <span>{issue.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
             </div>
@@ -986,14 +1016,18 @@ const TranslationRow = ({
           {onSuggest && (
             <button
               type="button"
-              className={`btn btn-sm btn-ghost border-base-content/20 hover:border-base-content/20 text-xs ${isSuggesting ? "loading" : ""}`}
+              className="btn btn-sm btn-ghost border-base-content/20 hover:border-base-content/20 text-xs"
               onClick={() => onSuggest(item)}
               disabled={isSuggesting}
               title="Запропонувати автоматичний переклад через ШІ"
             >
-              <span className="text-accent-pink">
-                <SparklesIcon size={14} />
-              </span>
+              {isSuggesting ? (
+                <span className="loading loading-spinner loading-xs text-accent-pink" aria-hidden="true" />
+              ) : (
+                <span className="text-accent-pink">
+                  <SparklesIcon size={14} />
+                </span>
+              )}
               {isSuggesting ? "Переклад..." : "ШІ-переклад"}
             </button>
           )}
@@ -1043,7 +1077,11 @@ const TranslationRow = ({
               disabled={isSuggesting}
               title="Запропонувати ШІ-переклад"
             >
-              <SparklesIcon size={13} />
+              {isSuggesting ? (
+                <span className="loading loading-spinner loading-xs" aria-hidden="true" />
+              ) : (
+                <SparklesIcon size={13} />
+              )}
             </button>
           )}
           <button
@@ -1074,7 +1112,9 @@ const TranslationRow = ({
 
 // Four btn-sm buttons (32px) plus three 6px gaps.
 const ACTION_STACK_HEIGHT = 146;
+// Leaves room for the inline QA footer so the combined box matches ACTION_STACK_HEIGHT.
+const TEXTAREA_WITH_QA_HEIGHT = 110;
 export const ROW_COLLAPSED = 52;
-export const ROW_EXPANDED = 165;
+export const ROW_EXPANDED = 168;
 
 export default TranslationRow;

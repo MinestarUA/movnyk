@@ -223,11 +223,12 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className={`btn btn-xs btn-ghost text-xs ${loadingModels ? "loading" : ""}`}
+                    className="btn btn-xs btn-ghost gap-1 text-xs"
                     onClick={handleFetchModels}
                     disabled={!apiKey.trim() || loadingModels}
                     title="Отримати актуальний список моделей з вашого акаунта Google AI"
                   >
+                    {loadingModels && <span className="loading loading-spinner loading-xs" aria-hidden="true" />}
                     {loadingModels ? "Завантаження…" : "🔄 Оновити з Google"}
                   </button>
                   <button
@@ -347,10 +348,11 @@ const SettingsModal = ({ settings, detectedSyntaxIds = [], onSave, onClose }) =>
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className={`btn btn-sm btn-outline ${testing ? "loading" : ""}`}
+              className="btn btn-sm btn-outline gap-2"
               onClick={handleTestConnection}
               disabled={testing || (aiProvider === "gemini" ? !apiKey.trim() : !deeplApiKey.trim())}
             >
+              {testing && <span className="loading loading-spinner loading-xs" aria-hidden="true" />}
               {testing ? "Перевірка..." : "Перевірити з'єднання"}
             </button>
             {testResult && (
