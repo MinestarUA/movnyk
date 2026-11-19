@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { Component } from "react";
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -13,7 +13,6 @@ class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // You can also log the error to an error reporting service
     console.error("Uncaught error:", error, errorInfo);
     this.setState({ error, errorInfo });
   }
@@ -24,19 +23,30 @@ class ErrorBoundary extends Component {
       // instead of taking the whole screen down with it.
       if (this.props.fallback) return this.props.fallback;
 
-      // You can render any custom fallback UI
       return (
-        <div style={{ padding: '20px', textAlign: 'center', color: '#d1d2d3' }}>
-          <h2>Something went wrong.</h2>
-          <p>We're sorry for the inconvenience. Please try refreshing the page.</p>
-          {this.state.error && (
-            <details style={{ whiteSpace: 'pre-wrap', textAlign: 'left', marginTop: '20px' }}>
-              <summary>Error Details</summary>
-              {this.state.error.toString()}
-              <br />
-              {this.state.errorInfo?.componentStack}
-            </details>
-          )}
+        <div className="flex min-h-screen items-center justify-center bg-base-100 p-6 text-base-content">
+          <div className="w-full max-w-md rounded-box border border-error/30 bg-base-200 p-7 text-center shadow-2xl">
+            <h2 className="mb-2 text-xl font-bold">Щось пішло не так</h2>
+            <p className="mb-5 text-sm text-base-content/70">
+              Виникла несподівана помилка. Спробуйте перезавантажити сторінку — збережені сесії залишаться в браузері.
+            </p>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={() => window.location.reload()}
+            >
+              Перезавантажити сторінку
+            </button>
+            {this.state.error && (
+              <details className="mt-5 rounded-lg border border-base-content/10 bg-base-100 p-3 text-left text-xs text-base-content/70">
+                <summary className="cursor-pointer font-semibold text-base-content/85">Деталі помилки</summary>
+                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-[11px]">
+                  {this.state.error.toString()}
+                  {this.state.errorInfo?.componentStack}
+                </pre>
+              </details>
+            )}
+          </div>
         </div>
       );
     }

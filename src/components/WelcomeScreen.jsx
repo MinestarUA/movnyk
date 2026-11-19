@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { isTranslatable } from "../lib/translations";
+import ConfirmDialog from "./ConfirmDialog";
+
+const SUPPORTED_FORMATS = [".jar", ".json", "Patchouli", "GuideME"];
 
 const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDeleteSession }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null); // { session, index }
   const hasSessions = sessions.length > 0;
   const fileInputRef = useRef(null);
+  const dragDepthRef = useRef(0);
 
   const pickerButtonRef = useRef(null);
   const continueButtonRefs = useRef([]);
@@ -20,25 +25,32 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
     (target ?? pickerButtonRef.current)?.focus();
   }, [sessions]);
 
-  const handleDeleteSession = (session, index) => {
-    if (window.confirm(`Видалити сесію «${session.name}»? Цю дію не можна скасувати.`)) {
-      focusAfterDeleteRef.current = index;
-      onDeleteSession(session.id);
-    }
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    focusAfterDeleteRef.current = pendingDelete.index;
+    onDeleteSession(pendingDelete.session.id);
+    setPendingDelete(null);
   };
 
-  const handleDragOver = (e) => {
+  const handleWindowDragEnter = (e) => {
     e.preventDefault();
+    dragDepthRef.current += 1;
     setIsDragging(true);
   };
 
-  const handleDragLeave = (e) => {
+  const handleWindowDragOver = (e) => {
     e.preventDefault();
-    setIsDragging(false);
   };
 
-  const handleDrop = (e) => {
+  const handleWindowDragLeave = (e) => {
     e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDragging(false);
+  };
+
+  const handleWindowDrop = (e) => {
+    e.preventDefault();
+    dragDepthRef.current = 0;
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       onFileDrop(e.dataTransfer.files[0]);
@@ -55,100 +67,189 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen text-base-content text-center font-sans p-8">
-      <div className="max-w-[800px] w-full">
-        <h1 className="text-6xl font-black text-base-content mb-2 animate-slide-in-top">Мовник</h1>
-        <p className="text-xl mb-10 text-base-content/60 animate-slide-in-top [animation-delay:0.2s]">
-          Інструмент для перекладу модифікацій Minecraft.
-        </p>
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden p-6 sm:p-8 font-sans text-base-content text-center"
+      onDragEnter={handleWindowDragEnter}
+      onDragOver={handleWindowDragOver}
+      onDragLeave={handleWindowDragLeave}
+      onDrop={handleWindowDrop}
+    >
+      {/* Subtle ambient glow behind the brand header */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 blur-[110px]"
+        style={{ background: "radial-gradient(circle, var(--accent-pink), var(--accent-purple) 60%, transparent)" }}
+      />
+
+      {/* Full-window drop overlay */}
+      {isDragging && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-4 z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent-pink bg-base-100/85 backdrop-blur-sm animate-fade-in"
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 text-accent-pink">
+              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9m0 0L8.25 12.75M12 9l3.75 3.75" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 15.75V18a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 18v-2.25" />
+              </svg>
+            </div>
+            <p className="text-xl font-semibold text-base-content">Відпустіть файл .jar або .json</p>
+          </div>
+        </div>
+      )}
+
+      <div className="w-full max-w-[780px]">
+        <header className="mb-9 animate-slide-in-top">
+          <h1 className="mb-2 text-5xl sm:text-6xl font-black tracking-tight text-base-content">
+            Мовник
+          </h1>
+          <p className="text-base sm:text-lg text-base-content/65">
+            Інструмент для перекладу модифікацій Minecraft
+          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
+            {SUPPORTED_FORMATS.map((fmt) => (
+              <span
+                key={fmt}
+                className="rounded-full border border-base-content/10 bg-base-200/80 px-2.5 py-0.5 font-mono text-[11px] text-base-content/60"
+              >
+                {fmt}
+              </span>
+            ))}
+          </div>
+        </header>
+
         {hasSessions && (
-          <section className="mb-8 text-left animate-fade-in">
-            <h2 className="m-0 mb-3 text-lg font-semibold">Нещодавні сесії</h2>
-            <ul className="m-0 flex list-none flex-col gap-3 p-0">
-              {sessions.map((session, index) => (
-                <li
-                  key={session.id}
-                  className="flex items-center justify-between gap-4 rounded-box border border-base-content/15 bg-base-200 p-4"
-                >
-                  <div className="min-w-0">
-                    <p className="m-0 truncate font-semibold">{session.name}</p>
-                    <p className="m-0 mt-1 text-sm text-base-content/60">
-                      Затверджено{" "}
-                      {session.translations.filter((t) => t.confirmed && isTranslatable(t)).length} /{" "}
-                      {session.translations.filter(isTranslatable).length} · збережено{" "}
-                      {new Date(session.savedAt).toLocaleString("uk-UA")}
-                    </p>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <button
-                      ref={(button) => {
-                        continueButtonRefs.current[index] = button;
-                      }}
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      aria-label={`Продовжити сесію «${session.name}»`}
-                      onClick={() => onResume(session)}
-                    >
-                      Продовжити
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm btn-square text-base-content/60 hover:text-error"
-                      aria-label={`Видалити сесію «${session.name}»`}
-                      onClick={() => handleDeleteSession(session, index)}
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={1.8}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
+          <section className="mb-7 text-left animate-fade-in">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="m-0 text-xs font-semibold uppercase tracking-widest text-base-content/50">
+                Нещодавні сесії
+              </h2>
+              <span className="text-xs tabular-nums text-base-content/40">{sessions.length}</span>
+            </div>
+            <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+              {sessions.map((session, index) => {
+                const translatableTotal = session.translations.filter(isTranslatable).length;
+                const confirmedTotal = session.translations.filter((t) => t.confirmed && isTranslatable(t)).length;
+                const pct = translatableTotal ? Math.floor((confirmedTotal / translatableTotal) * 100) : 0;
+
+                return (
+                  <li
+                    key={session.id}
+                    className="group flex items-center justify-between gap-4 rounded-box border border-base-content/12 bg-base-200/90 p-4 transition-all duration-150 hover:border-primary/40 hover:bg-base-200"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="m-0 truncate font-semibold text-base-content">{session.name}</p>
+                        {pct === 100 && translatableTotal > 0 && (
+                          <span className="badge badge-xs badge-success font-semibold">Готово</span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center gap-3">
+                        <div className="h-1.5 w-28 sm:w-36 shrink-0 overflow-hidden rounded-full bg-base-300">
+                          <div
+                            className="h-full rounded-full transition-[width] duration-300"
+                            style={{
+                              width: `${pct}%`,
+                              background:
+                                pct === 100 ? "var(--status-confirmed)" : "var(--accent-gradient)",
+                            }}
+                          />
+                        </div>
+                        <p className="m-0 truncate text-xs tabular-nums text-base-content/60">
+                          {confirmedTotal} / {translatableTotal} ({pct}%) ·{" "}
+                          {new Date(session.savedAt).toLocaleString("uk-UA", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        ref={(button) => {
+                          continueButtonRefs.current[index] = button;
+                        }}
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        aria-label={`Продовжити сесію «${session.name}»`}
+                        onClick={() => onResume(session)}
                       >
-                        <path d="M3 6h18" />
-                        <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                        <path d="M10 11v6M14 11v6" />
-                      </svg>
-                    </button>
-                  </div>
-                </li>
-              ))}
+                        Продовжити
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm btn-square text-base-content/50 hover:bg-error/15 hover:text-error"
+                        aria-label={`Видалити сесію «${session.name}»`}
+                        title="Видалити сесію"
+                        onClick={() => setPendingDelete({ session, index })}
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={1.8}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          <path d="M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}
+
         <button
           ref={pickerButtonRef}
           type="button"
           onClick={openFilePicker}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
           aria-label="Завантажити файл .jar або .json"
-          className={`w-full block border-2 border-dashed rounded-box ${hasSessions ? "py-8" : "py-16"} px-8 cursor-pointer transition-all duration-300 ease-in-out animate-scale-in-center [animation-delay:0.4s] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-pink ${
+          className={`group block w-full cursor-pointer rounded-box border-2 border-dashed ${
+            hasSessions ? "py-9" : "py-16"
+          } px-8 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-pink ${
             isDragging
-              ? "border-primary bg-base-300 scale-[1.02]"
-              : "border-neutral bg-base-200 hover:bg-base-300 hover:border-primary hover:scale-[1.02]"
+              ? "border-accent-pink bg-base-300/90 scale-[1.01]"
+              : "border-base-content/15 bg-base-200/80 hover:border-primary/60 hover:bg-base-200"
           }`}
         >
-          <svg
-            className={`w-12 h-12 mx-auto mb-4 transition-colors ${isDragging ? "text-accent-pink" : "text-base-content/40"}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            aria-hidden="true"
+          <div
+            className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${
+              isDragging
+                ? "bg-primary/20 text-accent-pink"
+                : "bg-base-300/80 text-base-content/50 group-hover:bg-primary/15 group-hover:text-accent-pink"
+            }`}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9m0 0L8.25 12.75M12 9l3.75 3.75" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 15.75V18a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 18v-2.25" />
-          </svg>
-          <p className="m-0 text-xl font-medium text-base-content/70">
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.7}
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9m0 0L8.25 12.75M12 9l3.75 3.75" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 15.75V18a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 18v-2.25" />
+            </svg>
+          </div>
+          <p className="m-0 text-lg font-semibold text-base-content/90">
             {isDragging ? "Відпустіть файл тут" : "Перетягніть сюди файл .jar або .json"}
           </p>
-          <p className="m-0 mt-2 text-sm text-base-content/60">або натисніть, щоб обрати файл</p>
+          <p className="m-0 mt-1.5 text-sm text-base-content/55">
+            або натисніть, щоб обрати файл з комп’ютера
+          </p>
         </button>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -156,15 +257,16 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
           className="hidden"
           onChange={handleFileChange}
         />
-        <div className="mt-4 flex items-center justify-center gap-3 animate-fade-in [animation-delay:0.5s]">
-          <span className="text-sm text-base-content/60">або</span>
+
+        <div className="mt-4 flex items-center justify-center gap-2.5 animate-fade-in">
+          <span className="text-xs text-base-content/50">або</span>
           <button
             type="button"
             onClick={onPasteClipboard}
-            className="btn btn-ghost btn-sm gap-2 text-base-content/70 hover:text-accent-pink"
+            className="btn btn-ghost btn-sm gap-2 text-base-content/75 hover:bg-base-200 hover:text-accent-pink"
           >
             <svg
-              className="w-4 h-4"
+              className="h-4 w-4"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -180,6 +282,17 @@ const WelcomeScreen = ({ onFileDrop, onPasteClipboard, sessions, onResume, onDel
           </button>
         </div>
       </div>
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Видалити сесію?"
+          message={`Сесію «${pendingDelete.session.name}» та весь її збережений прогрес буде видалено безповоротно.`}
+          confirmLabel="Видалити"
+          tone="error"
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 };

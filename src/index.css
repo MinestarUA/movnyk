@@ -68,6 +68,14 @@ body {
   outline-color: var(--accent-pink);
 }
 
+/* Subtle hover feedback on collapsed translation rows without React hover state. */
+.row-collapsed {
+  transition: background-color 0.12s ease;
+}
+.row-collapsed:hover {
+  background-color: color-mix(in srgb, var(--color-surface) 70%, transparent) !important;
+}
+
 .mono {
   font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
 }

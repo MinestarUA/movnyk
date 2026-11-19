@@ -5,13 +5,13 @@ import { parseLangContent } from "../lib/importing";
 import { describeOriginalUpdate } from "../lib/originalUpdate";
 
 const DIVIDER = "h-px shrink-0 bg-base-content/15";
-const SECTION_LABEL = "text-[10px] uppercase tracking-widest text-gray-500";
+const SECTION_LABEL = "text-[10px] font-semibold uppercase tracking-widest text-gray-500";
 const IMPORT_BTN =
-  "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-base-content/15 px-2.5 py-1.5 text-center text-xs font-medium leading-snug text-base-content disabled:cursor-not-allowed disabled:opacity-50";
-const CHECKBOX_LABEL = "flex cursor-pointer items-start gap-2 text-xs leading-snug text-gray-400";
+  "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-base-content/15 bg-base-100/40 px-2.5 py-1.5 text-center text-xs font-medium leading-snug text-base-content transition-colors hover:border-base-content/30 hover:bg-base-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-pink disabled:cursor-not-allowed disabled:opacity-50";
+const CHECKBOX_LABEL = "flex cursor-pointer items-start gap-2 text-xs leading-snug text-gray-400 transition-colors hover:text-base-content/90";
 const CHECKBOX = "mt-0.5 size-3.5 shrink-0 accent-accent";
 const EXPORT_BTN =
-  "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-primary/40 text-xs font-semibold text-accent-pink";
+  "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-primary/40 px-2.5 text-xs font-semibold text-accent-pink transition-colors hover:border-primary/70 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-pink";
 
 const Sidebar = ({
   open = true,
@@ -147,6 +147,7 @@ const Sidebar = ({
   const keyReady = hasApiKey(settings);
   const running = aiState?.running;
   const aiProgress = running && aiState.total ? Math.floor((aiState.done / aiState.total) * 100) : 0;
+  const progressPct = total ? Math.floor((confirmedCount / total) * 100) : 0;
 
   return (
     <aside
@@ -158,27 +159,39 @@ const Sidebar = ({
     >
       <div className="flex h-full w-[260px] flex-col gap-3 overflow-y-auto px-3 pb-4 pt-3">
         <div className="flex items-center justify-between">
-          <div className="text-base font-medium">Дії</div>
+          <div className="text-base font-semibold tracking-tight">Дії</div>
           <button
+            type="button"
             onClick={onOpenSettings}
             title="Налаштування"
             aria-label="Налаштування"
-            className="flex h-7 w-7 items-center justify-center rounded-lg border border-base-content/15 text-gray-400"
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-base-content/15 text-gray-400 transition-colors hover:border-base-content/30 hover:bg-base-300 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-pink"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-              <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
-              <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
-              <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </button>
         </div>
 
-        <div className="flex flex-col gap-0.5 py-2">
-          <div className="text-2xl font-bold leading-[1.1]">
-            {confirmedCount}{" "}
-            <span className="text-sm font-medium text-gray-500">/ {total}</span>
+        <div className="flex flex-col gap-1.5 rounded-lg border border-base-content/10 bg-base-100/50 p-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-2xl font-bold leading-[1.1] tabular-nums">
+              {confirmedCount}{" "}
+              <span className="text-sm font-medium text-gray-500">/ {total}</span>
+            </div>
+            <span className="text-xs font-semibold tabular-nums text-accent-pink">{progressPct}%</span>
           </div>
-          <div className="text-[10px] uppercase tracking-widest text-gray-500">Затверджено</div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-base-300">
+            <div
+              className="h-full rounded-full transition-[width] duration-300"
+              style={{
+                width: `${progressPct}%`,
+                background: progressPct === 100 ? "var(--status-confirmed)" : "var(--accent-gradient)",
+              }}
+            />
+          </div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">Затверджено</div>
         </div>
 
         {keyReady &&
@@ -198,16 +211,18 @@ const Sidebar = ({
                 {aiState.done} / {aiState.total} ({aiProgress}%)
               </div>
               <button
+                type="button"
                 onClick={onCancelAutoTranslate}
-                className="mt-2.5 h-8 w-full rounded-lg border border-error text-xs font-semibold text-error"
+                className="mt-2.5 h-8 w-full rounded-lg border border-error text-xs font-semibold text-error transition-colors hover:bg-error/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
               >
                 Скасувати
               </button>
             </div>
           ) : (
             <button
+              type="button"
               onClick={onAutoTranslate}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[image:var(--accent-gradient)] text-[13px] font-bold text-white shadow-[shadow:var(--accent-glow)]"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[image:var(--accent-gradient)] text-[13px] font-bold text-white shadow-[shadow:var(--accent-glow)] transition-all hover:brightness-110 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-pink"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
@@ -289,13 +304,23 @@ const Sidebar = ({
 
         <div className="flex flex-col gap-2">
           <div className={SECTION_LABEL}>Експорт</div>
-          <button className={`${EXPORT_BTN} bg-primary/15`} onClick={onExportJson}>
+          <button type="button" className={`${EXPORT_BTN} bg-primary/15`} onClick={onExportJson}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3v12" />
+              <path d="M7 11l5 5 5-5" />
+              <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+            </svg>
             Експортувати як JSON
           </button>
-          <button className={EXPORT_BTN} onClick={onExportResourcePack}>
+          <button type="button" className={EXPORT_BTN} onClick={onExportResourcePack}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
             Експортувати як ресурспак
           </button>
-          <button className={EXPORT_BTN} onClick={onExportClipboard}>
+          <button type="button" className={EXPORT_BTN} onClick={onExportClipboard}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="9" y="9" width="11" height="11" rx="2" />
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
@@ -306,8 +331,9 @@ const Sidebar = ({
 
         {!keyReady && (
           <button
+            type="button"
             onClick={onOpenSettings}
-            className="p-0 text-left text-xs text-gray-500 underline decoration-dotted"
+            className="p-0 text-left text-xs text-gray-500 underline decoration-dotted transition-colors hover:text-accent-pink"
           >
             Додайте ключ API ШІ, щоб перекладати автоматично
           </button>

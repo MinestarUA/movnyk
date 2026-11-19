@@ -347,7 +347,13 @@ const App = () => {
   const renderScreen = () => {
     switch (screen) {
       case "lang-selection":
-        return <LangSelectionScreen langFiles={langFiles} onLangSelect={handleLangSelect} />;
+        return (
+          <LangSelectionScreen
+            langFiles={langFiles}
+            onLangSelect={handleLangSelect}
+            onBack={handleHome}
+          />
+        );
       case "editor":
         return initialTranslations ? (
           <EditorScreen

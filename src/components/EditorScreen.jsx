@@ -64,51 +64,56 @@ const getSelectedText = (active) => {
   return selected.trim();
 };
 
-const COLUMN_HEADER = "text-[10px] font-medium tracking-widest text-gray-500";
+const COLUMN_HEADER = "text-[10px] font-semibold tracking-widest text-gray-500";
 const PROGRESS_COUNTER = "whitespace-nowrap text-xs tabular-nums text-gray-400";
 const HEADER_ICON_BTN =
-  "flex shrink-0 items-center justify-center rounded-lg border border-base-content/15 text-gray-400";
+  "flex shrink-0 items-center justify-center rounded-lg border border-base-content/15 text-gray-400 transition-colors hover:border-base-content/30 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-pink";
 const TEXT_INPUT =
-  "h-9 w-full rounded-l-lg border border-r-0 bg-base-200 text-[13px] text-base-content outline-none";
+  "h-9 w-full rounded-l-lg border border-r-0 bg-base-200 text-[13px] text-base-content placeholder:text-gray-500 outline-none transition-colors";
 // The lighter accent shade keeps small active text above 4:1 on the tinted background.
 const ACCENT_TEXT = "text-[color:var(--color-accent-400)]";
 
 // Segmented search toggles: the last one closes the group with a right edge.
 const toggleBtnClass = (active, isLast = false) =>
   [
-    "h-9 border-y border-l px-2.5 text-xs font-medium",
+    "h-9 border-y border-l px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-pink",
     isLast ? "rounded-r-lg border-r" : "border-r-0",
-    active ? `border-accent bg-accent/10 ${ACCENT_TEXT}` : "border-base-content/15 bg-base-200 text-gray-400",
+    active
+      ? `border-accent bg-accent/15 ${ACCENT_TEXT}`
+      : "border-base-content/15 bg-base-200 text-gray-400 hover:bg-base-300 hover:text-base-content",
   ].join(" ");
 
 const CHIP_BASE =
-  "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold";
+  "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-pink";
 const chipClass = (active, tint) => `${CHIP_BASE} ${active ? tint.on : tint.off}`;
 const CHIP_DOT = "size-1.5 shrink-0 rounded-full";
 const SKY_CHIP = {
   on: "border-blue-400 bg-blue-400/20 text-blue-300",
-  off: "border-blue-400/30 bg-blue-400/10 text-blue-300",
+  off: "border-blue-400/30 bg-blue-400/10 text-blue-300 hover:border-blue-400/60 hover:bg-blue-400/15",
 };
 // Pink stays reserved for actions, so the untranslated filter uses the accent.
 const ACCENT_CHIP = {
   on: `border-accent bg-accent/20 ${ACCENT_TEXT}`,
-  off: `border-accent/30 bg-accent/10 ${ACCENT_TEXT}`,
+  off: `border-accent/30 bg-accent/10 ${ACCENT_TEXT} hover:border-accent/60 hover:bg-accent/15`,
   dot: "bg-accent",
 };
 const AMBER_CHIP = {
   on: "border-warning bg-warning/20 text-warning",
-  off: "border-warning/30 bg-warning/10 text-warning",
+  off: "border-warning/30 bg-warning/10 text-warning hover:border-warning/60 hover:bg-warning/15",
   dot: "bg-warning",
 };
 
 const SHORTCUTS = [
-  ["Enter", "наступний"],
+  ["Enter", "затвердити й далі"],
   ["Ctrl+↑/↓", "навігація"],
   ["Ctrl+F", "пошук"],
+  ["Ctrl+Shift+F", "довідник проєкту"],
+  ["Ctrl+D", "шукати виділене в довіднику"],
+  ["Tab", "прийняти автопідказку"],
   ["Alt+Z/X/C", "регістр"],
-  ["Alt+Q", "попередження"],
+  ["Alt+Q", "попередження QA"],
   ["Alt+1…9", "токен з оригіналу"],
-  ["Esc", "до рядка"],
+  ["Esc", "очистити пошук / до рядка"],
 ];
 
 const EditorScreen = ({
@@ -1073,7 +1078,20 @@ const EditorScreen = ({
               <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5" />
             </svg>
           </button>
-          <div className="rw-title shrink-0 text-xl font-medium tracking-tight">Мовник</div>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="rw-title shrink-0 text-xl font-semibold tracking-tight">Мовник</div>
+            {session?.name && (
+              <>
+                <span aria-hidden="true" className="text-base-content/25">/</span>
+                <span
+                  className="max-w-[240px] truncate text-sm font-medium text-base-content/65"
+                  title={session.name}
+                >
+                  {session.name}
+                </span>
+              </>
+            )}
+          </div>
 
           <div className="flex-1" />
 
@@ -1084,7 +1102,7 @@ const EditorScreen = ({
                 <span className="text-gray-500">рядки</span> {confirmedCount} / {total} · {progress}%
               </span>
             </div>
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="hidden xl:flex min-w-0 items-center gap-2">
               <WalkingCat
                 tone="teal"
                 label="Прогрес за символами"
@@ -1102,9 +1120,13 @@ const EditorScreen = ({
             type="button"
             onClick={() => setReferenceDrawerOpen((v) => !v)}
             title="Довідник проєкту / Швидкий пошук (Ctrl+Shift+F)"
+            aria-pressed={referenceDrawerOpen}
             className={`btn btn-sm gap-1.5 px-2.5 text-xs ${referenceDrawerOpen ? "btn-primary" : "btn-neutral"}`}
           >
-            <span>📖</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
             <span className="hidden sm:inline">Довідник</span>
           </button>
 
@@ -1124,7 +1146,7 @@ const EditorScreen = ({
               aria-label="Комбінації клавіш"
               aria-expanded={shortcutsOpen}
               aria-controls="editor-shortcuts"
-              className={`${HEADER_ICON_BTN} h-8 w-8`}
+              className={`${HEADER_ICON_BTN} h-8 w-8 ${shortcutsOpen ? "border-accent bg-accent/15 text-base-content" : ""}`}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="9" />
@@ -1135,15 +1157,18 @@ const EditorScreen = ({
             {shortcutsOpen && (
               <div
                 id="editor-shortcuts"
-                className="absolute right-0 top-full z-30 mt-2 w-64 rounded-box border border-base-content/15 bg-base-300 p-3 shadow-xl"
+                className="absolute right-0 top-full z-30 mt-2 w-72 rounded-box border border-base-content/15 bg-base-200 p-3.5 shadow-2xl animate-fade-in"
               >
+                <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                  Комбінації клавіш
+                </div>
                 <dl className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-xs">
                   {SHORTCUTS.map(([keys, description]) => (
                     <Fragment key={keys}>
                       <dt>
-                        <kbd className="kbd kbd-sm">{keys}</kbd>
+                        <kbd className="kbd kbd-xs font-mono">{keys}</kbd>
                       </dt>
-                      <dd className="text-gray-400">{description}</dd>
+                      <dd className="text-gray-300">{description}</dd>
                     </Fragment>
                   ))}
                 </dl>
@@ -1156,7 +1181,7 @@ const EditorScreen = ({
             onClick={() => setSidebarOpen((v) => !v)}
             title={sidebarOpen ? "Сховати панель дій" : "Показати панель дій"}
             aria-pressed={sidebarOpen}
-            className={`${HEADER_ICON_BTN} h-8 w-8`}
+            className={`${HEADER_ICON_BTN} h-8 w-8 ${sidebarOpen ? "border-base-content/25 bg-base-200 text-base-content" : ""}`}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -1167,32 +1192,47 @@ const EditorScreen = ({
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="max-w-full shrink-0 basis-[560px]">
-            <div className="relative flex min-w-[260px] items-center">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                className="pointer-events-none absolute left-3 text-gray-500"
-                aria-hidden="true"
-              >
-                <circle cx="10" cy="10" r="7" />
-                <line x1="21" y1="21" x2="15.5" y2="15.5" />
-              </svg>
-              <input
-                id="translation-search"
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Пошук за ключем, оригіналом або перекладом…"
-                aria-label="Пошук перекладів"
-                aria-invalid={Boolean(queryError)}
-                aria-describedby={queryError ? "translation-search-error" : undefined}
-                className={`${TEXT_INPUT} pl-8 pr-3 ${queryError ? "border-error" : "border-base-content/15"}`}
-              />
+            <div className="flex min-w-[260px] items-center rounded-lg focus-within:ring-2 focus-within:ring-accent/60">
+              <div className="relative flex min-w-0 flex-1 items-center">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  className="pointer-events-none absolute left-3 text-gray-500"
+                  aria-hidden="true"
+                >
+                  <circle cx="10" cy="10" r="7" />
+                  <line x1="21" y1="21" x2="15.5" y2="15.5" />
+                </svg>
+                <input
+                  id="translation-search"
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Пошук за ключем, оригіналом або перекладом…"
+                  aria-label="Пошук перекладів"
+                  aria-invalid={Boolean(queryError)}
+                  aria-describedby={queryError ? "translation-search-error" : undefined}
+                  className={`${TEXT_INPUT} pl-8 ${query ? "pr-8" : "pr-3"} ${queryError ? "border-error" : "border-base-content/15"}`}
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Очистити пошук"
+                    title="Очистити пошук (Esc)"
+                    className="absolute right-2 flex h-5 w-5 items-center justify-center rounded text-gray-400 transition-colors hover:bg-base-300 hover:text-base-content"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
                 className={`mono ${toggleBtnClass(caseSensitive)}`}
@@ -1269,10 +1309,14 @@ const EditorScreen = ({
                 setQuery("");
                 focusRequestRef.current = true;
               }}
-              className="btn btn-xs btn-outline btn-warning ml-3 shrink-0"
+              className="btn btn-xs btn-outline btn-warning ml-1 shrink-0 gap-1"
               title="Очистити пошук та повернутися до робочого рядка"
             >
-              📌 До рядка ({activeKey.length > 20 ? activeKey.slice(0, 20) + "…" : activeKey})
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 17v5" />
+                <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1z" />
+              </svg>
+              До рядка ({activeKey.length > 20 ? activeKey.slice(0, 20) + "…" : activeKey})
             </button>
           )}
 
@@ -1401,12 +1445,32 @@ const EditorScreen = ({
           )}
 
           {filtered.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center text-center text-gray-500">
-              <p>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-gray-400">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-base-200 text-gray-500">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </div>
+              <p className="m-0 max-w-sm text-sm">
                 {queryError
                   ? "Виправте синтаксис регулярного виразу в полі пошуку."
-                  : "Нічого не знайдено. Спробуйте змінити запит або зніміть фільтр."}
+                  : "Нічого не знайдено. Спробуйте змінити запит або зняти активні фільтри."}
               </p>
+              {!queryError && (query || filterUntranslated || filterUnconfirmed || scope !== "all") && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-neutral"
+                  onClick={() => {
+                    setQuery("");
+                    setFilterUntranslated(false);
+                    setFilterUnconfirmed(false);
+                    setScope("all");
+                  }}
+                >
+                  Скинути пошук і фільтри
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 px-4">

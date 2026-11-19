@@ -168,6 +168,77 @@ const SparklesIcon = ({ size = 15 }) => (
   </svg>
 );
 
+const SyncIcon = ({ size = 11 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <path d="M3 3v5h5" />
+    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+    <path d="M16 16h5v5" />
+  </svg>
+);
+
+const WarningIcon = ({ size = 12 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const InfoIcon = ({ size = 12 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="16" x2="12" y2="12" />
+    <line x1="12" y1="8" x2="12.01" y2="8" />
+  </svg>
+);
+
+const BoltIcon = ({ size = 10 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+);
+
 const statusDotStyle = (status) => {
   const base = { width: "8px", height: "8px", borderRadius: "50%", display: "block" };
   if (status === "confirmed")
@@ -635,6 +706,7 @@ const TranslationRow = ({
     borderColor: expanded
       ? "var(--color-neutral-800) var(--color-neutral-800) var(--color-neutral-800) var(--accent-pink)"
       : "transparent",
+    boxShadow: expanded ? "0 4px 16px rgba(0, 0, 0, 0.25)" : undefined,
     cursor: "pointer",
     boxSizing: "border-box",
   };
@@ -685,7 +757,7 @@ const TranslationRow = ({
       : null;
 
   return (
-    <div ref={rowRef} style={outerStyle} onClick={onSelect}>
+    <div ref={rowRef} className={!expanded ? "row-collapsed" : undefined} style={outerStyle} onClick={onSelect}>
       {/* 1. Status Dot */}
       <div style={{ display: "flex", alignItems: expanded ? "flex-start" : "center", paddingTop: expanded ? "4px" : 0 }}>
         <span style={statusDotStyle(status)} />
@@ -728,10 +800,11 @@ const TranslationRow = ({
             <button
               type="button"
               onClick={handleCopyKey}
-              className="text-[10px] opacity-60 hover:opacity-100 transition-opacity shrink-0 px-1 py-0.5 rounded bg-base-300"
+              className="inline-flex shrink-0 items-center justify-center rounded bg-base-300/80 p-1 text-base-content/60 transition-colors hover:bg-base-300 hover:text-base-content"
               title="Скопіювати ключ"
+              aria-label="Скопіювати ключ"
             >
-              {copiedKey ? "✓" : "📋"}
+              {copiedKey ? <CheckIcon size={11} /> : <CopyIcon size={11} />}
             </button>
           )}
           {duplicateCount > 1 && (
@@ -741,8 +814,8 @@ const TranslationRow = ({
               aria-pressed={isSynced}
               className={
                 isSynced
-                  ? "badge badge-xs badge-info font-sans shrink-0 cursor-pointer hover:opacity-80 transition-opacity border-0"
-                  : "badge badge-xs badge-ghost font-sans shrink-0 cursor-pointer opacity-55 hover:opacity-100 transition-opacity line-through"
+                  ? "badge badge-xs badge-info shrink-0 cursor-pointer gap-1 border-0 font-sans transition-opacity hover:opacity-80"
+                  : "badge badge-xs badge-ghost shrink-0 cursor-pointer gap-1 font-sans line-through opacity-55 transition-opacity hover:opacity-100"
               }
               title={
                 isSynced
@@ -750,7 +823,8 @@ const TranslationRow = ({
                   : `Цей вихідний текст повторюється у ${duplicateCount} ключах. Синхронізацію для цієї групи вимкнено. Натисніть, щоб увімкнути.`
               }
             >
-              🔄 {duplicateCount}
+              <SyncIcon size={10} />
+              {duplicateCount}
             </button>
           )}
         </div>
@@ -913,7 +987,7 @@ const TranslationRow = ({
                       const badgeClass = isInfo
                         ? "bg-info/15 text-info border-info/30"
                         : "bg-warning/15 text-warning border-warning/30";
-                      const icon = isInfo ? "ℹ️" : "⚠️";
+                      const icon = isInfo ? <InfoIcon size={12} /> : <WarningIcon size={12} />;
 
                       return (
                         <span
@@ -921,7 +995,7 @@ const TranslationRow = ({
                           className={`${!showQaDetails ? "qa-tip" : ""} inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] pl-2 pr-1.5 py-0.5 rounded border font-medium bg-base-200 ${badgeClass}`}
                           data-tip={!showQaDetails ? issue.message : undefined}
                         >
-                          <span aria-hidden="true">{icon}</span>
+                          <span className="inline-flex items-center" aria-hidden="true">{icon}</span>
                           {!showQaDetails && <span className="sr-only">{issue.message}</span>}
                           {typeof issue.fix === "function" && (
                             <button
@@ -934,9 +1008,10 @@ const TranslationRow = ({
                                   onTranslate(fixed);
                                 }
                               }}
-                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-base-100/70 hover:bg-base-100 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-current/20 shadow-xs"
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-base-100/70 hover:bg-base-100 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-current/20 shadow-xs"
                             >
-                              Виправити ⚡
+                              Виправити
+                              <BoltIcon size={10} />
                             </button>
                           )}
                         </span>
@@ -950,7 +1025,9 @@ const TranslationRow = ({
                           key={idx}
                           className={`flex items-start gap-1.5 ${issue.severity === "info" ? "text-info" : "text-warning"}`}
                         >
-                          <span aria-hidden="true">{issue.severity === "info" ? "ℹ️" : "⚠️"}</span>
+                          <span className="mt-0.5 inline-flex shrink-0" aria-hidden="true">
+                            {issue.severity === "info" ? <InfoIcon size={12} /> : <WarningIcon size={12} />}
+                          </span>
                           <span>{issue.message}</span>
                         </li>
                       ))}
@@ -996,10 +1073,10 @@ const TranslationRow = ({
             </div>
             {qaIssues.length > 0 && (
               <span
-                className={`${qaIssues.every((i) => i.severity === "info") ? "text-info" : "text-warning"} text-xs shrink-0 cursor-help`}
+                className={`${qaIssues.every((i) => i.severity === "info") ? "text-info" : "text-warning"} inline-flex shrink-0 cursor-help items-center`}
                 title={qaIssues.map((i) => i.message).join("\n")}
               >
-                {qaIssues.every((i) => i.severity === "info") ? "ℹ️" : "⚠️"}
+                {qaIssues.every((i) => i.severity === "info") ? <InfoIcon size={13} /> : <WarningIcon size={13} />}
               </span>
             )}
           </div>
